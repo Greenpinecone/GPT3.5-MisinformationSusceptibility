@@ -1,4 +1,4 @@
-FROM python:latest
+FROM python:3.12-slim
 
 # All subsequent commands will be executed in the context of the /app directory
 WORKDIR /app
@@ -12,4 +12,4 @@ COPY . .
 # The final result is app/app/main.py ...
 
 # Command to start the python applciation
-CMD ["python", "app/main.py"]
+CMD ["streamlit", "run", "--server.address=0.0.0.0", "app/main.py"]
