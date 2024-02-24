@@ -172,7 +172,6 @@ Thumbs.db
 *.exe
 *.dll
 *.pdb
-*.sh
 *.bat
 *.cmd
 *.ps1
