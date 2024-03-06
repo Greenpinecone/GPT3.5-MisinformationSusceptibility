@@ -21,7 +21,7 @@ class Logger:
         logger (logging.Logger): Configured logger instance.
     """
 
-    def __init__(self, name: str = "global", log_file: str = 'app.log', level: int = logging.INFO) -> None:
+    def __init__(self, name: str = "global", log_file: str = 'logs/app.log', level: int = logging.INFO) -> None:
         """
         Initializes the logger with specified name, log file, and level.
 
