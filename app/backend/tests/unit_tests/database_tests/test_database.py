@@ -1,7 +1,7 @@
 import pytest
-from app.backend.persistence.daos.data_manager import DataManager
+from app.backend.persistence.classes.data_manager import DataManager
 from database.schema import Base
-from backend.service.classes.util.logger import Logger
+from ....util.logger import Logger
 
 """
 @pytest.fixture(scope='function')
