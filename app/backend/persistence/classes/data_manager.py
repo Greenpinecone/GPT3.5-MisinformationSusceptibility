@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import datetime
 from sqlalchemy import Engine, create_engine, func
 from sqlalchemy.orm import sessionmaker
@@ -5,8 +6,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 from sqlalchemy.exc import SQLAlchemyError
 from ...database.schema import AugmentationType, Base, DatasetCategory, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun
-from ...service.classes.util.logger import Logger
-from contextlib import contextmanager
+from ...util.logger import Logger
 
 
 # Instantiates a new database or loads the currently
