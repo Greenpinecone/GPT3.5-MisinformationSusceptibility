@@ -8,9 +8,9 @@ of the project, calling functions from other modules and handling the overall pr
 import streamlit as st
 import numpy as np
 import pandas as pd
-import plotly
+import plotly as pl
 from ..backend.util.logger import StreamlitLogger
-from app.backend.persistence.classes.data_manager import DataManager
+from ..backend.persistence.classes.data_manager import DataManager
 from ..backend.util import utility_functions as uf
 from ..backend.util.config import Config
 

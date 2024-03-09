@@ -5,3 +5,5 @@ plotly==5.19.0
 python-dotenv==1.0.1
 SQLAlchemy==2.0.28
 pytest==8.0.2
+marshmallow==3.21.1
+marshmallow-sqlalchemy==1.0.0
