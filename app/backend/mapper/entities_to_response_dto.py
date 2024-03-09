@@ -2,7 +2,7 @@ from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
 from marshmallow_sqlalchemy.fields import Nested
 from marshmallow import fields, validate, post_load
 from ..database.schema import *
-from ..dtos.db_entity_dtos import *
+from ..dtos.response import *
 
 # Directly handles enum convertion to value (e.g. String) for simple type usage and convertion from simple type to python enum when deserialized into database entity.
 
