@@ -53,6 +53,7 @@ class Project(Base):
     id = Column(Integer, primary_key=True)
     project_name = Column(String, unique=True)
     timestamp = Column(DateTime, default=func.now())
+    description = Column(String)
     # Relationship to models
     # One project to many models
     models = relationship("Model", back_populates="project")
@@ -74,7 +75,7 @@ class Dataset(Base):
     # Self-referential relationship, a dataset can have exactly one parent and multiple children.
     # only set if the dataset itself is not an initial dataset
     initial_dataset = relationship("Dataset", remote_side=[
-                                   id], backref="children")
+                                   id], backref="children",  nullable=True)
     # The test dataset for the current dataset
     test_dataset = relationship("Dataset", remote_side=[
         id], backref="children")
@@ -139,7 +140,7 @@ class Model(Base):
         'Dataset', secondary=model_dataset_link)
     # Correctly setup for multiple training runs per model
     training_run = relationship(
-        "TrainingRun", back_populates="model", order_by="TrainingRun.id")
+        "TrainingRun", back_populates="model", uselist=False, order_by="TrainingRun.id")
 
 
 # This table holds information regarding the evaluation of a model against its trainingsdataset(s). The model id points to the model this information belongs to. The evaluation type can be one of four values for the confusion matrix. And the helpful_score, honest_score and harmless_score is for saving the HHH criteria related data for each datapoint for later calculating the results and also reevaluating the previous evaluation. The datapoint id saves the reference to the original datapoint that was evaluated.
