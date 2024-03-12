@@ -53,7 +53,7 @@ class ProjectSchema(BaseSchema):
     id = auto_field()
     project_name = auto_field()
     description = auto_field()
-    timestamp = auto_field()
+    created_at = auto_field()
     models = Nested('ModelSchema', many=True, only=["id"], allow_none=True)
     datasets = Nested('DatasetSchema', many=True, only=["id"], allow_none=True)
 
@@ -70,7 +70,7 @@ class DatasetSchema(BaseSchema):
     dataset_name = auto_field()
     augmented = auto_field()
     category = DatasetCategoryEnumField()
-    timestamp = auto_field()
+    created_at = auto_field()
     projects = Nested(ProjectSchema, many=True, only=["id"])
     initial_dataset = Nested('self', exclude=(
         "initial_dataset", "test_dataset", "datapoints"), many=False, allow_none=True)
@@ -95,6 +95,7 @@ class DataPointSchema(BaseSchema):
         validate=validate.Range(min=1, max=10), allow_none=True)
     semantic_similarity_score = auto_field(allow_none=True)
     augmentation_type = AugmentationTypeEnumField()
+    created_at = auto_field()
     messages = auto_field()
     initial_datapoint_id = Nested('self', only=["id", "dataset_id", "coherence_score", "relevance_score",
                                   "semantic_similarity_score", "augmentation_type", "messages", "initial_datapoint_id"], many=False, allow_none=True)
@@ -111,14 +112,15 @@ class ModelSchema(BaseSchema):
     id = auto_field()
     model_name = auto_field()
     parent_model_id = Nested(
-        'self', only=["id", "model_name", "version", "timestamp"], many=False, allow_none=True)
+        'self', only=["id", "model_name", "version", "created_at"], many=False, allow_none=True)
     version = auto_field()
-    timestamp = auto_field()
+    created_at = auto_field()
     project_id = auto_field()
     evaluations = Nested('ModelEvaluationSchema', many=True,
                          only=["id"], allow_none=True)
     datasets = Nested(DatasetSchema, many=True, only=["id"])
-    training_run = Nested('TrainingRunSchema', only=["id"], many=False)
+    training_run = Nested('TrainingRunSchema', only=[
+                          "id"], many=False, allow_none=True)
 
     class Meta(BaseSchema.Meta):
         model = Model
@@ -136,6 +138,8 @@ class ModelEvaluationSchema(BaseSchema):
     helpful_score = auto_field(validate=validate.Range(min=1, max=10))
     honest_score = auto_field(validate=validate.Range(min=1, max=10))
     harmless_score = auto_field(validate=validate.Range(min=1, max=10))
+    created_at = auto_field()
+
     datapoint = Nested(DataPointSchema, only=("id", "dataset_id", "messages"))
 
     class Meta(BaseSchema.Meta):
@@ -152,7 +156,7 @@ class TrainingRunSchema(BaseSchema):
     epochs = auto_field()
     learning_rate_multiplier = auto_field()
     batch_size = auto_field()
-    timestamp = auto_field()
+    created_at = auto_field()
 
     class Meta(BaseSchema.Meta):
         model = TrainingRun
