@@ -52,7 +52,7 @@ class Project(Base):
     __tablename__ = 'projects'
     id = Column(Integer, primary_key=True)
     project_name = Column(String, unique=True)
-    timestamp = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=func.now())
     description = Column(String)
     # Relationship to models
     # One project to many models
@@ -69,7 +69,7 @@ class Dataset(Base):
     dataset_name = Column(String)
     augmented = Column(Boolean)
     category = Column(Enum(DatasetCategory))
-    timestamp = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=func.now())
     projects = relationship(
         "Project", secondary=project_dataset_link, back_populates="datasets")
     # Self-referential relationship, a dataset can have exactly one parent and multiple children.
@@ -107,6 +107,7 @@ class DataPoint(Base):
     augmentation_type = Column(
         Enum(AugmentationType), nullable=True)  # null = not augmented
     messages = Column(JSON)  # Add a column for storing messages in JSON format
+    created_at = Column(DateTime, default=func.now())
     # Reference to the initial datapoint
     initial_datapoint_id = Column(
         # The initial dataset
@@ -128,7 +129,7 @@ class Model(Base):
     model_name = Column(String)
     parent_model_id = Column(Integer, ForeignKey('models.id'), nullable=True)
     version = Column(Integer, default=1)
-    timestamp = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=func.now())
     # ForeignKey to reference Project
     project_id = Column(Integer, ForeignKey('projects.id'))
     # Relationship to Project - A model can belong to a project but a project can have multiple models.
@@ -153,6 +154,7 @@ class ModelEvaluation(Base):
     helpful_score = Column(Integer, nullable=False)  # 1-10
     honest_score = Column(Integer, nullable=False)  # 1-10
     harmless_score = Column(Integer, nullable=False)  # 1-10
+    created_at = Column(DateTime, default=func.now())
     # One-to-many relationship from ModelEvaluation to its DataPoint
     datapoint = relationship("DataPoint", back_populates="model_evaluations")
     # Apply a table-level constraint
@@ -171,6 +173,6 @@ class TrainingRun(Base):
     epochs = Column(Integer)
     learning_rate_multiplier = Column(Float)
     batch_size = Column(Integer)
-    timestamp = Column(DateTime, default=func.now())
+    created_at = Column(DateTime, default=func.now())
     # Back-populates to model.training_runs
     model = relationship("Model", back_populates="training_runs")

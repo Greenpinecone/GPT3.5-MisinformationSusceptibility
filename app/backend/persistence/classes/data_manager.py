@@ -3,7 +3,7 @@ import datetime
 from sqlalchemy import Engine, create_engine, func
 from sqlalchemy.orm import sessionmaker
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from sqlalchemy.exc import SQLAlchemyError
 from ...database.schema import AugmentationType, Base, DatasetCategory, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun
 from ...util.logger import Logger
@@ -37,10 +37,11 @@ class DataManager:
             session.close()
 
     # For creating or updating a project
-    def save_project(self, project_data: Dict[str, Any]) -> List[Project]:
+    def save_projects(self, projects_data: List[Dict[str: Any]]) -> List[Project]:
+        saved_projects = []
         with self.get_session() as session:
-            try:
-                project_id = project_data.get("id")
+            for project_data in projects_data:
+                project_id = getattr(project_data, 'id', None)
                 if project_id:
                     project = session.query(Project).filter(
                         Project.id == project_id).first()
@@ -50,16 +51,15 @@ class DataManager:
                 else:
                     project = Project(**project_data)
                     session.add(project)
-                return [project]
-            except SQLAlchemyError as e:
-                self.logger.error(f"Error saving project: {e}")
-                return []
+                saved_projects.append(project)
+        return saved_projects
 
     # For creating or updating a dataset
-    def save_dataset(self, dataset_data: Dict[str, Any]) -> List[Dataset]:
+    def save_datasets(self, datasets_data: List[Dict[str: Any]]) -> List[Dataset]:
+        saved_datasets = []
         with self.get_session() as session:
-            try:
-                dataset_id = dataset_data.get("id")
+            for dataset_data in datasets_data:
+                dataset_id = getattr(dataset_data, 'id', None)
                 if dataset_id:
                     dataset = session.query(Dataset).filter(
                         Dataset.id == dataset_id).first()
@@ -69,13 +69,11 @@ class DataManager:
                 else:
                     dataset = Dataset(**dataset_data)
                     session.add(dataset)
-                return [dataset]
-            except SQLAlchemyError as e:
-                self.logger.error(f"Error saving dataset: {e}")
-                return []
+                saved_datasets.append(dataset)
+        return saved_datasets
 
     # For creating or updating datapoints
-    def save_datapoints(self, datapoints_data: List[Dict[str, Any]]) -> List[DataPoint]:
+    def save_datapoints(self, datapoints_data: List[Dict[str: Any]]) -> List[DataPoint]:
         with self.get_session() as session:
             saved_datapoints = []
             try:
@@ -126,10 +124,11 @@ class DataManager:
                 return []
 
     # For creating or updating a model
-    def save_model(self, model_data: Dict[str, Any]) -> List[Model]:
+    def save_models(self, models_data: List[Dict[str: Any]]) -> List[Model]:
+        saved_models = []
         with self.get_session() as session:
-            try:
-                model_id = model_data.get('id')
+            for model_data in models_data:
+                model_id = getattr(model_data, 'id', None)
                 if model_id:
                     model = session.query(Model).filter_by(id=model_id).first()
                     if model:
@@ -138,13 +137,11 @@ class DataManager:
                 else:
                     model = Model(**model_data)
                     session.add(model)
-                return [model]
-            except Exception as e:
-                self.logger.error(f"Failed to save or update model: {e}")
-                return []
+                saved_models.append(model)
+        return saved_models
 
     # For creating or updating model evaluations
-    def save_model_evaluations(self, evaluations_data: List[Dict[str, Any]]) -> List[ModelEvaluation]:
+    def save_model_evaluations(self, evaluations_data: List[Dict[str: Any]]) -> List[ModelEvaluation]:
         with self.get_session() as session:
             saved_evaluations = []
             try:
@@ -167,10 +164,11 @@ class DataManager:
                 return []
 
     # For creating or updating a training run
-    def save_training_run(self, run_data: Dict[str, Any]) -> List[TrainingRun]:
+    def save_training_runs(self, runs_data: List[Dict[str: Any]]) -> List[TrainingRun]:
+        saved_runs = []
         with self.get_session() as session:
-            try:
-                run_id = run_data.get('id')
+            for run_data in runs_data:
+                run_id = getattr(run_data, 'id', None)
                 if run_id:
                     training_run = session.query(
                         TrainingRun).filter_by(id=run_id).first()
@@ -180,14 +178,11 @@ class DataManager:
                 else:
                     training_run = TrainingRun(**run_data)
                     session.add(training_run)
-                    return [training_run]
-            except Exception as e:
-                self.logger.error(
-                    f"Failed to save or update training run: {e}")
-                return []
+                saved_runs.append(training_run)
+        return saved_runs
 
     # For retrieveing all projects filterable by name and creation date
-    def get_projects(self, project_name: str = None, creation_date: datetime.date = None) -> List[Project]:
+    def get_all_projects(self, project_name: str = None, creation_date: datetime.date = None) -> List[Project]:
         with self.get_session() as session:
             try:
                 query = session.query(Project)
@@ -205,7 +200,7 @@ class DataManager:
                 return []
 
     # For retrieving all models associated with a project filterable by name and version
-    def get_models_by_project(self, project_id: int, name: str = None, version: int = None) -> List[Model]:
+    def get_models_by_project_id(self, project_id: int, name: str = None, version: int = None) -> List[Model]:
         with self.get_session() as session:
             try:
                 query = session.query(Model).filter(
@@ -222,7 +217,7 @@ class DataManager:
                 return []
 
     # Retrieve all datasets associated with a model filterable by dataset name, augmented and dataset category
-    def get_datasets_by_model(self, model_id: int, timestamp: datetime.date = None, dataset_name: str = None, augmented: bool = None, category: DatasetCategory = None) -> List[Dataset]:
+    def get_datasets_by_model_id(self, model_id: int, timestamp: datetime.date = None, dataset_name: str = None, augmented: bool = None, category: DatasetCategory = None) -> List[Dataset]:
         with self.get_session() as session:
             try:
                 model = session.query(Model).filter(
@@ -252,8 +247,8 @@ class DataManager:
                 return []
 
     # Retrieve dataset specific datapoints filterable by coherence score, relevance score, semantic similarity score and augmentation type
-    def get_datapoints_from_dataset(self, dataset_id: int, coherence_score: int = None, relevance_score: int = None,
-                                    semantic_similarity: float = None, augmentation_type: AugmentationType = None) -> List[DataPoint]:
+    def get_datapoints_by_dataset_id(self, dataset_id: int, coherence_score: int = None, relevance_score: int = None,
+                                     semantic_similarity: float = None, augmentation_type: AugmentationType = None) -> List[DataPoint]:
         with self.get_session() as session:
             try:
                 # Retrieve the dataset by its ID
@@ -286,7 +281,7 @@ class DataManager:
                 return []
 
     # The function to retrieve all model evaluations remains as is, correctly fetching all evaluations for a given model
-    def get_model_evaluations(self, model_id: int) -> List[ModelEvaluation]:
+    def get_model_evaluations_by_model_id(self, model_id: int) -> List[ModelEvaluation]:
         with self.get_session() as session:
             try:
                 model = session.query(Model).filter(
@@ -300,7 +295,7 @@ class DataManager:
                 return []
 
     # Retrieve the training run of a model
-    def get_training_run(self, model_id: int) -> List[TrainingRun]:
+    def get_training_run_by_model_id(self, model_id: int) -> List[TrainingRun]:
         with self.get_session() as session:
             try:
                 model = session.query(Model).filter(
@@ -312,3 +307,28 @@ class DataManager:
                 self.logger.error(
                     f"Failed to retrieve training runs for model {model_id}: {e}")
                 return []
+
+    def get_model_by_id(self, model_id: int) -> Optional[Model]:
+        """Retrieve a model by its ID."""
+        with self.get_session() as session:
+            return session.query(Model).filter_by(id=model_id).one_or_none()
+
+    def get_dataset_by_id(self, dataset_id: int) -> Optional[Dataset]:
+        """Retrieve a dataset by its ID."""
+        with self.get_session() as session:
+            return session.query(Dataset).filter_by(id=dataset_id).one_or_none()
+
+    def get_project_by_id(self, project_id: int) -> Optional[Project]:
+        """Retrieve a project by its ID."""
+        with self.get_session() as session:
+            return session.query(Project).filter_by(id=project_id).one_or_none()
+
+    def get_training_run_by_id(self, training_run_id: int) -> Optional[TrainingRun]:
+        """Retrieve a training run by its ID."""
+        with self.get_session() as session:
+            return session.query(TrainingRun).filter_by(id=training_run_id).one_or_none()
+
+    def get_datapoint_by_id(self, datapoint_id: int) -> Optional[DataPoint]:
+        """Retrieve a datapoint by its ID."""
+        with self.get_session() as session:
+            return session.query(DataPoint).filter_by(id=datapoint_id).one_or_none()
