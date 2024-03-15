@@ -7,6 +7,8 @@ from typing import Any
 import logging
 from logging.handlers import RotatingFileHandler
 import streamlit as st
+from sqlalchemy.exc import MultipleResultsFound, NoResultFound, SQLAlchemyError
+from marshmallow import ValidationError
 
 
 class Logger:
@@ -21,71 +23,40 @@ class Logger:
         logger (logging.Logger): Configured logger instance.
     """
 
-    def __init__(self, name: str = "global", log_file: str = 'logs/app.log', level: int = logging.INFO) -> None:
+    def __init__(self, name, log_file: str = 'logs/app.log', level: int = logging.DEBUG) -> None:
         """
-        Initializes the logger with specified name, log file, and level.
-
-        Args:
-            name (str): Name of the logger, typically __name__ to reflect the module name. Defaults to 'global'.
-            log_file (str): Name of the file where logs will be written. Defaults to 'app.log'.
-            level (int): Logging level, e.g., logging.INFO, logging.DEBUG. Defaults to logging.INFO.
+        Configures a logger with the given name, log level, and log file.
+        This method ensures that each logger is only configured once.
         """
-        self.logger: logging.Logger = logging.getLogger(name)
+        self.logger = logging.getLogger(name)
+        if not self.logger.handlers:  # Check if the logger already has handlers
+            self.logger.setLevel(level)
+            formatter = logging.Formatter(
+                "[%(filename)s:%(lineno)s - %(funcName)20s() ]%(levelname)s: %(message)s")
 
-        self.logger.setLevel(level)
+            # Console handler
+            ch = logging.StreamHandler()
+            ch.setLevel(level)
+            ch.setFormatter(formatter)
+            self.logger.addHandler(ch)
 
-        # Create formatter
-        formatter: logging.Formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+            # File handler
+            fh = RotatingFileHandler(log_file, maxBytes=1048576, backupCount=1)
+            fh.setLevel(level)
+            fh.setFormatter(formatter)
+            self.logger.addHandler(fh)
 
-        # Create console handler and set level to debug
-        ch: logging.StreamHandler = logging.StreamHandler()
-        ch.setLevel(level)
-        ch.setFormatter(formatter)
-        self.logger.addHandler(ch)
-
-        # Create file handler for logging to a file
-        fh: RotatingFileHandler = RotatingFileHandler(
-            log_file, maxBytes=1048576, backupCount=1)
-        fh.setLevel(level)
-        fh.setFormatter(formatter)
-        self.logger.addHandler(fh)
-
-    def get_logger(self) -> logging.Logger:
-        """
-        Returns the configured logger instance.
-
-        Returns:
-            logging.Logger: The configured logger.
-        """
-        return self.logger
-
-    def info(self, message: str) -> None:
-        """
-        Logs an informational message.
-
-        Args:
-            message (str): The message to be logged.
-        """
+    def info(self, message):
         self.logger.info(message)
 
-    def warning(self, message: str) -> None:
-        """
-        Logs a warning message.
-
-        Args:
-            message (str): The message to be logged.
-        """
+    def warning(self, message):
         self.logger.warning(message)
 
-    def error(self, message: str) -> None:
-        """
-        Logs an error message.
-
-        Args:
-            message (str): The message to be logged.
-        """
+    def error(self, message):
         self.logger.error(message)
+
+    def exception(self, message):
+        self.logger.exception(message)
 
 
 class StreamlitLogger(Logger):
@@ -119,3 +90,19 @@ class StreamlitLogger(Logger):
             message (str): The message to be displayed.
         """
         st.error(message)
+
+    def display_errors(self, func, *args, **kwargs):
+        try:
+            return func(*args, **kwargs)  # Or handle successful result
+        except NoResultFound as e:
+            self.ui_error(
+                str(f"Check the database an inconsistency might have occured: {e}"))
+        except MultipleResultsFound as e:
+            self.ui_error(
+                str(f"Check the database, an id duplication might have occured: {e}"))
+        except ValidationError as e:
+            self.ui_error(str(e))
+        except SQLAlchemyError as e:
+            self.ui_error(str(f"Something went wrong with the database: {e}"))
+        except Exception as e:
+            self.ui_error("An unexpected error occurred, check the logs.")

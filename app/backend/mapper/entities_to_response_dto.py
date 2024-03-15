@@ -97,6 +97,7 @@ class DataPointSchema(BaseSchema):
     augmentation_type = AugmentationTypeEnumField()
     created_at = auto_field()
     messages = auto_field()
+    category = auto_field()
     initial_datapoint_id = Nested('self', only=["id", "dataset_id", "coherence_score", "relevance_score",
                                   "semantic_similarity_score", "augmentation_type", "messages", "initial_datapoint_id"], many=False, allow_none=True)
 
@@ -140,7 +141,8 @@ class ModelEvaluationSchema(BaseSchema):
     harmless_score = auto_field(validate=validate.Range(min=1, max=10))
     created_at = auto_field()
 
-    datapoint = Nested(DataPointSchema, only=("id", "dataset_id", "messages"))
+    datapoint = Nested(DataPointSchema, only=(
+        "id", "dataset_id", "messages", "category"))
 
     class Meta(BaseSchema.Meta):
         model = ModelEvaluation
