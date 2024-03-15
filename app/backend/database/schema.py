@@ -108,6 +108,8 @@ class DataPoint(Base):
         Enum(AugmentationType), nullable=True)  # null = not augmented
     messages = Column(JSON)  # Add a column for storing messages in JSON format
     created_at = Column(DateTime, default=func.now())
+    # The category the datapoint belongs to in the dataset
+    category = Column(str)
     # Reference to the initial datapoint
     initial_datapoint_id = Column(
         # The initial dataset
