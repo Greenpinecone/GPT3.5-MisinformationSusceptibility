@@ -9,11 +9,10 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly as pl
-from ..backend.util.logger import StreamlitLogger
-# from ..backend.util.logger import StreamlitLogger
-# from ..backend.persistence.classes.data_manager import DataManager
-# from ..backend.util import utility_functions as uf
-# from ..backend.util.config import Config
+from backend.util.logger import StreamlitLogger
+from backend.persistence.implementations.data_manager import DataManager
+from backend.util import utility_functions as uf
+from backend.util.config import Config
 
 
 def main():

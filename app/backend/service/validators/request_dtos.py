@@ -1,7 +1,7 @@
 from typing import List, Optional
 from marshmallow import Schema, fields, validates, ValidationError, validate
 from typing import List
-from ..database.schema import DatasetCategory, EvaluationType, AugmentationType
+from ...database.schema import DatasetCategory, EvaluationType, AugmentationType
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 import enum
 
