@@ -1,5 +1,5 @@
 import pytest
-from app.backend.persistence.classes.data_manager import DataManager
+from app.backend.persistence.implementations.data_manager import DataManager
 from database.schema import Base
 from ....util.logger import Logger
 
