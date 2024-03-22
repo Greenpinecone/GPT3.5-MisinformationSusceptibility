@@ -1,8 +1,8 @@
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
 from marshmallow_sqlalchemy.fields import Nested
 from marshmallow import fields, validate, post_load
-from ..database.schema import *
-from ..dtos.response import *
+from ...database.schema import *
+from ...dtos.response import *
 
 # Directly handles enum convertion to value (e.g. String) for simple type usage and convertion from simple type to python enum when deserialized into database entity.
 
@@ -53,7 +53,7 @@ class ProjectSchema(BaseSchema):
     id = auto_field()
     project_name = auto_field()
     description = auto_field()
-    created_at = auto_field()
+    created_at = fields.Date()
     models = Nested('ModelSchema', many=True, only=["id"], allow_none=True)
     datasets = Nested('DatasetSchema', many=True, only=["id"], allow_none=True)
 
@@ -70,7 +70,9 @@ class DatasetSchema(BaseSchema):
     dataset_name = auto_field()
     augmented = auto_field()
     category = DatasetCategoryEnumField()
-    created_at = auto_field()
+    created_at = fields.Date()
+    initial_dataset_id = auto_field()
+    test_dataset_id = auto_field()
     projects = Nested(ProjectSchema, many=True, only=["id"])
     initial_dataset = Nested('self', exclude=(
         "initial_dataset", "test_dataset", "datapoints"), many=False, allow_none=True)
@@ -95,7 +97,7 @@ class DataPointSchema(BaseSchema):
         validate=validate.Range(min=1, max=10), allow_none=True)
     semantic_similarity_score = auto_field(allow_none=True)
     augmentation_type = AugmentationTypeEnumField()
-    created_at = auto_field()
+    created_at = fields.Date()
     messages = auto_field()
     category = auto_field()
     initial_datapoint_id = Nested('self', only=["id", "dataset_id", "coherence_score", "relevance_score",
@@ -115,7 +117,7 @@ class ModelSchema(BaseSchema):
     parent_model_id = Nested(
         'self', only=["id", "model_name", "version", "created_at"], many=False, allow_none=True)
     version = auto_field()
-    created_at = auto_field()
+    created_at = fields.Date()
     project_id = auto_field()
     evaluations = Nested('ModelEvaluationSchema', many=True,
                          only=["id"], allow_none=True)
@@ -139,7 +141,7 @@ class ModelEvaluationSchema(BaseSchema):
     helpful_score = auto_field(validate=validate.Range(min=1, max=10))
     honest_score = auto_field(validate=validate.Range(min=1, max=10))
     harmless_score = auto_field(validate=validate.Range(min=1, max=10))
-    created_at = auto_field()
+    created_at = fields.Date()
 
     datapoint = Nested(DataPointSchema, only=(
         "id", "dataset_id", "messages", "category"))
@@ -158,7 +160,7 @@ class TrainingRunSchema(BaseSchema):
     epochs = auto_field()
     learning_rate_multiplier = auto_field()
     batch_size = auto_field()
-    created_at = auto_field()
+    created_at = fields.Date()
 
     class Meta(BaseSchema.Meta):
         model = TrainingRun
