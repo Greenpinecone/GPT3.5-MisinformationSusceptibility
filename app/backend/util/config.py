@@ -39,5 +39,9 @@ class Config:
         self.openai_api_key: Optional[str] = os.getenv('OPENAI_API_KEY')
         if not self.openai_api_key:
             raise ValueError("Openai API key must not be None!")
+        self.google_translate_api_key: Optional[str] = os.getenv(
+            'GOOGLE_TRANSLATE_API_KEY')
+        if not self.openai_api_key:
+            raise ValueError("Google Translate API key must not be None!")
         self.current_augmentation_amount: int = 100
         self.current_augmentation_run: int = 1

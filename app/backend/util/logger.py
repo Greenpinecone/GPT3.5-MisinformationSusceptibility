@@ -23,7 +23,7 @@ class Logger:
         logger (logging.Logger): Configured logger instance.
     """
 
-    def __init__(self, name, log_file: str = 'logs/app.log', level: int = logging.DEBUG) -> None:
+    def __init__(self, name: str, log_file: str = 'backend/logs/app.log', level: int = logging.DEBUG) -> None:
         """
         Configures a logger with the given name, log level, and log file.
         This method ensures that each logger is only configured once.
@@ -32,7 +32,8 @@ class Logger:
         if not self.logger.handlers:  # Check if the logger already has handlers
             self.logger.setLevel(level)
             formatter = logging.Formatter(
-                "[%(filename)s:%(lineno)s - %(funcName)20s() ]%(levelname)s: %(message)s")
+                "[%(asctime)s] [%(filename)s:%(lineno)s - %(funcName)20s() ]%(levelname)s: %(message)s",
+                datefmt='%Y-%m-%d %H:%M:%S')
 
             # Console handler
             ch = logging.StreamHandler()
@@ -46,23 +47,30 @@ class Logger:
             fh.setFormatter(formatter)
             self.logger.addHandler(fh)
 
-    def info(self, message):
-        self.logger.info(message)
-
-    def warning(self, message):
-        self.logger.warning(message)
-
-    def error(self, message):
-        self.logger.error(message)
-
-    def exception(self, message):
-        self.logger.exception(message)
+    def __getattr__(self, name):
+        """
+        Forward attribute access to the underlying logging.Logger object.
+        This allows direct use of logging methods on instances of this class.
+        """
+        return getattr(self.logger, name)
 
 
 class StreamlitLogger(Logger):
     """
     Extends Logger to add functionality for logging messages to the Streamlit UI.
     """
+
+    def __init__(self, name: str, log_file: str = 'backend/logs/app.log', level: int = logging.DEBUG) -> None:
+        # Call the parent class's __init__ method
+        super().__init__(name, log_file, level)
+
+    def __getattr__(self, name):
+        """
+        This ensures that if an attribute is not found in StreamlitLogger,
+        it's looked up in the Logger class, which then forwards it to
+        the underlying logging.Logger object if not found.
+        """
+        return super().__getattr__(name)
 
     def ui_info(self, message: str) -> None:
         """

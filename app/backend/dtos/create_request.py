@@ -16,8 +16,8 @@ class CreateDatasetDTO:
     augmented: bool
     category: str
     projects: List[int]
-    initial_dataset: Optional[int]
-    test_dataset: Optional[int]
+    initial_dataset_id: Optional[int]
+    test_dataset_id: Optional[int]
     datapoints: List[int]
 
 
