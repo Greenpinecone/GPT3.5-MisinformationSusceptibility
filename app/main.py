@@ -10,22 +10,20 @@ import numpy as np
 import pandas as pd
 import plotly as pl
 from backend.util.logger import StreamlitLogger
-from backend.persistence.implementations.data_manager import DataManager
 from backend.util import utility_functions as uf
 from backend.util.config import Config
+from backend.service.implementations.service_manager_facade import ServiceManagerFacade
 
 
 def main():
-    print("HALLO")
-    # logger: StreamlitLogger = uf.get_or_create_session_state(
-    #     "logger", __name__, default_value=StreamlitLogger)
-    # data_manager: DataManager = uf.get_or_create_session_state(
-    #     "data_manager", logger, default_value=DataManager)
-    # config: Config = uf.get_or_create_session_state(
-    #     "config", default_value=Config)
+    logger: StreamlitLogger = StreamlitLogger(__name__)
+    service: ServiceManagerFacade = uf.get_or_create_session_state(
+        "service", default_value=ServiceManagerFacade.create_with_default_dependencies())
+    config: Config = uf.get_or_create_session_state(
+        "config", default_value=Config)
 
-    # logger.ui_error("HALLO1")
-    # logger.warning("HALLO 2")
+    logger.ui_error("HALLO1")
+    logger.warning("HALLO 2")
     pass
 
 
