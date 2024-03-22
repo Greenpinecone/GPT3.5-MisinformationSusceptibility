@@ -32,13 +32,6 @@ model_dataset_link = Table(
     Column('model_id', Integer, ForeignKey('models.id'), primary_key=True),
     Column('dataset_id', Integer, ForeignKey('datasets.id'), primary_key=True)
 )
-
-dataset_parent_link = Table(
-    'dataset_parent_link', Base.metadata,
-    Column('child_id', Integer, ForeignKey('datasets.id'), primary_key=True),
-    Column('parent_id', Integer, ForeignKey('datasets.id'), primary_key=True)
-)
-
 project_dataset_link = Table(
     'project_dataset_link', Base.metadata,
     Column('project_id', Integer, ForeignKey('projects.id'), primary_key=True),
@@ -70,26 +63,28 @@ class Dataset(Base):
     augmented = Column(Boolean)
     category = Column(Enum(DatasetCategory))
     created_at = Column(DateTime, default=func.now())
+    # Foreign key for the initial dataset (self-referencing)
+    initial_dataset_id = Column(
+        Integer, ForeignKey('datasets.id'), nullable=True)
+    # Foreign key for the test dataset (self-referencing)
+    test_dataset_id = Column(
+        Integer, ForeignKey('datasets.id'), nullable=False)
     projects = relationship(
         "Project", secondary=project_dataset_link, back_populates="datasets")
-    # Self-referential relationship, a dataset can have exactly one parent and multiple children.
-    # only set if the dataset itself is not an initial dataset
-    initial_dataset = relationship("Dataset", remote_side=[
-                                   id], backref="children",  nullable=True)
-    # The test dataset for the current dataset
-    test_dataset = relationship("Dataset", remote_side=[
-        id], backref="children")
+
+    # Relationship to the initial dataset from which this dataset was augmented (if any)
+    initial_dataset = relationship("Dataset", remote_side=[id],
+                                   foreign_keys=[initial_dataset_id],
+                                   backref="augmented_datasets")
+
+    # Relationship to the test dataset associated with this dataset
+    test_dataset = relationship("Dataset", remote_side=[id],
+                                foreign_keys=[test_dataset_id],
+                                backref="training_datasets")  # Assuming each dataset has exactly one test dataset
+
     # Define the relationship to DataPoint (one to many)
     datapoints = relationship(
-        "DataPoint", order_by="dataPoint.id", back_populates="dataset")
-
-    # parents = relationship(
-    #     "Dataset",
-    #     secondary=dataset_parent_link,
-    #     primaryjoin=id == dataset_parent_link.c.child_id,
-    #     secondaryjoin=id == dataset_parent_link.c.parent_id,
-    #     backref="children"
-    # )
+        "DataPoint", order_by="DataPoint.id", back_populates="dataset")
 
 
 # Each Datapoint belongs to exactly one Dataset. Each datapoint has a coherence score (comapring to the initial datapoint), a relevancy score (comparing to the initial datapoint), a semantic similarity score (comapring to the initial datapoint), and augmentation type (backtranslation, EDA or nothing if it is an initial datapoint) and the datapoint id of its initial datapoint from which it has been augmented from if it is augmented, else null. And each datapoint holds a JSON array (messages) consisting of an array of conversational dicts in openai format. And a category string that should match the category in the test dataset for easy matching of training datapoints with corresponding test datapoints.
@@ -109,7 +104,7 @@ class DataPoint(Base):
     messages = Column(JSON)  # Add a column for storing messages in JSON format
     created_at = Column(DateTime, default=func.now())
     # The category the datapoint belongs to in the dataset
-    category = Column(str)
+    category = Column(String)
     # Reference to the initial datapoint
     initial_datapoint_id = Column(
         # The initial dataset
@@ -137,13 +132,13 @@ class Model(Base):
     # Relationship to Project - A model can belong to a project but a project can have multiple models.
     project = relationship("Project", back_populates="models")
     # One way relationship, one model to many dataevaluations
-    evaluations = relationship("ModelEvaluations")
+    evaluations = relationship("ModelEvaluation")
     # References both the current training datasets + the current test dataset. One way Model -> Datasets.
     datasets = relationship(
         'Dataset', secondary=model_dataset_link)
     # Correctly setup for multiple training runs per model
     training_run = relationship(
-        "TrainingRun", back_populates="model", uselist=False, order_by="TrainingRun.id")
+        "TrainingRun", back_populates="model", uselist=False)
 
 
 # This table holds information regarding the evaluation of a model against its trainingsdataset(s). The model id points to the model this information belongs to. The evaluation type can be one of four values for the confusion matrix. And the helpful_score, honest_score and harmless_score is for saving the HHH criteria related data for each datapoint for later calculating the results and also reevaluating the previous evaluation. The datapoint id saves the reference to the original datapoint that was evaluated.
@@ -158,7 +153,7 @@ class ModelEvaluation(Base):
     harmless_score = Column(Integer, nullable=False)  # 1-10
     created_at = Column(DateTime, default=func.now())
     # One-to-many relationship from ModelEvaluation to its DataPoint
-    datapoint = relationship("DataPoint", back_populates="model_evaluations")
+    datapoint = relationship("DataPoint")
     # Apply a table-level constraint
     __table_args__ = (
         CheckConstraint('helpful_score BETWEEN 1 AND 10'),
@@ -177,4 +172,4 @@ class TrainingRun(Base):
     batch_size = Column(Integer)
     created_at = Column(DateTime, default=func.now())
     # Back-populates to model.training_runs
-    model = relationship("Model", back_populates="training_runs")
+    model = relationship("Model", back_populates="training_run")
