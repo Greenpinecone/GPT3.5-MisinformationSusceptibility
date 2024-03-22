@@ -1,8 +1,9 @@
 from typing import List, Optional
 from marshmallow import Schema, fields, validates, ValidationError, validate
 from typing import List
-from ...database.schema import DatasetCategory, EvaluationType, AugmentationType
+from ....database.schema import DatasetCategory, EvaluationType, AugmentationType
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound
+from ....persistence.interfaces.i_data_manager import IDataManager
 import enum
 
 
@@ -12,13 +13,7 @@ class MessageKeys(enum.Enum):
     assistant = "assistant"
 
 
-class BaseSchema(Schema):
-    def __init__(self, data_manager, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.data_manager = data_manager
-
-
-class CreateProjectSchema(BaseSchema):
+class CreateProjectSchema(Schema):
     project_name = fields.Str(
         required=True,
         validate=lambda n: len(n) <= 255 and len(n) > 0,
@@ -54,6 +49,10 @@ class CreateProjectSchema(BaseSchema):
         }
     )
 
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
     @validates('models')
     def validate_models(self, model_ids: List[int]):
         missing_models = []
@@ -81,7 +80,7 @@ class CreateProjectSchema(BaseSchema):
                                   missing_datasets} do not exist.""")
 
 
-class CreateDatasetSchema(BaseSchema):
+class CreateDatasetSchema(Schema):
     dataset_name = fields.Str(
         required=True,
         validate=lambda s: len(s) <= 255 and len(s) > 0,
@@ -116,14 +115,14 @@ class CreateDatasetSchema(BaseSchema):
             'validator_failed': 'Each project ID must exist and be greater than 0.'
         }
     )
-    initial_dataset = fields.Int(
+    initial_dataset_id = fields.Int(
         validate=lambda n: n > 0, allow_none=True, missing=None,
         error_messages={
             'invalid': 'Initial dataset ID must be a positive integer.',
             'validator_failed': 'Initial dataset ID must exist and be greater than 0.'
         }
     )
-    test_dataset = fields.Int(
+    test_dataset_id = fields.Int(
         required=True, validate=lambda n: n > 0,
         error_messages={
             'required': 'Test dataset ID is required.',
@@ -140,6 +139,10 @@ class CreateDatasetSchema(BaseSchema):
         }
     )
 
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
     @validates('projects')
     def validate_projects(self, project_ids: List[int]):
         missing_projects = []
@@ -153,7 +156,7 @@ class CreateDatasetSchema(BaseSchema):
             raise ValidationError(f"""Projects with IDs {
                                   missing_projects} do not exist.""")
 
-    @validates('initial_dataset')
+    @validates('initial_dataset_id')
     def validate_initial_dataset(self, initial_dataset_id: int):
         if initial_dataset_id:
             try:
@@ -162,7 +165,7 @@ class CreateDatasetSchema(BaseSchema):
                 raise ValidationError(f"""Initial dataset with ID {
                                       initial_dataset_id} does not exist.""")
 
-    @validates('test_dataset')
+    @validates('test_dataset_id')
     def validate_test_dataset(self, test_dataset_id: int):
         try:
             self.data_manager.get_dataset_by_id(test_dataset_id)
@@ -184,7 +187,7 @@ class CreateDatasetSchema(BaseSchema):
                                   missing_datapoints} do not exist.""")
 
 
-class CreateDataPointSchema(BaseSchema):
+class CreateDataPointSchema(Schema):
     dataset_id = fields.Int(
         required=True,
         error_messages={
@@ -239,14 +242,18 @@ class CreateDataPointSchema(BaseSchema):
         }
     )
 
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
     @validates('messages')
     def validate_message_keys(self, messages):
         valid_keys = {key.value for key in MessageKeys}
         for message in messages:
             for key in message.keys():
                 if key not in valid_keys:
-                    raise ValidationError(f"Invalid key '{key}'. Must be one of {
-                                          list(valid_keys)}.")
+                    raise ValidationError(f"""Invalid key '{key}'. Must be one of {
+                                          list(valid_keys)}.""")
 
     @validates('dataset_id')
     def validate_dataset_exists(self, dataset_id: int):
@@ -266,7 +273,7 @@ class CreateDataPointSchema(BaseSchema):
                                       datapoint_id} does not exist.""")
 
 
-class CreateModelSchema(BaseSchema):
+class CreateModelSchema(Schema):
     model_name = fields.Str(
         required=True,
         validate=lambda s: len(s) <= 255 and len(s) > 0,
@@ -325,6 +332,10 @@ class CreateModelSchema(BaseSchema):
         }
     )
 
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
     @validates('parent_model_id')
     def validate_parent_model_exists(self, parent_model_id: int):
         if parent_model_id:
@@ -364,7 +375,7 @@ class CreateModelSchema(BaseSchema):
                                       training_run_id} does not exist.""")
 
 
-class CreateModelEvaluationSchema(BaseSchema):
+class CreateModelEvaluationSchema(Schema):
     model_id = fields.Int(
         required=True,
         error_messages={
@@ -415,6 +426,10 @@ class CreateModelEvaluationSchema(BaseSchema):
         }
     )
 
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
     @validates('model_id')
     def validate_model_id(self, model_id: int):
         try:
@@ -431,7 +446,7 @@ class CreateModelEvaluationSchema(BaseSchema):
                                   datapoint_id} does not exist.""")
 
 
-class CreateTrainingRunSchema(BaseSchema):
+class CreateTrainingRunSchema(Schema):
     model_id = fields.Int(
         required=True,
         error_messages={
@@ -464,6 +479,10 @@ class CreateTrainingRunSchema(BaseSchema):
         }
     )
 
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
     @validates('model_id')
     def validate_model_id(self, model_id):
         try:
@@ -472,7 +491,7 @@ class CreateTrainingRunSchema(BaseSchema):
             raise ValidationError(f"Model with ID {model_id} does not exist.")
 
 
-class GetProjectsDTOSchema(BaseSchema):
+class GetProjectsSchema(Schema):
     project_name = fields.Str(validate=lambda n: len(n) <= 255,
                               missing=None,
                               allow_none=True,
@@ -480,7 +499,7 @@ class GetProjectsDTOSchema(BaseSchema):
         'invalid': 'Project name must be a string.'
     }
     )
-    creation_date = fields.Date(
+    created_at = fields.Date(
         missing=None,
         allow_none=True,
         error_messages={
@@ -488,8 +507,12 @@ class GetProjectsDTOSchema(BaseSchema):
         }
     )
 
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
 
-class GetModelsByProjectIdDTOSchema(BaseSchema):
+
+class GetModelsByProjectIdSchema(Schema):
     project_id = fields.Int(
         required=True,
         error_messages={
@@ -514,6 +537,10 @@ class GetModelsByProjectIdDTOSchema(BaseSchema):
         }
     )
 
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
     @validates('dataset_id')
     def validate_dataset_exists(self, project_id: int):
         try:
@@ -523,7 +550,7 @@ class GetModelsByProjectIdDTOSchema(BaseSchema):
                 f"Project with ID {project_id} does not exist.")
 
 
-class GetDatasetsByModelIdDTOSchema(BaseSchema):
+class GetDatasetsByModelIdSchema(Schema):
     model_id = fields.Int(
         required=True,
         error_messages={
@@ -562,6 +589,10 @@ class GetDatasetsByModelIdDTOSchema(BaseSchema):
         }
     )
 
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
     @validates('model_id')
     def validate_model_id(self, model_id):
         try:
@@ -570,7 +601,7 @@ class GetDatasetsByModelIdDTOSchema(BaseSchema):
             raise ValidationError(f"Model with ID {model_id} does not exist.")
 
 
-class GetDatapointsByDatasetIdDTOSchema(BaseSchema):
+class GetDatapointsByDatasetIdSchema(Schema):
     dataset_id = fields.Int(
         required=True,
         error_messages={
@@ -621,6 +652,10 @@ class GetDatapointsByDatasetIdDTOSchema(BaseSchema):
             'validator_failed': 'Category must be less than 255 characters long.'
         }
     )
+
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
 
     @validates('dataset_id')
     def validate_dataset_exists(self, dataset_id: int):
