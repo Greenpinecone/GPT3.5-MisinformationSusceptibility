@@ -30,7 +30,7 @@ class CreateProjectSchema(Schema):
             'validator_failed': 'Description must not exceed 4000 characters.'
         }
     )
-    models = fields.List(
+    model_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
         allow_none=True,
         missing=None,
@@ -39,7 +39,7 @@ class CreateProjectSchema(Schema):
             'validator_failed': 'All model IDs must exist and be greater than 0.'
         }
     )
-    datasets = fields.List(
+    dataset_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
         allow_none=True,
         missing=None,
@@ -53,7 +53,7 @@ class CreateProjectSchema(Schema):
         super().__init__(*args, **kwargs)
         self.data_manager = data_manager
 
-    @validates('models')
+    @validates('model_ids')
     def validate_models(self, model_ids: List[int]):
         missing_models = []
         for model_id in model_ids:
@@ -66,7 +66,7 @@ class CreateProjectSchema(Schema):
             raise ValidationError(
                 f"Models with IDs {missing_models} do not exist.")
 
-    @validates('datasets')
+    @validates('dataset_ids')
     def validate_datasets(self, dataset_ids: List[int]):
         missing_datasets = []
         for dataset_id in dataset_ids:
@@ -107,7 +107,7 @@ class CreateDatasetSchema(Schema):
             'validator_failed': 'Invalid category. Must be "training" or "test".'
         }
     )
-    projects = fields.List(
+    project_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
         allow_none=True, missing=None,
         error_messages={
@@ -130,7 +130,7 @@ class CreateDatasetSchema(Schema):
             'validator_failed': 'Test dataset ID must exist and be greater than 0.'
         }
     )
-    datapoints = fields.List(
+    datapoint_ids = fields.List(
         fields.Int(validate=lambda n: n > 0), required=True,
         error_messages={
             'invalid': 'Datapoint IDs must be positive integers.',
@@ -143,7 +143,7 @@ class CreateDatasetSchema(Schema):
         super().__init__(*args, **kwargs)
         self.data_manager = data_manager
 
-    @validates('projects')
+    @validates('project_ids')
     def validate_projects(self, project_ids: List[int]):
         missing_projects = []
         for project_id in project_ids:
@@ -173,7 +173,7 @@ class CreateDatasetSchema(Schema):
             raise ValidationError(f"""Test dataset with ID {
                                   test_dataset_id} does not exist.""")
 
-    @validates('datapoints')
+    @validates('datapoint_ids')
     def validate_datapoints(self, datapoint_ids: List[int]):
         missing_datapoints = []
         for datapoint_id in datapoint_ids:
@@ -226,14 +226,12 @@ class CreateDataPointSchema(Schema):
             'validator_failed': 'Augmentation type must be "backtranslation" or "easy_data_augmentation".'
         }
     )
-    messages = fields.List(fields.Dict(keys=fields.Str(), values=fields.Str()), required=True,
+    messages = fields.Dict(fields.List(fields.Dict(keys=fields.Str(), values=fields.Str()), required=True,
                            error_messages={
         'required': 'Messages are required.',
         'invalid': 'Keys and values of the message objects must be strings.'
-    })
+    }))
 
-    category = fields.Str(required=False, allow_none=False,
-                          validate=lambda n: len(n) <= 255)
     initial_datapoint_id = fields.Int(
         missing=None, allow_none=True,
         error_messages={
@@ -241,6 +239,9 @@ class CreateDataPointSchema(Schema):
             'validator_failed': 'Category must be less than 255 characters long.'
         }
     )
+
+    category = fields.Str(required=False, allow_none=False,
+                          validate=lambda n: len(n) <= 255)
 
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -306,16 +307,7 @@ class CreateModelSchema(Schema):
             'invalid': 'Project ID must be a positive integer.'
         }
     )
-    evaluations = fields.List(
-        fields.Int(validate=lambda n: n > 0),
-        missing=None,
-        allow_none=True,
-        error_messages={
-            'invalid': 'Evaluation IDs must be a list of positive integers.',
-            'validator_failed': 'All evaluation IDs must be greater than 0.'
-        }
-    )
-    datasets = fields.List(
+    dataset_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
         missing=None,
         allow_none=True,
@@ -324,7 +316,7 @@ class CreateModelSchema(Schema):
             'validator_failed': 'All dataset IDs must be greater than 0.'
         }
     )
-    training_run = fields.Int(
+    training_run_id = fields.Int(
         missing=None,
         allow_none=True,
         error_messages={
@@ -353,7 +345,7 @@ class CreateModelSchema(Schema):
             raise ValidationError(
                 f"Project with ID {project_id} does not exist.")
 
-    @validates('datasets')
+    @validates('dataset_ids')
     def validate_datasets_exist(self, dataset_ids: List[int]):
         missing_datasets = []
         for dataset_id in dataset_ids:
@@ -365,7 +357,7 @@ class CreateModelSchema(Schema):
             raise ValidationError(f"""Datasets with IDs {
                                   missing_datasets} do not exist.""")
 
-    @validates('training_run')
+    @validates('training_run_id')
     def validate_training_run_exists(self, training_run_id: int):
         if training_run_id:
             try:
@@ -499,11 +491,11 @@ class GetProjectsSchema(Schema):
         'invalid': 'Project name must be a string.'
     }
     )
-    created_at = fields.Date(
+    created_at = fields.DateTime(
         missing=None,
         allow_none=True,
         error_messages={
-            'invalid': 'Creation date must be a valid date in YYYY-MM-DD format.'
+            'invalid': 'Creation date must be a valid datetime format.'
         }
     )
 
@@ -558,11 +550,11 @@ class GetDatasetsByModelIdSchema(Schema):
             'invalid': 'Model ID must be an integer.'
         }
     )
-    timestamp = fields.Date(
+    timestamp = fields.DateTime(
         missing=None,
         allow_none=True,
         error_messages={
-            'invalid': 'Timestamp must be a valid date in YYYY-MM-DD format.'
+            'invalid': 'Timestamp must be a valid datetime format.'
         }
     )
     dataset_name = fields.Str(validate=lambda n: len(n) <= 255,
