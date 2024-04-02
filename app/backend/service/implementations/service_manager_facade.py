@@ -18,6 +18,8 @@ from ..validators.implementations.validators_facade import ValidatorFacade
 
 
 class ServiceManagerFacade(IServiceManager):
+    logger = Logger(__name__)
+
     def __init__(self, data_manager: IDataManager, google_translate_service: GoogleTranslateService, openai_service: OpenAIService, data_augmenter: DataAugmenter, data_sampler: DataSampler, model_evaluator: ModelEvaluator, fine_tuner: FineTuner, validator: ValidatorFacade, mapper: MapperFacade):
         self.data_manager: IDataManager = data_manager
         self.google_translate_service: GoogleTranslateService = google_translate_service
@@ -26,7 +28,6 @@ class ServiceManagerFacade(IServiceManager):
         self.data_sampler: DataSampler = data_sampler
         self.model_evaluator: ModelEvaluator = model_evaluator
         self.fine_tuner: FineTuner = fine_tuner
-        self.logger: Logger = Logger(__name__)
         self.validator: ValidatorFacade = validator
         self.mapper: MapperFacade = mapper
 

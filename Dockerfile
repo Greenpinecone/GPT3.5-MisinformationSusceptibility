@@ -12,4 +12,4 @@ COPY . .
 # The final result is app/app/main.py ...
 
 # Command to start the python applciation
-CMD ["streamlit", "run", "--server.address=0.0.0.0", "app/frontend/main.py"]
+CMD ["streamlit", "run", "--server.address=0.0.0.0", "app/main.py"]

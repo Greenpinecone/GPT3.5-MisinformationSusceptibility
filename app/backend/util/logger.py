@@ -23,7 +23,7 @@ class Logger:
         logger (logging.Logger): Configured logger instance.
     """
 
-    def __init__(self, name: str, log_file: str = 'backend/logs/app.log', level: int = logging.DEBUG) -> None:
+    def __init__(self, name: str, log_file: str = 'app/backend/logs/app.log', level: int = logging.DEBUG) -> None:
         """
         Configures a logger with the given name, log level, and log file.
         This method ensures that each logger is only configured once.
@@ -60,7 +60,7 @@ class StreamlitLogger(Logger):
     Extends Logger to add functionality for logging messages to the Streamlit UI.
     """
 
-    def __init__(self, name: str, log_file: str = 'backend/logs/app.log', level: int = logging.DEBUG) -> None:
+    def __init__(self, name: str, log_file: str = 'app/backend/logs/app.log', level: int = logging.DEBUG) -> None:
         # Call the parent class's __init__ method
         super().__init__(name, log_file, level)
 

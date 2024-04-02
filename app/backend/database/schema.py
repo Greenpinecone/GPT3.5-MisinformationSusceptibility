@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Boolean, func, Enum, Float, JSON
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import CheckConstraint
 import enum
@@ -131,8 +131,6 @@ class Model(Base):
     project_id = Column(Integer, ForeignKey('projects.id'))
     # Relationship to Project - A model can belong to a project but a project can have multiple models.
     project = relationship("Project", back_populates="models")
-    # One way relationship, one model to many dataevaluations
-    evaluations = relationship("ModelEvaluation")
     # References both the current training datasets + the current test dataset. One way Model -> Datasets.
     datasets = relationship(
         'Dataset', secondary=model_dataset_link)
@@ -154,6 +152,9 @@ class ModelEvaluation(Base):
     created_at = Column(DateTime, default=func.now())
     # One-to-many relationship from ModelEvaluation to its DataPoint
     datapoint = relationship("DataPoint")
+    # One-to-many relationship from ModelEvaluation to the model the datapoint belongs to
+    model = relationship("Model")
+
     # Apply a table-level constraint
     __table_args__ = (
         CheckConstraint('helpful_score BETWEEN 1 AND 10'),
