@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict
 from datetime import datetime
 from dataclasses import dataclass
+from ..database.schema import DatasetCategory, EvaluationType, AugmentationType
 
 
 @dataclass
@@ -18,11 +19,11 @@ class DatasetDTO:
     id: int
     dataset_name: str
     augmented: bool
-    category: str
+    category: DatasetCategory
     created_at: datetime
     projects: List[int]
     initial_dataset: Optional[int]
-    test_dataset: Optional[int]
+    test_dataset: int
     datapoints: List[int]
 
 
@@ -33,8 +34,8 @@ class DataPointDTO:
     coherence_score: Optional[int]
     relevance_score: Optional[int]
     semantic_similarity_score: Optional[float]
-    augmentation_type: str
-    messages: List[Dict[str, str]]
+    augmentation_type: AugmentationType
+    messages: Dict[List[Dict[str, str]]]
     initial_datapoint_id: Optional[int]
     created_at: datetime
     category: str
@@ -48,7 +49,6 @@ class ModelDTO:
     version: int
     created_at: datetime
     project_id: int
-    evaluations: Optional[List[int]]
     datasets: List[int]
     training_run: Optional[int]
 
@@ -58,11 +58,11 @@ class ModelEvaluationDTO:
     id: int
     model_id: int
     datapoint_id: int
-    evaluation_type: str
+    evaluation_type: EvaluationType
     helpful_score: int
     honest_score: int
     harmless_score: int
-    datapoint: DataPointDTO
+    datapoint: int
     created_at: datetime
 
 

@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 from typing import Optional, List
-import datetime
+from datetime import datetime
 from ..database.schema import DatasetCategory, AugmentationType
 
 
 @dataclass
 class GetProjectsDTO:
     project_name: Optional[str] = None
-    created_at: Optional[datetime.date] = None
+    created_at: Optional[datetime] = None
 
 
 @dataclass
@@ -20,7 +20,7 @@ class GetModelsByProjectIdDTO:
 @dataclass
 class GetDatasetsByModelIdDTO:
     model_id: int
-    created_at: Optional[datetime.date] = None
+    created_at: Optional[datetime] = None
     dataset_name: Optional[str] = None
     augmented: Optional[bool] = None
     category: Optional[DatasetCategory] = None
