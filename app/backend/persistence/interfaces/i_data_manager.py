@@ -4,6 +4,8 @@
 from abc import ABC, abstractmethod
 from typing import List, Dict, Any
 from ...database.schema import Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun
+from ...dtos.create_request import *
+from ...dtos.get_request import *
 
 
 class IDataManager(ABC):
@@ -14,52 +16,52 @@ class IDataManager(ABC):
         pass
 
     @abstractmethod
-    def save_projects(self, projects_data: List[Dict[str, Any]]) -> List[Project]:
+    def save_projects(self, projects_data: List[CreateProjectDTO]) -> List[Project]:
         """Saves or updates project data."""
         pass
 
     @abstractmethod
-    def save_datasets(self, datasets_data: List[Dict[str, Any]]) -> List[Dataset]:
+    def save_datasets(self, datasets_data: List[CreateDatasetDTO]) -> List[Dataset]:
         """Saves or updates dataset data."""
         pass
 
     @abstractmethod
-    def save_datapoints(self, datapoints_data: List[Dict[str, Any]]) -> List[DataPoint]:
+    def save_datapoints(self, datapoints_data: List[CreateDataPointDTO]) -> List[DataPoint]:
         """Saves or updates datapoint data."""
         pass
 
     @abstractmethod
-    def save_models(self, models_data: List[Dict[str, Any]]) -> List[Model]:
+    def save_models(self, models_data: List[CreateModelDTO]) -> List[Model]:
         """Saves or updates model data."""
         pass
 
     @abstractmethod
-    def save_model_evaluations(self, evaluations_data: List[Dict[str, Any]]) -> List[ModelEvaluation]:
+    def save_model_evaluations(self, evaluations_data: List[CreateModelEvaluationDTO]) -> List[ModelEvaluation]:
         """Saves or updates model evaluation data."""
         pass
 
     @abstractmethod
-    def save_training_runs(self, runs_data: List[Dict[str, Any]]) -> List[TrainingRun]:
+    def save_training_runs(self, runs_data: List[CreateTrainingRunDTO]) -> List[TrainingRun]:
         """Saves or updates training run data."""
         pass
 
     @abstractmethod
-    def get_all_projects(self, project_data: Dict[str, Any]) -> List[Project]:
+    def get_all_projects(self, project_data: GetProjectsDTO) -> List[Project]:
         """Retrieves all projects filterable by name and creation date."""
         pass
 
     @abstractmethod
-    def get_models_by_project_id(self, model_project_data: Dict[str, Any]) -> List[Model]:
+    def get_models_by_project_id(self, model_project_data: GetModelsByProjectIdDTO) -> List[Model]:
         """Retrieves all models associated with a project, filterable by name and version."""
         pass
 
     @abstractmethod
-    def get_datasets_by_model_id(self, dataset_model_data: Dict[str, Any]) -> List[Dataset]:
+    def get_datasets_by_model_id(self, dataset_model_data: GetDatasetsByModelIdDTO) -> List[Dataset]:
         """Retrieves all datasets associated with a model, filterable by dataset name, augmented, and dataset category."""
         pass
 
     @abstractmethod
-    def get_datapoints_by_dataset_id(self, dataset_datapoints_data: Dict[str, Any]) -> List[DataPoint]:
+    def get_datapoints_by_dataset_id(self, dataset_datapoints_data: GetDatapointsByDatasetIdDTO) -> List[DataPoint]:
         """Retrieves dataset specific datapoints, filterable by coherence score, relevance score, semantic similarity score, and augmentation type."""
         pass
 
@@ -91,5 +93,9 @@ class IDataManager(ABC):
 
     @abstractmethod
     def get_datapoint_by_id(self, datapoint_id: int) -> List[DataPoint]:
+        pass
+
+    @abstractmethod
+    def get_model_evaluation_by_id(self, model_evlauation_id: int) -> list[DataPoint]:
         pass
     # Implement additional methods as needed based on your DataManager class
