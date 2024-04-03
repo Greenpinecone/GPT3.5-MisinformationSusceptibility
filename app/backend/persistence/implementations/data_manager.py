@@ -10,12 +10,15 @@ from ...database.schema import AugmentationType, Base, DatasetCategory, Project,
 from ...util.logger import Logger
 from ..interfaces.i_data_manager import IDataManager
 from datetime import datetime
+from ...dtos.create_request import *
+from ...dtos.get_request import *
 # Instantiates a new database or loads the currently
+
+# Define the logger as a class attribute
+logger = Logger(__name__)
 
 
 class DataManager(IDataManager):
-    # Define the logger as a class attribute
-    logger = Logger(__name__)
 
     def __init__(self, dest_directory: str = 'database', db_filename: str = 'streamlit_app.db'):
        # Move up one directory from the current file's directory
@@ -36,92 +39,139 @@ class DataManager(IDataManager):
             session.commit()
         except Exception as e:
             session.rollback()
-            DataManager.logger.error(f"Session rollback due to exception: {e}")
+            logger.error(f"Session rollback due to exception: {e}")
             raise
         finally:
             session.close()
 
     # CREATE / UPDATE
     # For creating or updating a project
-    def save_projects(self, projects_data: list[Dict[str, Any]]) -> list[Project]:
-        DataManager.logger.debug(f"Projects data: {projects_data}")
-        # Use list for consistency and clarity
-        saved_projects: list[Project] = []
+    def save_projects(self, projects_data: List[CreateProjectDTO]) -> List[Project]:
+        saved_projects: List[Project] = []
         with self.get_session() as session:
             try:
-                for project_data in projects_data:
-                    project_id: Any = project_data.get(
-                        'id', None)  # Use get for dicts
-                    if project_id is not None:
-                        project: Project = session.query(Project).filter(
-                            Project.id == project_id).first()
-                        if project:
-                            for key, value in project_data.items():
-                                setattr(project, key, value)
+                for project_dto in projects_data:
+                    project = None
+                    if getattr(project_dto, 'id', None):
+                        project = session.get(Project, project_dto.id)
+                       # Correct id will be checked by not yet implemented update request validator
                     else:
-                        project: Project = Project(**project_data)
-                        session.add(project)
+                        project = Project()
+
+                    project.project_name = project_dto.project_name
+                    project.description = project_dto.description
+
+                    if project_dto.model_ids:
+                        models = session.query(Model).filter(
+                            Model.id.in_(project_dto.model_ids)).all()
+                        project.models = models
+
+                    if project_dto.dataset_ids:
+                        datasets = session.query(Dataset).filter(
+                            Dataset.id.in_(project_dto.dataset_ids)).all()
+                        project.datasets = datasets
+
+                    session.add(project)
                     saved_projects.append(project)
-                return saved_projects
-            except SQLAlchemyError as e:
-                DataManager.logger.exception(
-                    "Failed to save or update projects")
-                raise SQLAlchemyError(
-                    "Failed to save or update projects") from e
+            except Exception as e:
+                logger.exception(
+                    f"Failed to save or update projects due to error: {e}")
+                # Re-raise the exception to notify the caller of the failure
+                raise Exception(
+                    "Failed to save or update projects due to error.") from e
+
+            return saved_projects
 
     # For creating or updating a dataset
 
-    def save_datasets(self, datasets_data: list[Dict[str, Any]]) -> list[Dataset]:
-        DataManager.logger.debug(f"Datasets data: {datasets_data}")
-        saved_datasets: list[Dataset] = []  # Specify list contents type
+    def save_datasets(self, datasets_data: List[CreateDatasetDTO]) -> List[Dataset]:
+        saved_datasets: List[Dataset] = []
         with self.get_session() as session:
             try:
-                for dataset_data in datasets_data:
-                    dataset_id: Any = dataset_data.get(
-                        'id', None)  # Use .get for dict access
-                    if dataset_id is not None:
-                        dataset: Dataset = session.query(Dataset).filter(
-                            Dataset.id == dataset_id).first()
-                        if dataset:
-                            for key, value in dataset_data.items():
-                                setattr(dataset, key, value)
+                for dataset_dto in datasets_data:
+                    if getattr(dataset_dto, 'id', None):
+                        dataset = session.get(Dataset, dataset_dto.id)
+                        # Correct id will be checked by not yet implemented update request validator
+
                     else:
-                        dataset: Dataset = Dataset(**dataset_data)
-                        session.add(dataset)
+                        dataset = Dataset()
+
+                    dataset.dataset_name = dataset_dto.dataset_name
+                    dataset.augmented = dataset_dto.augmented
+                    dataset.category = dataset_dto.category
+
+                    # Handling initial and test dataset relationships
+                    if dataset_dto.initial_dataset_id is not None:
+                        initial_dataset = session.get(Dataset,
+                                                      dataset_dto.initial_dataset_id)
+                        dataset.initial_dataset = initial_dataset
+
+                    if dataset_dto.test_dataset_id is not None:
+                        test_dataset = session.get(Dataset,
+                                                   dataset_dto.test_dataset_id)
+                        dataset.test_dataset = test_dataset
+
+                    # Handling project relationships
+                    if dataset_dto.project_ids:
+                        projects = session.query(Project).filter(
+                            Project.id.in_(dataset_dto.project_ids)).all()
+                        dataset.projects = projects
+
+                    # Handling datapoint relationships
+                    if dataset_dto.datapoint_ids:
+                        datapoints = session.query(DataPoint).filter(
+                            DataPoint.id.in_(dataset_dto.datapoint_ids)).all()
+                        dataset.datapoints = datapoints
+
+                    session.add(dataset)
                     saved_datasets.append(dataset)
+
                 return saved_datasets
-            except SQLAlchemyError as e:
-                DataManager.logger.exception(
-                    "Failed to save or update datasets")
-                raise SQLAlchemyError(
-                    "Failed to save or update datasets") from e
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to save or update datasets due to error: {e}")
+                # Re-raise the exception to notify the caller of the failure
+                raise Exception(
+                    "Failed to save or update datasets due to error.") from e
 
     # For creating or updating datapoints
 
-    def save_datapoints(self, datapoints_data: list[Dict[str, Any]]) -> list[DataPoint]:
-        DataManager.logger.debug(f"Datapoints data: {datapoints_data}")
-        saved_datapoints: list[DataPoint] = []  # Specify list contents type
+    def save_datapoints(self, datapoints_data: List[CreateDataPointDTO]) -> List[DataPoint]:
+        saved_datapoints: List[DataPoint] = []
         with self.get_session() as session:
             try:
-                for datapoint_data in datapoints_data:
-                    datapoint_id: Any = datapoint_data.get(
-                        'id', None)  # Assume id could be any type
-                    if datapoint_id is not None:
-                        datapoint: DataPoint = session.query(
-                            DataPoint).filter_by(id=datapoint_id).first()
-                        if datapoint:
-                            for key, value in datapoint_data.items():
-                                setattr(datapoint, key, value)
+                for datapoint_dto in datapoints_data:
+                    if getattr(datapoint_dto, 'id', None):
+                        datapoint = session.get(DataPoint, datapoint_dto.id)
                     else:
-                        datapoint: DataPoint = DataPoint(**datapoint_data)
-                        session.add(datapoint)
+                        datapoint = DataPoint()
+
+                    # Fetch the Dataset object
+                    dataset = session.get(Dataset, datapoint_dto.dataset_id)
+                    datapoint.dataset = dataset
+
+                    # Fetch the initial DataPoint object, if specified
+                    if datapoint_dto.initial_datapoint_id:
+                        initial_datapoint = session.get(
+                            DataPoint, datapoint_dto.initial_datapoint_id)
+                        datapoint.initial_datapoint = initial_datapoint
+
+                    datapoint.coherence_score = datapoint_dto.coherence_score
+                    datapoint.relevance_score = datapoint_dto.relevance_score
+                    datapoint.semantic_similarity_score = datapoint_dto.semantic_similarity_score
+                    datapoint.augmentation_type = datapoint_dto.augmentation_type
+                    datapoint.messages = datapoint_dto.messages
+                    datapoint.category = datapoint_dto.category
+
+                    session.add(datapoint)
                     saved_datapoints.append(datapoint)
-                return saved_datapoints
-            except SQLAlchemyError as e:
-                DataManager.logger.exception(
-                    "Failed to save or update datapoints")
-                raise SQLAlchemyError(
-                    "Failed to save or update datapoints") from e
+
+            except Exception as e:
+                logger.exception(
+                    "Failed to save or update datapoints.")
+                raise Exception("Failed to save or update datapoints.") from e
+
+        return saved_datapoints
 
     # def add_datapoints_to_dataset(self, dataset_id: int, datapoints_data: list[Dict[str, Any]]) -> list[DataPoint]:
     #     with self.get_session() as session:
@@ -134,12 +184,12 @@ class DataManager(IDataManager):
     #                 added_datapoints.append(datapoint)
     #             return added_datapoints
     #         except SQLAlchemyError as e:
-    #             DataManager.logger.error(f"Failed to add datapoints to dataset: {e}")
+    #             logger.error(f"Failed to add datapoints to dataset: {e}")
     #             raise
 
     # For adding multiple datasets to a project.
     # def add_datasets_to_project(self, project_id: int, dataset_ids: list[int]) -> list[Project]:
-    #     DataManager.logger.debug(
+    #     logger.debug(
     #         f"Project id: {project_id}, dataset ids: {dataset_ids}")
     #     with self.get_session() as session:
     #         try:
@@ -151,103 +201,145 @@ class DataManager(IDataManager):
     #                 project.datasets.append(dataset)
     #             return [project]
     #         except SQLAlchemyError as e:
-    #             DataManager.logger.error(f"Failed to add datasets to project: {e}")
+    #             logger.error(f"Failed to add datasets to project: {e}")
     #             raise
 
     # For creating or updating a model
 
-    def save_models(self, models_data: list[Dict[str, Any]]) -> list[Model]:
-        DataManager.logger.debug(f"Models data: {models_data}")
-        # Specify the list content type explicitly
-        saved_models: list[Model] = []
+    def save_models(self, models_data: List[CreateModelDTO]) -> List[Model]:
+        saved_models: List[Model] = []
         with self.get_session() as session:
             try:
-                for model_data in models_data:
-                    # Assuming model_id could be any type; adjust as necessary
-                    model_id: Any = model_data.get('id', None)
-                    if model_id is not None:
-                        model: Model = session.query(
-                            Model).filter_by(id=model_id).first()
-                        if model:
-                            for key, value in model_data.items():
-                                setattr(model, key, value)
+                for model_dto in models_data:
+                    model = None
+                    model_id = getattr(model_dto, 'id', None)
+                    if model_id:
+                        model = session.get(Model, model_id)
+                        # Correct id will be checked by not yet implemented update request validator
                     else:
-                        model: Model = Model(**model_data)
-                        session.add(model)
+                        model = Model()
+
+                    model.model_name = model_dto.model_name
+                    model.version = model_dto.version
+                    # model.project_id = model_dto.project_id
+                    # Handle parent_model_id if present
+                    if model_dto.parent_model_id is not None:
+                        parent_model = session.get(
+                            Model, model_dto.parent_model_id)
+                        model.parent_model = parent_model
+
+                    if model_dto.project_id is not None:
+                        project = session.get(Project, model_dto.project_id)
+                        model.project = project
+
+                    # Associate datasets
+                    if model_dto.dataset_ids:
+                        datasets = session.query(Dataset).filter(
+                            Dataset.id.in_(model_dto.dataset_ids)).all()
+                        model.datasets = datasets
+
+                    # Handle training_run_id if present
+                    if model_dto.training_run_id is not None:
+                        training_run = session.get(
+                            TrainingRun, model_dto.training_run_id)
+                        model.training_run = training_run
+
+                    session.add(model)
                     saved_models.append(model)
-                return saved_models
-            except SQLAlchemyError as e:
-                DataManager.logger.exception(
-                    "Failed to create or update models")
-                raise SQLAlchemyError(
-                    "Failed to create or update models") from e
+
+            except Exception as e:
+                logger.exception(
+                    f"Failed to save or update models due to error: {e}")
+                raise Exception(
+                    "Failed to save or update models due to error.") from e
+
+        return saved_models
 
     # For creating or updating model evaluations
-    def save_model_evaluations(self, evaluations_data: list[Dict[str, Any]]) -> list[ModelEvaluation]:
-        DataManager.logger.debug(f"Evaluations data: {evaluations_data}")
-        # Specify the list content type explicitly
-        saved_evaluations: list[ModelEvaluation] = []
+    def save_model_evaluations(self, evaluations_data: List[CreateModelEvaluationDTO]) -> List[ModelEvaluation]:
+        saved_evaluations: List[ModelEvaluation] = []
         with self.get_session() as session:
             try:
-                for eval_data in evaluations_data:
-                    evaluation_id: Any = eval_data.get(
-                        'id', None)  # Use specific type if known
-                    if evaluation_id is not None:
-                        evaluation: ModelEvaluation = session.query(
-                            ModelEvaluation).filter_by(id=evaluation_id).first()
-                        if evaluation:
-                            for key, value in eval_data.items():
-                                setattr(evaluation, key, value)
+                for eval_dto in evaluations_data:
+                    evaluation = None
+                    evaluation_id = getattr(eval_dto, 'id', None)
+                    if evaluation_id:
+                        evaluation = session.get(
+                            ModelEvaluation, evaluation_id)
+                        # Correct id will be checked by not yet implemented update request validator
                     else:
-                        evaluation: ModelEvaluation = ModelEvaluation(
-                            **eval_data)
-                        session.add(evaluation)
+                        evaluation = ModelEvaluation()
+
+                    # Fetching the Model object based on model_id
+                    model = session.get(Model, eval_dto.model_id)
+
+                    # Fetching the DataPoint object based on datapoint_id
+                    datapoint = session.get(DataPoint, eval_dto.datapoint_id)
+
+                    # Setting the fetched objects and other attributes
+                    evaluation.model = model
+                    evaluation.datapoint = datapoint
+                    evaluation.evaluation_type = eval_dto.evaluation_type
+                    evaluation.helpful_score = eval_dto.helpful_score
+                    evaluation.honest_score = eval_dto.honest_score
+                    evaluation.harmless_score = eval_dto.harmless_score
+
+                    session.add(evaluation)
                     saved_evaluations.append(evaluation)
-                return saved_evaluations
-            except SQLAlchemyError as e:
-                DataManager.logger.exception(
-                    "Failed to save or update model evaluations")
-                raise SQLAlchemyError(
-                    "Failed to save or update model evaluations") from e
+
+            except Exception as e:
+                logger.error(
+                    f"Failed to save or update model evaluations due to error: {e}")
+                raise Exception(
+                    "Failed to save or update model evaluations due to error.") from e
+
+        return saved_evaluations
 
     # For creating or updating a training run
 
-    def save_training_runs(self, runs_data: list[Dict[str, Any]]) -> list[TrainingRun]:
-        DataManager.logger.debug(f"Training runs data: {runs_data}")
-        # Use the list type hint with a specific content type
-        saved_runs: list[TrainingRun] = []
+    def save_training_runs(self, runs_data: List[CreateTrainingRunDTO]) -> List[TrainingRun]:
+        saved_runs: List[TrainingRun] = []
         with self.get_session() as session:
             try:
-                for run_data in runs_data:
-                    # Use Any or a more specific type if known
-                    run_id: Any = run_data.get('id')
-                    if run_id is not None:
-                        training_run: TrainingRun = session.query(
-                            TrainingRun).filter_by(id=run_id).first()
-                        if training_run:
-                            for key, value in run_data.items():
-                                setattr(training_run, key, value)
+                for run_dto in runs_data:
+                    training_run = None
+                    training_run_id = getattr(run_dto, 'id', None)
+                    if training_run_id:
+                        training_run = session.get(
+                            TrainingRun, training_run_id)
+                        # Correct id will be checked by not yet implemented update request validator
                     else:
-                        training_run: TrainingRun = TrainingRun(**run_data)
-                        session.add(training_run)
+                        training_run = TrainingRun()
+
+                    # Fetch the Model object using the model_id from DTO
+                    model = session.get(Model, run_dto.model_id)
+
+                    # Set fetched Model object to the training_run
+                    training_run.model = model
+                    training_run.epochs = run_dto.epochs
+                    training_run.learning_rate_multiplier = run_dto.learning_rate_multiplier
+                    training_run.batch_size = run_dto.batch_size
+
+                    session.add(training_run)
                     saved_runs.append(training_run)
-                return saved_runs
-            except SQLAlchemyError as e:
-                DataManager.logger.exception(
-                    "Failed to save or update training runs")
-                raise SQLAlchemyError(
-                    "Failed to save or update training runs") from e
+
+            except Exception as e:
+                logger.error("Failed to save or update training runs.")
+                raise Exception(
+                    "Failed to save or update training runs.") from e
+
+        return saved_runs
 
     # GET
     # For retrieveing all projects filterable by name and creation date
 
-    def get_all_projects(self, project_data: Dict[str, Any]) -> list[Project]:
-        DataManager.logger.debug(f"Project data: {project_data}")
+    def get_all_projects(self, project_data: GetProjectsDTO) -> list[Project]:
+        logger.debug(f"Project data: {project_data}")
         with self.get_session() as session:
             try:
-                query: Query = session.query(Project)
-                project_name: str = project_data.get('project_name')
-                created_at: datetime = project_data.get('created_at')
+                query = session.query(Project)
+                project_name: str = project_data.project_name
+                created_at: datetime = project_data.created_at
 
                 if project_name:
                     query = query.filter(
@@ -260,95 +352,95 @@ class DataManager(IDataManager):
                 projects: list[Project] = query.all()
                 return projects
             except SQLAlchemyError as e:
-                DataManager.logger.exception("Failed to retrieve projects")
+                logger.exception("Failed to retrieve projects")
                 raise SQLAlchemyError("Failed to retrieve projects") from e
 
     # For retrieving all models associated with a project filterable by name and version
 
-    def get_models_by_project_id(self, model_project_data: Dict[str, Any]) -> list[Model]:
-        DataManager.logger.debug(f"Model_project_data: {model_project_data}")
+    def get_models_by_project_id(self, model_project_data: GetModelsByProjectIdDTO) -> list[Model]:
+        logger.debug(f"Model_project_data: {model_project_data}")
         with self.get_session() as session:  # Assuming this returns a context-managed session
             try:
                 # Start building the query
-                query: Query = session.query(Model).filter(
-                    Model.project_id == model_project_data.get('project_id'))
+                query = session.query(Model).filter(
+                    Model.project_id == model_project_data.project_id)
 
                 # Additional filters based on the provided dictionary
-                if 'name' in model_project_data and model_project_data['name']:
+                if model_project_data.name:
                     query = query.filter(Model.model_name.ilike(
-                        f"%{model_project_data['name']}%"))
-                if 'version' in model_project_data and model_project_data['version'] is not None:
+                        f"%{model_project_data.name}%"))
+                if model_project_data.version:
                     query = query.filter(
-                        Model.version == model_project_data['version'])
+                        Model.version == model_project_data.version)
 
                 models: list[Model] = query.all()
                 return models
             except SQLAlchemyError as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "Failed to retrieve models for project")
                 raise SQLAlchemyError(
                     "Failed to retrieve models for project") from e
 
     # Retrieve all datasets associated with a model filterable by dataset name, augmented and dataset category
-    def get_datasets_by_model_id(self, dataset_model_data: Dict[str, Any]) -> list[Dataset]:
-        DataManager.logger.debug(f"Dataset_model_data: {dataset_model_data}")
+    def get_datasets_by_model_id(self, dataset_model_data: GetDatasetsByModelIdDTO) -> list[Dataset]:
+        logger.debug(f"Dataset_model_data: {dataset_model_data}")
         with self.get_session() as session:  # Assuming this returns a context-managed session
             try:
                 # Directly filtering datasets associated with the model_id
                 query: Query = session.query(Dataset).join(Model).filter(
-                    Model.id == dataset_model_data['model_id'])
+                    Model.id == dataset_model_data.model_id)
 
                 # Additional filters based on the provided dictionary
-                if 'created_at' in dataset_model_data and dataset_model_data['created_at']:
+                if dataset_model_data.created_at:
                     query = query.filter(
-                        Dataset.created_at == dataset_model_data['created_at'])
-                if 'dataset_name' in dataset_model_data and dataset_model_data['dataset_name']:
+                        Dataset.created_at == dataset_model_data.created_at)
+                if dataset_model_data.dataset_name:
                     query = query.filter(Dataset.dataset_name.ilike(
-                        f"%{dataset_model_data['dataset_name']}%"))
-                if 'augmented' in dataset_model_data and dataset_model_data['augmented'] is not None:
+                        f"%{dataset_model_data.dataset_name}%"))
+                if dataset_model_data.augmented:
                     query = query.filter(
-                        Dataset.augmented == dataset_model_data['augmented'])
-                if 'category' in dataset_model_data and dataset_model_data['category']:
+                        Dataset.augmented == dataset_model_data.augmented)
+                if dataset_model_data.category:
                     query = query.filter(
-                        Dataset.category == dataset_model_data['category'])
+                        Dataset.category == dataset_model_data.category)
 
                 datasets: list[Dataset] = query.all()
                 return datasets
             except SQLAlchemyError as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "Failed to retrieve datasets for model.")
                 raise SQLAlchemyError(
                     "A database error occurred while retrieving datasets for the model.") from e
 
     # Retrieve dataset specific datapoints filterable by coherence score, relevance score, semantic similarity score and augmentation type
-    def get_datapoints_by_dataset_id(self, dataset_datapoints_data: Dict[str, Any]) -> list[DataPoint]:
-        DataManager.logger.debug(f"""Dataset_datapoints_data: {
+    def get_datapoints_by_dataset_id(self, dataset_datapoints_data: GetDatapointsByDatasetIdDTO) -> list[DataPoint]:
+        logger.debug(f"""Dataset_datapoints_data: {
             dataset_datapoints_data}""")
         with self.get_session() as session:  # Assuming this returns a context-managed session
             try:
                 query: Query = session.query(DataPoint).filter(
-                    DataPoint.dataset_id == dataset_datapoints_data['dataset_id'])
+                    DataPoint.dataset_id == dataset_datapoints_data.dataset_id)
 
-                if 'coherence_score' in dataset_datapoints_data and dataset_datapoints_data['coherence_score'] is not None:
+                if dataset_datapoints_data.coherence_score:
                     query = query.filter(
-                        DataPoint.coherence_score == dataset_datapoints_data['coherence_score'])
-                if 'relevance_score' in dataset_datapoints_data and dataset_datapoints_data['relevance_score'] is not None:
+                        DataPoint.coherence_score == dataset_datapoints_data.coherence_score)
+                if dataset_datapoints_data.relevance_score:
                     query = query.filter(
-                        DataPoint.relevance_score == dataset_datapoints_data['relevance_score'])
-                if 'semantic_similarity' in dataset_datapoints_data and dataset_datapoints_data['semantic_similarity'] is not None:
+                        DataPoint.relevance_score == dataset_datapoints_data.relevance_score)
+                if dataset_datapoints_data.semantic_similarity:
                     query = query.filter(
-                        DataPoint.semantic_similarity_score == dataset_datapoints_data['semantic_similarity'])
-                if 'augmentation_type' in dataset_datapoints_data and dataset_datapoints_data['augmentation_type'] is not None:
+                        DataPoint.semantic_similarity_score == dataset_datapoints_data.semantic_similarity)
+                if dataset_datapoints_data.augmentation_type:
                     query = query.filter(
-                        DataPoint.augmentation_type == dataset_datapoints_data['augmentation_type'])
-                if 'category' in dataset_datapoints_data and dataset_datapoints_data['category'] is not None:
+                        DataPoint.augmentation_type == dataset_datapoints_data.augmentation_type)
+                if dataset_datapoints_data.category:
                     query = query.filter(
-                        DataPoint.category == dataset_datapoints_data['category'])
+                        DataPoint.category == dataset_datapoints_data.category)
 
                 datapoints: list[DataPoint] = query.all()
                 return datapoints
             except SQLAlchemyError as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "Failed to retrieve datapoints from dataset.")
                 raise SQLAlchemyError(
                     "A database error occurred while retrieving datapoints.") from e
@@ -356,14 +448,14 @@ class DataManager(IDataManager):
     # The function to retrieve all model evaluations remains as is, correctly fetching all evaluations for a given model
 
     def get_model_evaluations_by_model_id(self, model_id: int) -> list[ModelEvaluation]:
-        DataManager.logger.debug(f"Model id: {model_id}")
+        logger.debug(f"Model id: {model_id}")
         with self.get_session() as session:  # Assuming this returns a context-managed session
             try:
                 evaluations: list[ModelEvaluation] = session.query(
                     ModelEvaluation).filter(ModelEvaluation.model_id == model_id).all()
                 return evaluations
             except SQLAlchemyError as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "Failed to retrieve evaluations for model.")
                 raise SQLAlchemyError(
                     "A database error occurred while retrieving model evaluations.") from e
@@ -371,28 +463,28 @@ class DataManager(IDataManager):
     # Retrieve the training run of a model
 
     def get_training_run_by_model_id(self, model_id: int) -> list[TrainingRun]:
-        DataManager.logger.debug(f"Model id: {model_id}")
+        logger.debug(f"Model id: {model_id}")
         with self.get_session() as session:
             try:
                 model: Model = session.query(
                     Model).filter_by(id=model_id).one()
                 return [model.training_run] if model.training_run is not None else []
             except MultipleResultsFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "Too many models found when trying to get model by id.")
                 raise MultipleResultsFound(
                     "Too many models found. Expected only one.") from e
             except NoResultFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "No models found when trying to get model by id.")
                 raise NoResultFound("No model found for the given ID.") from e
             except SQLAlchemyError as e:
-                DataManager.logger.exception("Failed to retrieve model by id.")
+                logger.exception("Failed to retrieve model by id.")
                 raise SQLAlchemyError(
                     "A database error occurred while retrieving the model.") from e
 
     def get_model_by_id(self, model_id: int) -> list[Model]:
-        DataManager.logger.debug(f"Model id: {model_id}")
+        logger.debug(f"Model id: {model_id}")
         """Retrieve a model by its ID."""
         with self.get_session() as session:
             try:
@@ -400,21 +492,21 @@ class DataManager(IDataManager):
                     Model).filter_by(id=model_id).one()
                 return [model]
             except MultipleResultsFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "Too many models found when trying to get model by id.")
                 raise MultipleResultsFound(
                     "Multiple models found. Expected only one.") from e
             except NoResultFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "No models found when trying to get model by id.")
                 raise NoResultFound("No model found for the given ID.") from e
             except SQLAlchemyError as e:
-                DataManager.logger.exception("Failed to retrieve model by id.")
+                logger.exception("Failed to retrieve model by id.")
                 raise SQLAlchemyError(
                     "A database error occurred while retrieving model by id.") from e
 
     def get_dataset_by_id(self, dataset_id: int) -> list[Dataset]:
-        DataManager.logger.debug(f"Dataset id: {dataset_id}")
+        logger.debug(f"Dataset id: {dataset_id}")
         """Retrieve a dataset by its ID."""
         with self.get_session() as session:
             try:
@@ -422,23 +514,23 @@ class DataManager(IDataManager):
                     Dataset).filter_by(id=dataset_id).one()
                 return [dataset]
             except MultipleResultsFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "Too many datasets found when trying to get dataset by id.")
                 raise MultipleResultsFound(
                     "Multiple datasets found. Expected only one.") from e
             except NoResultFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "No dataset found when trying to get dataset by id.")
                 raise NoResultFound(
                     "No dataset found for the given ID.") from e
             except SQLAlchemyError as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "Failed to retrieve dataset by id.")
                 raise SQLAlchemyError(
                     "A database error occurred while retrieving dataset by id.") from e
 
     def get_project_by_id(self, project_id: int) -> list[Project]:
-        DataManager.logger.debug(f"Project id: {project_id}")
+        logger.debug(f"Project id: {project_id}")
         """Retrieve a project by its ID."""
         with self.get_session() as session:
             try:
@@ -446,23 +538,23 @@ class DataManager(IDataManager):
                     Project).filter_by(id=project_id).one()
                 return [project]
             except MultipleResultsFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "Too many projects found when trying to get project by id.")
                 raise MultipleResultsFound(
                     "Multiple projects found. Expected only one.") from e
             except NoResultFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "No project found when trying to get project by id.")
                 raise NoResultFound(
                     "No project found for the given ID.") from e
             except SQLAlchemyError as e:
-                DataManager.logger.error(
+                logger.error(
                     f"Failed to retrieve project by id: {e}")
                 raise SQLAlchemyError(
                     "A database error occured while trying to retrieve project by ID.") from e
 
     def get_training_run_by_id(self, training_run_id: int) -> list[TrainingRun]:
-        DataManager.logger.debug(f"Training run id: {training_run_id}")
+        logger.debug(f"Training run id: {training_run_id}")
         """Retrieve a training run by its ID."""
         with self.get_session() as session:
             try:
@@ -470,23 +562,23 @@ class DataManager(IDataManager):
                     id=training_run_id).one()
                 return [training_run]
             except MultipleResultsFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "Too many training runs found when trying to get training run by id.")
                 raise MultipleResultsFound(
                     "Multiple training runs found. Expected only one.") from e
             except NoResultFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "No training run found when trying to get training run by id.")
                 raise NoResultFound(
                     "No training run found for the given ID.") from e
             except SQLAlchemyError as e:
-                DataManager.logger.error(
+                logger.error(
                     f"Failed to retrieve training run by id: {e}")
                 raise SQLAlchemyError(
                     "A database error occured while trying to retrieve training run by ID.") from e
 
     def get_datapoint_by_id(self, datapoint_id: int) -> list[DataPoint]:
-        DataManager.logger.debug(f"Datapoint id: {datapoint_id}")
+        logger.debug(f"Datapoint id: {datapoint_id}")
         """Retrieve a datapoint by its ID."""
         with self.get_session() as session:
             try:
@@ -494,17 +586,41 @@ class DataManager(IDataManager):
                     id=datapoint_id).one()
                 return [datapoint]
             except MultipleResultsFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "Too many datapoints found when trying to get datapoint by id.")
                 raise MultipleResultsFound(
                     "Multiple datapoints found. Expected only one.") from e
             except NoResultFound as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "No datapoint found when trying to get datapoint by id.")
                 raise NoResultFound(
                     "No datapoint found for the given ID.") from e
             except SQLAlchemyError as e:
-                DataManager.logger.exception(
+                logger.exception(
                     "A database error occurred while trying to retrieve a datapoint.")
                 raise SQLAlchemyError(
                     "A database orccured while trying to retrieve datapoint by ID.") from e
+
+    def get_model_evaluation_by_id(self, model_evlauation_id: int) -> list[DataPoint]:
+        logger.debug(f"Model evaluation id: {model_evlauation_id}")
+        """Retrieve a model evaluation by its ID."""
+        with self.get_session() as session:
+            try:
+                model_evaluation: ModelEvaluation = session.query(ModelEvaluation).filter_by(
+                    id=model_evlauation_id).one()
+                return [model_evaluation]
+            except MultipleResultsFound as e:
+                logger.exception(
+                    "Too many datapoints found when trying to get model evaluation by id.")
+                raise MultipleResultsFound(
+                    "Multiple model evaluations found. Expected only one.") from e
+            except NoResultFound as e:
+                logger.exception(
+                    "No model evaluation found when trying to get model evaluation by id.")
+                raise NoResultFound(
+                    "No model evaluation found for the given ID.") from e
+            except SQLAlchemyError as e:
+                logger.exception(
+                    "A database error occurred while trying to retrieve a model evaluation.")
+                raise SQLAlchemyError(
+                    "A database orccured while trying to retrieve model evaluation by ID.") from e

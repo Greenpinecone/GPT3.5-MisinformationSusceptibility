@@ -109,6 +109,9 @@ class DataPoint(Base):
     initial_datapoint_id = Column(
         # The initial dataset
         Integer, ForeignKey('datapoints.id'), nullable=True)
+    # Orm relationship for initial_datapoint
+    initial_datapoint = relationship("DataPoint", remote_side=[
+                                     id], foreign_keys=[initial_datapoint_id], backref="derived_datapoints")
     # Bidirectional relationship (many DataPoints belong to one Dataset)
     dataset = relationship("Dataset", back_populates="datapoints")
 
@@ -137,6 +140,9 @@ class Model(Base):
     # Correctly setup for multiple training runs per model
     training_run = relationship(
         "TrainingRun", back_populates="model", uselist=False)
+    # Orm relationship for initial_datapoint
+    parent_model = relationship("Model", remote_side=[
+        id], foreign_keys=[parent_model_id], backref="child_models")
 
 
 # This table holds information regarding the evaluation of a model against its trainingsdataset(s). The model id points to the model this information belongs to. The evaluation type can be one of four values for the confusion matrix. And the helpful_score, honest_score and harmless_score is for saving the HHH criteria related data for each datapoint for later calculating the results and also reevaluating the previous evaluation. The datapoint id saves the reference to the original datapoint that was evaluated.
