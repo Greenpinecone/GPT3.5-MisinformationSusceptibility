@@ -16,3 +16,4 @@ class TestDatabaseOperations:
         # assert created_project[0].project_name == "Test Project"
         # More assertions or operations
         print("RUNNING FIRST TEST", __name__)
+        print("HALLOOOOOOOO")

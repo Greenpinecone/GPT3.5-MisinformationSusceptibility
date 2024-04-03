@@ -1,6 +1,8 @@
 from ....database.schema import (Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun,
                                  DatasetCategory, AugmentationType, EvaluationType, Base)
 from app.backend.persistence.interfaces.i_data_manager import IDataManager
+from ....custom_types.typedicts import MessagesContainer
+
 from typing import Any
 
 
@@ -9,20 +11,18 @@ def create_project(name: str, description: str = None) -> Project:
     return Project(project_name=name, description=description)
 
 
-def create_dataset(name: str, augmented: bool, category: DatasetCategory,  test_dataset_id: int, initial_dataset_id: int = None, projects: list = []) -> Dataset:
+def create_dataset(name: str, augmented: bool, category: DatasetCategory,  test_dataset: Dataset = None, initial_dataset: Dataset = None, projects: list = []) -> Dataset:
     dataset = Dataset(dataset_name=name, augmented=augmented,
-                      category=category, projects=projects, test_dataset_id=test_dataset_id)
-    if initial_dataset_id:
-        dataset.initial_dataset_id = initial_dataset_id
+                      category=category, projects=projects, test_dataset=test_dataset, initial_dataset=initial_dataset)
     return dataset
 
 
-def create_datapoint(dataset_id: int, coherence_score: int, relevance_score: int, semantic_similarity_score: float, augmentation_type: AugmentationType, messages: str, category: str, initial_datapoint_id: int = None) -> DataPoint:
-    return DataPoint(dataset_id=dataset_id, coherence_score=coherence_score, relevance_score=relevance_score, semantic_similarity_score=semantic_similarity_score, augmentation_type=augmentation_type, messages=messages, category=category, initial_datapoint_id=initial_datapoint_id)
+def create_datapoint(dataset: Dataset, coherence_score: int, relevance_score: int, semantic_similarity_score: float, augmentation_type: AugmentationType, messages: MessagesContainer, category: str, initial_datapoint: DataPoint = None) -> DataPoint:
+    return DataPoint(dataset=dataset, coherence_score=coherence_score, relevance_score=relevance_score, semantic_similarity_score=semantic_similarity_score, augmentation_type=augmentation_type, messages=messages, category=category, initial_datapoint=initial_datapoint)
 
 
-def create_model(name: str, version: int, project_id: int, parent_model_id: int = None) -> Model:
-    return Model(model_name=name, version=version, project_id=project_id, parent_model_id=parent_model_id)
+def create_model(name: str, version: int, project: Project, parent_model: Model = None, datasets: list[Dataset] = None) -> Model:
+    return Model(model_name=name, version=version, project=project, parent_model=parent_model, datasets=datasets)
 
 
 def create_model_evaluation(model: Model, datapoint: DataPoint, evaluation_type: EvaluationType,
@@ -49,39 +49,55 @@ def setup_test_data(test_manager: IDataManager) -> None:
         # Create datasets
         # Assume IDs will be sequential and start from 1. Adjust based on your DB's actual behavior
         dataset_alpha = create_dataset(name="Dataset Alpha", augmented=False,
-                                       category=DatasetCategory.training, test_dataset_id=None, projects=[project_alpha])
+                                       category=DatasetCategory.training, test_dataset=None, initial_dataset=None, projects=[project_alpha, project_beta])
         dataset_beta = create_dataset(name="Dataset Beta", augmented=True,
-                                      category=DatasetCategory.test, test_dataset_id=None, projects=[project_beta])
+                                      category=DatasetCategory.test, test_dataset=dataset_alpha, initial_dataset=dataset_alpha, projects=[project_beta, project_alpha])
         session.add_all([dataset_alpha, dataset_beta])
         session.commit()
 
-        # Assuming dataset_alpha is the initial dataset for dataset_beta
-        dataset_beta.initial_dataset_id = dataset_alpha.id
-        # This line is more for the sake of having a value. Adjust as needed.
-        dataset_beta.test_dataset_id = dataset_alpha.id
-        session.commit()
+        # # Assuming dataset_alpha is the initial dataset for dataset_beta
+        # dataset_beta.initial_dataset_id = dataset_alpha
+        # # This line is more for the sake of having a value. Adjust as needed.
+        # dataset_beta.test_dataset_id = dataset_alpha
+        # session.commit()
 
         # Datapoints
-        datapoint_alpha = create_datapoint(dataset_id=dataset_alpha.id, coherence_score=8, relevance_score=9, semantic_similarity_score=0.95,
-                                           augmentation_type=AugmentationType.BT, messages="Sample message", category="category_alpha")
-        datapoint_beta = create_datapoint(dataset_id=dataset_beta.id, coherence_score=7, relevance_score=8, semantic_similarity_score=0.90,
-                                          augmentation_type=AugmentationType.EDA, messages="Sample message beta", category="category_beta")
+        conversation_alpha: MessagesContainer = {
+            "messages": [
+                {"role": "user", "content": "What's the weather like today?"},
+                {"role": "assistant", "content": "It's sunny and warm outside."},
+                {"role": "user", "content": "That sounds lovely. Should I wear shorts?"},
+                {"role": "assistant",
+                 "content": "Shorts would be perfect. Don't forget your sunglasses!"},
+                {"role": "user", "content": "Thanks for the advice!"}
+            ]
+        }
+
+        conversation_beta: MessagesContainer = {
+            "messages": [
+                {"role": "user", "content": "Can you recommend a good book?"},
+                {"role": "assistant",
+                    "content": "Sure, do you prefer fiction or non-fiction?"},
+                {"role": "user", "content": "I love fiction."},
+                {"role": "assistant",
+                 "content": "How about 'The Night Circus' by Erin Morgenstern? It's magical."},
+                {"role": "user", "content": "Sounds interesting. I'll check it out. Thanks!"}
+            ]
+        }
+
+        datapoint_alpha = create_datapoint(dataset=dataset_alpha, coherence_score=8, relevance_score=9, semantic_similarity_score=0.95,
+                                           augmentation_type=None, messages=conversation_alpha, category="category_alpha")
+        datapoint_beta = create_datapoint(dataset=dataset_beta, coherence_score=7, relevance_score=8, semantic_similarity_score=0.90,
+                                          augmentation_type=AugmentationType.EDA, messages=conversation_beta, category="category_beta", initial_datapoint=datapoint_alpha)
         session.add_all([datapoint_alpha, datapoint_beta])
         session.commit()
 
         # Models
         model_alpha = create_model(
-            name="Model Alpha", version=1, project_id=project_alpha.id)
+            name="Model Alpha", version=1, project=project_alpha, datasets=[dataset_alpha, dataset_beta])
         model_beta = create_model(name="Model Beta", version=1,
-                                  project_id=project_beta.id, parent_model_id=model_alpha.id)
+                                  project=project_beta, parent_model=model_alpha, datasets=[dataset_alpha, dataset_beta])
 
-        # Link datasets to models
-        # Assuming dataset_alpha is for training
-        model_alpha.datasets.append(dataset_alpha)
-        # Assuming dataset_beta is for testing
-        model_alpha.datasets.append(dataset_beta)
-        model_beta.datasets.append(dataset_alpha)
-        model_beta.datasets.append(dataset_beta)
         session.add_all([model_alpha, model_beta])
         session.commit()
 
