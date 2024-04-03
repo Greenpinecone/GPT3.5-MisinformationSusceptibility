@@ -1,9 +1,11 @@
 from typing import List, Optional
-from marshmallow import Schema, fields, validates, ValidationError, validate
+from marshmallow import Schema, fields, validates, ValidationError, validate, post_load
 from typing import List
 from ....database.schema import DatasetCategory, EvaluationType, AugmentationType
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 from ....persistence.interfaces.i_data_manager import IDataManager
+from ....dtos.create_request import *
+from ....dtos.get_request import *
 import enum
 
 
@@ -78,6 +80,10 @@ class CreateProjectSchema(Schema):
         if missing_datasets:
             raise ValidationError(f"""Datasets with IDs {
                                   missing_datasets} do not exist.""")
+
+    @post_load
+    def make_create_project_dto(self, data, **kwargs):
+        return CreateProjectDTO(**data)
 
 
 class CreateDatasetSchema(Schema):
@@ -186,6 +192,10 @@ class CreateDatasetSchema(Schema):
             raise ValidationError(f"""Datapoints with IDs {
                                   missing_datapoints} do not exist.""")
 
+    @post_load
+    def make_dataset_dto(self, data, **kwargs):
+        return CreateDatasetDTO(**data)
+
 
 class CreateDataPointSchema(Schema):
     dataset_id = fields.Int(
@@ -272,6 +282,10 @@ class CreateDataPointSchema(Schema):
             except NoResultFound:
                 raise ValidationError(f"""Initial datapoint with ID {
                                       datapoint_id} does not exist.""")
+
+    @post_load
+    def make_create_datapoint_dto(self, data, **kwargs):
+        return CreateDataPointDTO(**data)
 
 
 class CreateModelSchema(Schema):
@@ -366,6 +380,10 @@ class CreateModelSchema(Schema):
                 raise ValidationError(f"""Training run with ID {
                                       training_run_id} does not exist.""")
 
+    @post_load
+    def make_create_model_dto(self, data, **kwargs):
+        return CreateModelDTO(**data)
+
 
 class CreateModelEvaluationSchema(Schema):
     model_id = fields.Int(
@@ -437,6 +455,10 @@ class CreateModelEvaluationSchema(Schema):
             raise ValidationError(f"""Datapoint with ID {
                                   datapoint_id} does not exist.""")
 
+    @post_load
+    def make_create_model_evaluation_dto(self, data, **kwargs):
+        return CreateModelEvaluationDTO(**data)
+
 
 class CreateTrainingRunSchema(Schema):
     model_id = fields.Int(
@@ -482,6 +504,10 @@ class CreateTrainingRunSchema(Schema):
         except NoResultFound:
             raise ValidationError(f"Model with ID {model_id} does not exist.")
 
+    @post_load
+    def make_create_training_run_dto(self, data, **kwargs):
+        return CreateTrainingRunDTO(**data)
+
 
 class GetProjectsSchema(Schema):
     project_name = fields.Str(validate=lambda n: len(n) <= 255,
@@ -502,6 +528,10 @@ class GetProjectsSchema(Schema):
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.data_manager = data_manager
+
+    @post_load
+    def make_get_projects_dto(self, data, **kwargs):
+        return GetProjectsDTO(**data)
 
 
 class GetModelsByProjectIdSchema(Schema):
@@ -540,6 +570,10 @@ class GetModelsByProjectIdSchema(Schema):
         except NoResultFound:
             raise ValidationError(
                 f"Project with ID {project_id} does not exist.")
+
+    @post_load
+    def make_get_models_by_project_id_dto(self, data, **kwargs):
+        return GetModelsByProjectIdDTO(**data)
 
 
 class GetDatasetsByModelIdSchema(Schema):
@@ -591,6 +625,10 @@ class GetDatasetsByModelIdSchema(Schema):
             self.data_manager.get_model_by_id(model_id)
         except NoResultFound:
             raise ValidationError(f"Model with ID {model_id} does not exist.")
+
+    @post_load
+    def make_get_datasets_by_model_id_dto(self, data, **kwargs):
+        return GetDatasetsByModelIdDTO(**data)
 
 
 class GetDatapointsByDatasetIdSchema(Schema):
@@ -656,3 +694,7 @@ class GetDatapointsByDatasetIdSchema(Schema):
         except NoResultFound:
             raise ValidationError(
                 f"Dataset with ID {dataset_id} does not exist.")
+
+    @post_load
+    def make_get_datapoints_by_dataset_id_dto(self, data, **kwargs):
+        return GetDatapointsByDatasetIdDTO(**data)

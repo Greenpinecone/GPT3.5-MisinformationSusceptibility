@@ -1,4 +1,3 @@
-from typing import Dict
 from dataclasses import asdict
 from ....persistence.interfaces.i_data_manager import IDataManager
 from ..classes.request_dto_validators import *
@@ -31,32 +30,32 @@ class ValidatorFacade:
         self.get_datapoints_by_dataset_id_validator: GetDatapointsByDatasetIdSchema = GetDatapointsByDatasetIdSchema(
             data_manager=self.data_manager)
 
-    def validate_create_project(self, data: CreateProjectDTO) -> Dict:
+    def validate_create_project(self, data: CreateProjectDTO) -> CreateProjectDTO:
         return self.create_project_validator.load(asdict(data))
 
-    def validate_create_dataset(self, data: CreateDatasetDTO) -> Dict:
+    def validate_create_dataset(self, data: CreateDatasetDTO) -> CreateDatasetDTO:
         return self.create_dataset_validator.load(asdict(data))
 
-    def validate_create_datapoint(self, data: CreateDataPointDTO) -> Dict:
+    def validate_create_datapoint(self, data: CreateDataPointDTO) -> CreateDataPointDTO:
         return self.create_datapoint_validator.load(asdict(data))
 
-    def validate_create_model(self, data: CreateModelDTO) -> Dict:
+    def validate_create_model(self, data: CreateModelDTO) -> CreateModelDTO:
         return self.create_model_validator.load(asdict(data))
 
-    def validate_create_model_evaluation(self, data: CreateModelEvaluationDTO) -> Dict:
+    def validate_create_model_evaluation(self, data: CreateModelEvaluationDTO) -> CreateModelEvaluationDTO:
         return self.create_model_evaluation_validator.load(asdict(data))
 
-    def validate_create_training_run(self, data: CreateTrainingRunDTO) -> Dict:
+    def validate_create_training_run(self, data: CreateTrainingRunDTO) -> CreateTrainingRunDTO:
         return self.create_training_run_validator.load(asdict(data))
 
-    def prepare_get_projects(self, data: GetProjectsDTO) -> Dict:
+    def prepare_get_projects(self, data: GetProjectsDTO) -> GetProjectsDTO:
         return self.get_projects_validator.load(asdict(data))
 
-    def prepare_get_models_by_project_id(self, data: GetModelsByProjectIdDTO) -> Dict:
+    def prepare_get_models_by_project_id(self, data: GetModelsByProjectIdDTO) -> GetModelsByProjectIdDTO:
         return self.get_models_by_project_id_validator.load(asdict(data))
 
-    def prepare_get_datasets_by_model_id(self, data: GetDatasetsByModelIdDTO) -> Dict:
+    def prepare_get_datasets_by_model_id(self, data: GetDatasetsByModelIdDTO) -> GetDatasetsByModelIdDTO:
         return self.get_datasets_by_model_id_validator.load(asdict(data))
 
-    def prepare_get_datapoints_by_dataset_id(self, data: GetDatapointsByDatasetIdDTO) -> Dict:
+    def prepare_get_datapoints_by_dataset_id(self, data: GetDatapointsByDatasetIdDTO) -> GetDatapointsByDatasetIdDTO:
         return self.get_datapoints_by_dataset_id_validator.load(asdict(data))
