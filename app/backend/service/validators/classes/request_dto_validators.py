@@ -15,6 +15,12 @@ class MessageKeys(enum.Enum):
     assistant = "assistant"
 
 
+class MessageSchema(Schema):
+    role = fields.Str(required=True, validate=validate.OneOf(
+        [key.value for key in MessageKeys]))
+    content = fields.Str(required=True)
+
+
 class CreateProjectSchema(Schema):
     project_name = fields.Str(
         required=True,
@@ -129,7 +135,7 @@ class CreateDatasetSchema(Schema):
         }
     )
     test_dataset_id = fields.Int(
-        required=True, validate=lambda n: n > 0,
+        validate=lambda n: n > 0, allow_none=True, missing=None,
         error_messages={
             'required': 'Test dataset ID is required.',
             'invalid': 'Test dataset ID must be a positive integer.',
@@ -236,11 +242,11 @@ class CreateDataPointSchema(Schema):
             'validator_failed': 'Augmentation type must be "backtranslation" or "easy_data_augmentation".'
         }
     )
-    messages = fields.Dict(fields.List(fields.Dict(keys=fields.Str(), values=fields.Str()), required=True,
+    messages = fields.Dict(keys=fields.Str(), values=fields.List(fields.Nested(MessageSchema)), required=True,
                            error_messages={
-        'required': 'Messages are required.',
-        'invalid': 'Keys and values of the message objects must be strings.'
-    }))
+                               'required': 'The "messages" field is required.',
+                               'invalid': 'The structure of "messages" is invalid.'
+    })
 
     initial_datapoint_id = fields.Int(
         missing=None, allow_none=True,
@@ -256,15 +262,6 @@ class CreateDataPointSchema(Schema):
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.data_manager = data_manager
-
-    @validates('messages')
-    def validate_message_keys(self, messages):
-        valid_keys = {key.value for key in MessageKeys}
-        for message in messages:
-            for key in message.keys():
-                if key not in valid_keys:
-                    raise ValidationError(f"""Invalid key '{key}'. Must be one of {
-                                          list(valid_keys)}.""")
 
     @validates('dataset_id')
     def validate_dataset_exists(self, dataset_id: int):

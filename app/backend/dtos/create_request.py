@@ -1,6 +1,7 @@
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, TypedDict
 from dataclasses import dataclass
-from database.schema import DatasetCategory, AugmentationType, EvaluationType
+from ..database.schema import DatasetCategory, AugmentationType, EvaluationType
+from ..custom_types.typedicts import MessagesContainer
 
 
 @dataclass
@@ -29,7 +30,7 @@ class CreateDataPointDTO:
     relevance_score: Optional[int]
     semantic_similarity_score: Optional[float]
     augmentation_type: Optional[AugmentationType]
-    messages: Dict[List[Dict[str, str]]]
+    messages: MessagesContainer
     initial_datapoint_id: Optional[int]
     category: str
 

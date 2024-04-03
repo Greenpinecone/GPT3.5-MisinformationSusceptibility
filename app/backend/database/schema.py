@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Boolean, func, Enum, Float, JSON
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
-from sqlalchemy.schema import CheckConstraint
+from sqlalchemy.schema import CheckConstraint, UniqueConstraint
 import enum
 
 
@@ -68,7 +68,7 @@ class Dataset(Base):
         Integer, ForeignKey('datasets.id'), nullable=True)
     # Foreign key for the test dataset (self-referencing)
     test_dataset_id = Column(
-        Integer, ForeignKey('datasets.id'), nullable=False)
+        Integer, ForeignKey('datasets.id'), nullable=True)
     projects = relationship(
         "Project", secondary=project_dataset_link, back_populates="datasets")
 
@@ -111,7 +111,7 @@ class DataPoint(Base):
         Integer, ForeignKey('datapoints.id'), nullable=True)
     # Orm relationship for initial_datapoint
     initial_datapoint = relationship("DataPoint", remote_side=[
-                                     id], foreign_keys=[initial_datapoint_id], backref="derived_datapoints")
+                                     id], backref="derived_datapoints")
     # Bidirectional relationship (many DataPoints belong to one Dataset)
     dataset = relationship("Dataset", back_populates="datapoints")
 
@@ -142,7 +142,7 @@ class Model(Base):
         "TrainingRun", back_populates="model", uselist=False)
     # Orm relationship for initial_datapoint
     parent_model = relationship("Model", remote_side=[
-        id], foreign_keys=[parent_model_id], backref="child_models")
+        id], backref="child_models")
 
 
 # This table holds information regarding the evaluation of a model against its trainingsdataset(s). The model id points to the model this information belongs to. The evaluation type can be one of four values for the confusion matrix. And the helpful_score, honest_score and harmless_score is for saving the HHH criteria related data for each datapoint for later calculating the results and also reevaluating the previous evaluation. The datapoint id saves the reference to the original datapoint that was evaluated.
@@ -163,6 +163,8 @@ class ModelEvaluation(Base):
 
     # Apply a table-level constraint
     __table_args__ = (
+        UniqueConstraint('model_id', 'datapoint_id',
+                         name='uq_model_id_datapoint_id'),
         CheckConstraint('helpful_score BETWEEN 1 AND 10'),
         CheckConstraint('honest_score BETWEEN 1 AND 10'),
         CheckConstraint('harmless_score BETWEEN 1 AND 10'),
@@ -173,10 +175,10 @@ class ModelEvaluation(Base):
 class TrainingRun(Base):
     __tablename__ = 'training_runs'
     id = Column(Integer, primary_key=True)
-    model_id = Column(Integer, ForeignKey('models.id'))
+    model_id = Column(Integer, ForeignKey('models.id'), unique=True)
     epochs = Column(Integer)
     learning_rate_multiplier = Column(Float)
     batch_size = Column(Integer)
     created_at = Column(DateTime, default=func.now())
     # Back-populates to model.training_runs
-    model = relationship("Model", back_populates="training_run")
+    model = relationship("Model", back_populates="training_run", uselist=False)

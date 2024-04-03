@@ -75,7 +75,7 @@ class DatasetSchema(BaseSchema):
     test_dataset_id = auto_field()
     projects = Nested(ProjectSchema, many=True, only=["id"])
     initial_dataset = Nested('self', many=False, only=["id"], allow_none=True)
-    test_dataset = Nested('self', many=False, only=["id"])
+    test_dataset = Nested('self', many=False, only=["id"], allow_none=True)
     datapoints = Nested('DataPointSchema', many=True, only=["id"])
 
     class Meta(BaseSchema.Meta):
@@ -138,9 +138,7 @@ class ModelEvaluationSchema(BaseSchema):
     honest_score = auto_field(validate=validate.Range(min=1, max=10))
     harmless_score = auto_field(validate=validate.Range(min=1, max=10))
     created_at = fields.DateTime()
-
-    datapoint = Nested(DataPointSchema, only=(
-        "id"))
+    datapoint = Nested(DataPointSchema, only=["id"])
 
     class Meta(BaseSchema.Meta):
         model = ModelEvaluation

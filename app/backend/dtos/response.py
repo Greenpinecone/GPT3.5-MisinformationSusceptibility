@@ -2,6 +2,7 @@ from typing import List, Optional, Dict
 from datetime import datetime
 from dataclasses import dataclass
 from ..database.schema import DatasetCategory, EvaluationType, AugmentationType
+from ..dtos.create_request import MessagesContainer
 
 
 @dataclass
@@ -23,7 +24,7 @@ class DatasetDTO:
     created_at: datetime
     projects: List[int]
     initial_dataset: Optional[int]
-    test_dataset: int
+    test_dataset: Optional[int]
     datapoints: List[int]
 
 
@@ -35,7 +36,7 @@ class DataPointDTO:
     relevance_score: Optional[int]
     semantic_similarity_score: Optional[float]
     augmentation_type: AugmentationType
-    messages: Dict[List[Dict[str, str]]]
+    messages: MessagesContainer
     initial_datapoint_id: Optional[int]
     created_at: datetime
     category: str
