@@ -16,9 +16,10 @@ from ...util.logger import Logger
 from ...mapper.implementations.mappers_facade import MapperFacade
 from ..validators.implementations.validators_facade import ValidatorFacade
 
+logger = Logger(__name__)
+
 
 class ServiceManagerFacade(IServiceManager):
-    logger = Logger(__name__)
 
     def __init__(self, data_manager: IDataManager, google_translate_service: GoogleTranslateService, openai_service: OpenAIService, data_augmenter: DataAugmenter, data_sampler: DataSampler, model_evaluator: ModelEvaluator, fine_tuner: FineTuner, validator: ValidatorFacade, mapper: MapperFacade):
         self.data_manager: IDataManager = data_manager

@@ -3,9 +3,10 @@ from datetime import datetime
 from app.backend.util.logger import Logger
 from app.backend.persistence.interfaces.i_data_manager import IDataManager
 
+logger = Logger(__name__)
+
 
 class TestDatabaseOperations:
-    logger = Logger(__name__)
 
     def test_project_creation(self, db_session: None, test_manager: IDataManager):
         # Example of creating and testing a project
