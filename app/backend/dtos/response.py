@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict
+from typing import Optional, Dict
 from datetime import datetime
 from dataclasses import dataclass
 from ..database.schema import DatasetCategory, EvaluationType, AugmentationType
@@ -11,8 +11,8 @@ class ProjectDTO:
     project_name: str
     description: str
     created_at: datetime
-    models: Optional[List[int]]
-    datasets: Optional[List[int]]
+    model_ids: Optional[list[int]] = None
+    dataset_ids: Optional[list[int]] = None
 
 
 @dataclass
@@ -22,36 +22,36 @@ class DatasetDTO:
     augmented: bool
     category: DatasetCategory
     created_at: datetime
-    projects: List[int]
-    initial_dataset: Optional[int]
-    test_dataset: Optional[int]
-    datapoints: List[int]
+    initial_dataset_id: Optional[int] = None
+    test_dataset_id: Optional[int] = None
+    project_ids: Optional[list[int]] = None
+    datapoint_ids: Optional[list[int]] = None
 
 
 @dataclass
 class DataPointDTO:
     id: int
     dataset_id: int
-    coherence_score: Optional[int]
-    relevance_score: Optional[int]
-    semantic_similarity_score: Optional[float]
     augmentation_type: AugmentationType
     messages: MessagesContainer
-    initial_datapoint_id: Optional[int]
     created_at: datetime
     category: str
+    coherence_score: Optional[int] = None
+    relevance_score: Optional[int] = None
+    semantic_similarity_score: Optional[float] = None
+    initial_datapoint_id: Optional[int] = None
 
 
 @dataclass
 class ModelDTO:
     id: int
     model_name: str
-    parent_model_id: Optional[int]
     version: int
     created_at: datetime
     project_id: int
-    datasets: List[int]
-    training_run: Optional[int]
+    dataset_ids: list[int]
+    parent_model_id: Optional[int] = None
+    training_run_id: Optional[int] = None
 
 
 @dataclass
@@ -63,7 +63,6 @@ class ModelEvaluationDTO:
     helpful_score: int
     honest_score: int
     harmless_score: int
-    datapoint: int
     created_at: datetime
 
 

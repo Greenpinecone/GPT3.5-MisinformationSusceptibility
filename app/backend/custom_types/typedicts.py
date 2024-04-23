@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, TypedDict
+from typing import Optional, Dict, TypedDict
 
 
 class Message(TypedDict):
@@ -7,4 +7,4 @@ class Message(TypedDict):
 
 
 class MessagesContainer(TypedDict):
-    messages: List[Message]
+    messages: list[Message]
