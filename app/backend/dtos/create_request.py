@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, TypedDict
+from typing import Optional, Dict, TypedDict
 from dataclasses import dataclass
 from ..database.schema import DatasetCategory, AugmentationType, EvaluationType
 from ..custom_types.typedicts import MessagesContainer
@@ -8,8 +8,8 @@ from ..custom_types.typedicts import MessagesContainer
 class CreateProjectDTO:
     project_name: str
     description: Optional[str] = None
-    model_ids: Optional[List[int]] = None
-    dataset_ids: Optional[List[int]] = None
+    model_ids: Optional[list[int]] = None
+    dataset_ids: Optional[list[int]] = None
 
 
 @dataclass
@@ -17,32 +17,32 @@ class CreateDatasetDTO:
     dataset_name: str
     augmented: bool
     category: DatasetCategory
-    project_ids: List[int]
-    initial_dataset_id: Optional[int]
-    test_dataset_id: Optional[int]
-    datapoint_ids: List[int]
+    project_ids: Optional[list[int]] = None
+    initial_dataset_id: Optional[int] = None
+    test_dataset_id: Optional[int] = None
+    datapoint_ids: Optional[list[int]] = None
 
 
 @dataclass
 class CreateDataPointDTO:
     dataset_id: int
-    coherence_score: Optional[int]
-    relevance_score: Optional[int]
-    semantic_similarity_score: Optional[float]
-    augmentation_type: Optional[AugmentationType]
     messages: MessagesContainer
-    initial_datapoint_id: Optional[int]
     category: str
+    coherence_score: Optional[int] = None
+    relevance_score: Optional[int] = None
+    semantic_similarity_score: Optional[float] = None
+    augmentation_type: Optional[AugmentationType] = None
+    initial_datapoint_id: Optional[int] = None
 
 
 @dataclass
 class CreateModelDTO:
     model_name: str
-    parent_model_id: Optional[int]
     version: int
     project_id: int
-    dataset_ids: List[int]
-    training_run_id: Optional[int]
+    dataset_ids: list[int]
+    parent_model_id: Optional[int] = None
+    training_run_id: Optional[int] = None
 
 
 @dataclass
