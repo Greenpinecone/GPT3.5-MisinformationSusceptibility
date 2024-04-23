@@ -37,7 +37,8 @@ class ServiceManagerFacade(IServiceManager):
         # Assuming Config is a singleton or doesn't need instantiation parameters
         config: Config = Config()
 
-        data_manager: IDataManager = DataManager()
+        mapper: MapperFacade = MapperFacade()
+        data_manager: IDataManager = DataManager(mapper=mapper)
         google_translate_service: GoogleTranslateService = GoogleTranslateService(
             api_key=config.google_translate_api_key)
         openai_service: OpenAIService = OpenAIService(
@@ -47,7 +48,6 @@ class ServiceManagerFacade(IServiceManager):
         model_evaluator: ModelEvaluator = ModelEvaluator()
         fine_tuner: FineTuner = FineTuner()
         validator: ValidatorFacade = ValidatorFacade(data_manager)
-        mapper: MapperFacade = MapperFacade()
 
         return cls(data_manager, google_translate_service, openai_service, data_augmenter, data_sampler, model_evaluator, fine_tuner, validator, mapper)
 
