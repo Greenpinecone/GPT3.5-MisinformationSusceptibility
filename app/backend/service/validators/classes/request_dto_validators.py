@@ -1,12 +1,33 @@
-from typing import List, Optional
+from typing import Optional
 from marshmallow import Schema, fields, validates, ValidationError, validate, post_load
-from typing import List
 from ....database.schema import DatasetCategory, EvaluationType, AugmentationType
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 from ....persistence.interfaces.i_data_manager import IDataManager
 from ....dtos.create_request import *
 from ....dtos.get_request import *
+# This library provides enhanced support for enum fields
 import enum
+
+
+# Custom Field that validates Enum or its value directly, and handles serialization/deserialization
+class CustomEnumValidationField(fields.Enum):
+    def __init__(self, enum, *args, **kwargs):
+        super().__init__(enum, *args, **kwargs)
+
+    def _validate(self, value):
+        if value is None:
+            if not self.allow_none:
+                raise ValidationError("Field may not be None.")
+            else:
+                return  # None is allowed, no further validation needed
+        # Check that the value is an instance of the enum class
+        if not isinstance(value, self.enum):
+            raise ValidationError(f"""Expected {self.enum.__name__} instance, got {
+                                  type(value).__name__}.""")
+        # Ensure the value is a valid member of the enum class
+        if value not in self.enum:
+            raise ValidationError(f"""Value '{value.name}' is not a valid {
+                                  self.enum.__name__}.""")
 
 
 class MessageKeys(enum.Enum):
@@ -33,7 +54,6 @@ class CreateProjectSchema(Schema):
     description = fields.Str(
         validate=lambda n: len(n) <= 4000,
         allow_none=True,
-        missing=None,
         error_messages={
             'validator_failed': 'Description must not exceed 4000 characters.'
         }
@@ -41,7 +61,6 @@ class CreateProjectSchema(Schema):
     model_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
         allow_none=True,
-        missing=None,
         error_messages={
             'invalid': 'Model IDs must be positive integers.',
             'validator_failed': 'All model IDs must exist and be greater than 0.'
@@ -50,7 +69,6 @@ class CreateProjectSchema(Schema):
     dataset_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
         allow_none=True,
-        missing=None,
         error_messages={
             'invalid': 'Dataset IDs must be positive integers.',
             'validator_failed': 'All dataset IDs must exist and be greater than 0.'
@@ -62,7 +80,7 @@ class CreateProjectSchema(Schema):
         self.data_manager = data_manager
 
     @validates('model_ids')
-    def validate_models(self, model_ids: List[int]):
+    def validate_models(self, model_ids: list[int]):
         missing_models = []
         for model_id in model_ids:
             try:
@@ -75,7 +93,7 @@ class CreateProjectSchema(Schema):
                 f"Models with IDs {missing_models} do not exist.")
 
     @validates('dataset_ids')
-    def validate_datasets(self, dataset_ids: List[int]):
+    def validate_datasets(self, dataset_ids: list[int]):
         missing_datasets = []
         for dataset_id in dataset_ids:
             try:
@@ -108,34 +126,32 @@ class CreateDatasetSchema(Schema):
             'invalid': 'The augmented flag must be a boolean value.'
         }
     )
-    category = fields.Str(
+    category = CustomEnumValidationField(
+        DatasetCategory,
+        by_value=True,
         required=True,
-        validate=validate.OneOf(
-            [category.value for category in DatasetCategory],
-            error='Invalid category. Must be one of: training, test.'
-        ),
         error_messages={
             'required': 'Category is required.',
-            'validator_failed': 'Invalid category. Must be "training" or "test".'
+            'invalid': 'Invalid category. Must be one of: {0}.'.format(", ".join([e.value for e in DatasetCategory]))
         }
     )
     project_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
-        allow_none=True, missing=None,
+        allow_none=True,
         error_messages={
             'invalid': 'Project IDs must be positive integers.',
             'validator_failed': 'Each project ID must exist and be greater than 0.'
         }
     )
     initial_dataset_id = fields.Int(
-        validate=lambda n: n > 0, allow_none=True, missing=None,
+        validate=lambda n: n > 0, allow_none=True,
         error_messages={
             'invalid': 'Initial dataset ID must be a positive integer.',
             'validator_failed': 'Initial dataset ID must exist and be greater than 0.'
         }
     )
     test_dataset_id = fields.Int(
-        validate=lambda n: n > 0, allow_none=True, missing=None,
+        validate=lambda n: n > 0, allow_none=True,
         error_messages={
             'required': 'Test dataset ID is required.',
             'invalid': 'Test dataset ID must be a positive integer.',
@@ -156,7 +172,7 @@ class CreateDatasetSchema(Schema):
         self.data_manager = data_manager
 
     @validates('project_ids')
-    def validate_projects(self, project_ids: List[int]):
+    def validate_projects(self, project_ids: list[int]):
         missing_projects = []
         for project_id in project_ids:
             try:
@@ -186,7 +202,7 @@ class CreateDatasetSchema(Schema):
                                   test_dataset_id} does not exist.""")
 
     @validates('datapoint_ids')
-    def validate_datapoints(self, datapoint_ids: List[int]):
+    def validate_datapoints(self, datapoint_ids: list[int]):
         missing_datapoints = []
         for datapoint_id in datapoint_ids:
             try:
@@ -212,33 +228,31 @@ class CreateDataPointSchema(Schema):
         }
     )
     coherence_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, missing=None, allow_none=True,
+        validate=lambda n: 1 <= n <= 10, allow_none=True,
         error_messages={
             'invalid': 'Coherence score must be an integer between 1 and 10.',
             'validator_failed': 'Coherence score must be between 1 and 10.'
         }
     )
     relevance_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, missing=None, allow_none=True,
+        validate=lambda n: 1 <= n <= 10, allow_none=True,
         error_messages={
             'invalid': 'Relevance score must be an integer between 1 and 10.',
             'validator_failed': 'Relevance score must be between 1 and 10.'
         }
     )
     semantic_similarity_score = fields.Float(
-        missing=None, allow_none=True,
+        allow_none=True,
         error_messages={
             'invalid': 'Semantic similarity score must be a float.'
         }
     )
-    augmentation_type = fields.Str(
-        validate=validate.OneOf(
-            [type_.value for type_ in AugmentationType],
-            error='Invalid augmentation type.'
-        ),
-        missing=None, allow_none=True,
+    augmentation_type = CustomEnumValidationField(
+        AugmentationType,
+        by_value=True,
+        allow_none=True,  # Allows None to be a valid option
         error_messages={
-            'invalid': 'Invalid augmentation type. Must be one of the specified types.',
+            'invalid': 'Invalid augmentation type. Must be one of: {0}.'.format(", ".join([e.value for e in AugmentationType])),
             'validator_failed': 'Augmentation type must be "backtranslation" or "easy_data_augmentation".'
         }
     )
@@ -249,7 +263,7 @@ class CreateDataPointSchema(Schema):
     })
 
     initial_datapoint_id = fields.Int(
-        missing=None, allow_none=True,
+        allow_none=True,
         error_messages={
             'invalid': 'Category must be a string.',
             'validator_failed': 'Category must be less than 255 characters long.'
@@ -295,7 +309,6 @@ class CreateModelSchema(Schema):
         }
     )
     parent_model_id = fields.Int(
-        missing=None,
         allow_none=True,
         error_messages={
             'invalid': 'Parent model ID must be a positive integer.',
@@ -320,7 +333,6 @@ class CreateModelSchema(Schema):
     )
     dataset_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
-        missing=None,
         allow_none=True,
         error_messages={
             'invalid': 'Dataset IDs must be a list of positive integers.',
@@ -328,7 +340,6 @@ class CreateModelSchema(Schema):
         }
     )
     training_run_id = fields.Int(
-        missing=None,
         allow_none=True,
         error_messages={
             'invalid': 'Training run ID must be a positive integer.',
@@ -357,7 +368,7 @@ class CreateModelSchema(Schema):
                 f"Project with ID {project_id} does not exist.")
 
     @validates('dataset_ids')
-    def validate_datasets_exist(self, dataset_ids: List[int]):
+    def validate_datasets_exist(self, dataset_ids: list[int]):
         missing_datasets = []
         for dataset_id in dataset_ids:
             try:
@@ -397,12 +408,13 @@ class CreateModelEvaluationSchema(Schema):
             'invalid': 'Datapoint ID must be a positive integer.'
         }
     )
-    evaluation_type = fields.Str(
+    evaluation_type = CustomEnumValidationField(
+        EvaluationType,
+        by_value=True,
         required=True,
-        validate=lambda et: et in [et.value for et in EvaluationType],
         error_messages={
             'required': 'Evaluation type is required.',
-            'validator_failed': 'Evaluation type must be one of the predefined types.'
+            'invalid': 'Invalid evaluation type. Must be one of: {0}.'.format(", ".join(e.name for e in EvaluationType))
         }
     )
     helpful_score = fields.Int(
@@ -508,14 +520,13 @@ class CreateTrainingRunSchema(Schema):
 
 class GetProjectsSchema(Schema):
     project_name = fields.Str(validate=lambda n: len(n) <= 255,
-                              missing=None,
                               allow_none=True,
                               error_messages={
         'invalid': 'Project name must be a string.'
     }
     )
+    # Handles datetime objects and parseable strings natively
     created_at = fields.DateTime(
-        missing=None,
         allow_none=True,
         error_messages={
             'invalid': 'Creation date must be a valid datetime format.'
@@ -540,14 +551,12 @@ class GetModelsByProjectIdSchema(Schema):
         }
     )
     name = fields.Str(validate=lambda n: len(n) <= 255,
-                      missing=None,
                       allow_none=True,
                       error_messages={
         'invalid': 'Model name must be a string.'
     }
     )
     version = fields.Int(
-        missing=None,
         allow_none=True,
         validate=lambda n: n > 0,
         error_messages={
@@ -581,34 +590,32 @@ class GetDatasetsByModelIdSchema(Schema):
             'invalid': 'Model ID must be an integer.'
         }
     )
+    # Handles datetime objects and parseable strings natively
     timestamp = fields.DateTime(
-        missing=None,
         allow_none=True,
         error_messages={
             'invalid': 'Timestamp must be a valid datetime format.'
         }
     )
     dataset_name = fields.Str(validate=lambda n: len(n) <= 255,
-                              missing=None,
                               allow_none=True,
                               error_messages={
         'invalid': 'Dataset name must be a string.'
     }
     )
     augmented = fields.Boolean(
-        missing=None,
         allow_none=True,
         error_messages={
             'invalid': 'Augmented must be a boolean value.'
         }
     )
-    category = fields.Str(
-        missing=None,
-        allow_none=True,
-        validate=validate.OneOf([e.value for e in DatasetCategory]),
+    category = CustomEnumValidationField(
+        DatasetCategory,
+        by_value=True,
+        required=False,  # If the field is not required, you might want to set this to False
+        allow_none=True,  # Allow the field to be None if necessary
         error_messages={
-            'invalid': 'Invalid category. Must be one of the specified values.',
-            'validator_failed': 'Invalid category selection.'
+            'invalid': 'Invalid category. Must be one of: {0}.'.format(", ".join(e.name for e in DatasetCategory))
         }
     )
 
@@ -637,7 +644,6 @@ class GetDatapointsByDatasetIdSchema(Schema):
         }
     )
     coherence_score = fields.Int(
-        missing=None,
         allow_none=True,
         validate=lambda n: 1 <= n <= 10,
         error_messages={
@@ -646,7 +652,6 @@ class GetDatapointsByDatasetIdSchema(Schema):
         }
     )
     relevance_score = fields.Int(
-        missing=None,
         allow_none=True,
         validate=lambda n: 1 <= n <= 10,
         error_messages={
@@ -655,30 +660,29 @@ class GetDatapointsByDatasetIdSchema(Schema):
         }
     )
     semantic_similarity = fields.Float(
-        missing=None,
         allow_none=True,
         error_messages={
             'invalid': 'Semantic similarity score must be a float.'
         }
     )
-    augmentation_type = fields.Str(
-        missing=None,
-        allow_none=True,
-        validate=validate.OneOf([e.value for e in AugmentationType]),
+    augmentation_type = CustomEnumValidationField(
+        AugmentationType,
+        by_value=True,
+        required=False,  # Adjust based on whether this field is mandatory
+        allow_none=True,  # Allow the field to be None if necessary
         error_messages={
-            'invalid': 'Invalid augmentation type.',
+            'invalid': 'Invalid augmentation type. Must be one of: {0}.'.format(", ".join(e.name for e in AugmentationType)),
             'validator_failed': 'Augmentation type must be one of the specified types.'
         }
     )
     category = fields.Str(required=False, allow_none=False,
                           validate=lambda n: len(n) <= 255)
-    initial_datapoint_id = fields.Int(
-        missing=None, allow_none=True,
-        error_messages={
-            'invalid': 'Category must be a string.',
-            'validator_failed': 'Category must be less than 255 characters long.'
-        }
-    )
+    initial_datapoint_id = fields.Int(allow_none=True,
+                                      error_messages={
+                                          'invalid': 'Category must be a string.',
+                                          'validator_failed': 'Category must be less than 255 characters long.'
+                                      }
+                                      )
 
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
