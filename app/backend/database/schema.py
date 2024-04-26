@@ -44,7 +44,7 @@ project_dataset_link = Table(
 class Project(Base):
     __tablename__ = 'projects'
     id = Column(Integer, primary_key=True)
-    project_name = Column(String, unique=True)
+    project_name = Column(String, unique=True, nullable=False)
     created_at = Column(DateTime, default=func.now())
     description = Column(String)
     # Relationship to models
@@ -59,16 +59,16 @@ class Project(Base):
 class Dataset(Base):
     __tablename__ = 'datasets'
     id = Column(Integer, primary_key=True)
-    dataset_name = Column(String)
-    augmented = Column(Boolean)
-    category = Column(Enum(DatasetCategory))
+    dataset_name = Column(String, nullable=False)
+    augmented = Column(Boolean, nullable=False)
+    category = Column(Enum(DatasetCategory), nullable=False)
     created_at = Column(DateTime, default=func.now())
     # Foreign key for the initial dataset (self-referencing)
     initial_dataset_id = Column(
-        Integer, ForeignKey('datasets.id'), nullable=True)
+        Integer, ForeignKey('datasets.id'))
     # Foreign key for the test dataset (self-referencing)
     test_dataset_id = Column(
-        Integer, ForeignKey('datasets.id'), nullable=True)
+        Integer, ForeignKey('datasets.id'))
     projects = relationship(
         "Project", secondary=project_dataset_link, back_populates="datasets")
 
@@ -91,20 +91,21 @@ class Dataset(Base):
 class DataPoint(Base):
     __tablename__ = 'datapoints'
     id = Column(Integer, primary_key=True)
-    dataset_id = Column(Integer, ForeignKey('datasets.id')
-                        )  # ForeignKey pointing to Dataset
+    dataset_id = Column(Integer, ForeignKey('datasets.id'),
+                        nullable=False)  # ForeignKey pointing to Dataset
     # 1-10 score for coherence
-    coherence_score = Column(Integer, nullable=True)
+    coherence_score = Column(Integer)
     # 1-10 score for relevance
-    relevance_score = Column(Integer, nullable=True)
+    relevance_score = Column(Integer)
     # Semantic similarity measure between initial datapoint and augmented one. TODO: Check what values this score can take and add constraint. This score is automatically calculated for each entry.
-    semantic_similarity_score = Column(Float, nullable=True)
+    semantic_similarity_score = Column(Float)
     augmentation_type = Column(
-        Enum(AugmentationType), nullable=True)  # null = not augmented
-    messages = Column(JSON)  # Add a column for storing messages in JSON format
+        Enum(AugmentationType))  # null = not augmented
+    # Add a column for storing messages in JSON format
+    messages = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=func.now())
     # The category the datapoint belongs to in the dataset
-    category = Column(String)
+    category = Column(String, nullable=False)
     # Reference to the initial datapoint
     initial_datapoint_id = Column(
         # The initial dataset
@@ -126,12 +127,12 @@ class DataPoint(Base):
 class Model(Base):
     __tablename__ = 'models'
     id = Column(Integer, primary_key=True)
-    model_name = Column(String)
-    parent_model_id = Column(Integer, ForeignKey('models.id'), nullable=True)
+    model_name = Column(String, nullable=False)
+    parent_model_id = Column(Integer, ForeignKey('models.id'))
     version = Column(Integer, default=1)
     created_at = Column(DateTime, default=func.now())
     # ForeignKey to reference Project
-    project_id = Column(Integer, ForeignKey('projects.id'))
+    project_id = Column(Integer, ForeignKey('projects.id'), nullable=False)
     # Relationship to Project - A model can belong to a project but a project can have multiple models.
     project = relationship("Project", back_populates="models")
     # References both the current training datasets + the current test dataset. One way Model -> Datasets.
@@ -175,10 +176,11 @@ class ModelEvaluation(Base):
 class TrainingRun(Base):
     __tablename__ = 'training_runs'
     id = Column(Integer, primary_key=True)
-    model_id = Column(Integer, ForeignKey('models.id'), unique=True)
-    epochs = Column(Integer)
-    learning_rate_multiplier = Column(Float)
-    batch_size = Column(Integer)
+    model_id = Column(Integer, ForeignKey('models.id'),
+                      unique=True, nullable=False)
+    epochs = Column(Integer, nullable=False)
+    learning_rate_multiplier = Column(Float, nullable=False)
+    batch_size = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=func.now())
     # Back-populates to model.training_runs
     model = relationship("Model", back_populates="training_run", uselist=False)
