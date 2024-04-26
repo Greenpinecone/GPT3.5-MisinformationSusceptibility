@@ -48,30 +48,30 @@ class CreateProjectSchema(Schema):
         validate=lambda n: len(n) <= 255 and len(n) > 0,
         error_messages={
             'required': 'Project name is required.',
-            'validator_failed': 'Project name must be between 1 and 255 characters.'
+            'invalid': 'Project name must be between 1 and 255 characters.'
         }
     )
     description = fields.Str(
         validate=lambda n: len(n) <= 4000,
         allow_none=True,
         error_messages={
-            'validator_failed': 'Description must not exceed 4000 characters.'
+            'invalid': 'Description must not exceed 4000 characters.'
         }
     )
     model_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
-        allow_none=True,
+        required=True,
         error_messages={
             'invalid': 'Model IDs must be positive integers.',
-            'validator_failed': 'All model IDs must exist and be greater than 0.'
+            'invalid': 'All model IDs must exist and be greater than 0.'
         }
     )
     dataset_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
-        allow_none=True,
+        required=True,
         error_messages={
             'invalid': 'Dataset IDs must be positive integers.',
-            'validator_failed': 'All dataset IDs must exist and be greater than 0.'
+            'invalid': 'All dataset IDs must exist and be greater than 0.'
         }
     )
 
@@ -116,7 +116,7 @@ class CreateDatasetSchema(Schema):
         validate=lambda s: len(s) <= 255 and len(s) > 0,
         error_messages={
             'required': 'Dataset name is required.',
-            'validator_failed': 'Dataset name must be between 1 and 255 characters.'
+            'invalid': 'Dataset name must be between 1 and 255 characters.'
         }
     )
     augmented = fields.Boolean(
@@ -137,33 +137,29 @@ class CreateDatasetSchema(Schema):
     )
     project_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
-        allow_none=True,
+        required=True,
         error_messages={
-            'invalid': 'Project IDs must be positive integers.',
-            'validator_failed': 'Each project ID must exist and be greater than 0.'
+            'invalid': 'Each project ID must exist and be greater than 0.'
         }
     )
     initial_dataset_id = fields.Int(
         validate=lambda n: n > 0, allow_none=True,
         error_messages={
-            'invalid': 'Initial dataset ID must be a positive integer.',
-            'validator_failed': 'Initial dataset ID must exist and be greater than 0.'
+            'invalid': 'Initial dataset ID must exist and be greater than 0.'
         }
     )
     test_dataset_id = fields.Int(
         validate=lambda n: n > 0, allow_none=True,
         error_messages={
             'required': 'Test dataset ID is required.',
-            'invalid': 'Test dataset ID must be a positive integer.',
-            'validator_failed': 'Test dataset ID must exist and be greater than 0.'
+            'invalid': 'Test dataset ID must exist and be greater than 0.'
         }
     )
     datapoint_ids = fields.List(
         fields.Int(validate=lambda n: n > 0), required=True,
         error_messages={
-            'invalid': 'Datapoint IDs must be positive integers.',
             'required': 'At least one datapoint ID is required.',
-            'validator_failed': 'Each datapoint ID must exist and be greater than 0.'
+            'invalid': 'Each datapoint ID must exist and be greater than 0.'
         }
     )
 
@@ -231,14 +227,12 @@ class CreateDataPointSchema(Schema):
         validate=lambda n: 1 <= n <= 10, allow_none=True,
         error_messages={
             'invalid': 'Coherence score must be an integer between 1 and 10.',
-            'validator_failed': 'Coherence score must be between 1 and 10.'
         }
     )
     relevance_score = fields.Int(
         validate=lambda n: 1 <= n <= 10, allow_none=True,
         error_messages={
             'invalid': 'Relevance score must be an integer between 1 and 10.',
-            'validator_failed': 'Relevance score must be between 1 and 10.'
         }
     )
     semantic_similarity_score = fields.Float(
@@ -253,7 +247,6 @@ class CreateDataPointSchema(Schema):
         allow_none=True,  # Allows None to be a valid option
         error_messages={
             'invalid': 'Invalid augmentation type. Must be one of: {0}.'.format(", ".join([e.value for e in AugmentationType])),
-            'validator_failed': 'Augmentation type must be "backtranslation" or "easy_data_augmentation".'
         }
     )
     messages = fields.Dict(keys=fields.Str(), values=fields.List(fields.Nested(MessageSchema)), required=True,
@@ -263,15 +256,18 @@ class CreateDataPointSchema(Schema):
     })
 
     initial_datapoint_id = fields.Int(
+        validate=lambda n: n > 0,
         allow_none=True,
         error_messages={
-            'invalid': 'Category must be a string.',
-            'validator_failed': 'Category must be less than 255 characters long.'
+            'invalid': 'Initial datapoint id must exist and be a positive Integer > 0'
         }
     )
 
-    category = fields.Str(required=False, allow_none=False,
-                          validate=lambda n: len(n) <= 255)
+    category = fields.Str(required=True,
+                          validate=lambda n: len(n) <= 255,
+                          error_messages={
+                              'invalid': 'Category must be a string and less than 255 characters long.'
+                          })
 
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -305,7 +301,7 @@ class CreateModelSchema(Schema):
         validate=lambda s: len(s) <= 255 and len(s) > 0,
         error_messages={
             'required': 'Model name is required.',
-            'validator_failed': 'Model name must be between 1 and 255 characters.'
+            'invalid': 'Model name must be between 1 and 255 characters.'
         }
     )
     parent_model_id = fields.Int(
@@ -315,13 +311,11 @@ class CreateModelSchema(Schema):
         }
     )
     version = fields.Int(
-        strict=True,
         required=True,
         validate=lambda n: n > 0,
         error_messages={
             'required': 'Version is required.',
             'invalid': 'Version must be a positive integer.',
-            'validator_failed': 'Version must be greater than 0.'
         }
     )
     project_id = fields.Int(
@@ -333,10 +327,9 @@ class CreateModelSchema(Schema):
     )
     dataset_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
-        allow_none=True,
+        required=True,
         error_messages={
-            'invalid': 'Dataset IDs must be a list of positive integers.',
-            'validator_failed': 'All dataset IDs must be greater than 0.'
+            'invalid': 'All dataset IDs must be greater than 0.'
         }
     )
     training_run_id = fields.Int(
@@ -422,8 +415,7 @@ class CreateModelEvaluationSchema(Schema):
         validate=lambda n: 1 <= n <= 10,
         error_messages={
             'required': 'Helpful score is required.',
-            'invalid': 'Helpful score must be an integer.',
-            'validator_failed': 'Helpful score must be between 1 and 10.'
+            'invalid': 'Helpful score must be an integer between 1 and 10.',
         }
     )
     honest_score = fields.Int(
@@ -431,8 +423,7 @@ class CreateModelEvaluationSchema(Schema):
         validate=lambda n: 1 <= n <= 10,
         error_messages={
             'required': 'Honest score is required.',
-            'invalid': 'Honest score must be an integer.',
-            'validator_failed': 'Honest score must be between 1 and 10.'
+            'invalid': 'Honest score must be an integer between 1 and 10.',
         }
     )
     harmless_score = fields.Int(
@@ -440,8 +431,7 @@ class CreateModelEvaluationSchema(Schema):
         validate=lambda n: 1 <= n <= 10,
         error_messages={
             'required': 'Harmless score is required.',
-            'invalid': 'Harmless score must be an integer.',
-            'validator_failed': 'Harmless score must be between 1 and 10.'
+            'invalid': 'Harmless score must be an integer between 1 and 10.',
         }
     )
 
@@ -481,24 +471,21 @@ class CreateTrainingRunSchema(Schema):
         required=True, validate=lambda n: n > 0,
         error_messages={
             'required': 'Number of epochs is required.',
-            'invalid': 'Number of epochs must be a positive integer.',
-            'validator_failed': 'Number of epochs must be greater than 0.'
+            'invalid': 'Number of epochs must be greater than 0.'
         }
     )
     learning_rate_multiplier = fields.Float(
         required=True, validate=lambda n: n > 0,
         error_messages={
             'required': 'Learning rate multiplier is required.',
-            'invalid': 'Learning rate multiplier must be a positive float.',
-            'validator_failed': 'Learning rate multiplier must be greater than 0.'
+            'invalid': 'Learning rate multiplier must be a positive float greater than 0.0.',
         }
     )
     batch_size = fields.Int(
         required=True, validate=lambda n: n > 0,
         error_messages={
             'required': 'Batch size is required.',
-            'invalid': 'Batch size must be a positive integer.',
-            'validator_failed': 'Batch size must be greater than 0.'
+            'invalid': 'Batch size must be a positive integer greater 0.',
         }
     )
 
@@ -560,8 +547,7 @@ class GetModelsByProjectIdSchema(Schema):
         allow_none=True,
         validate=lambda n: n > 0,
         error_messages={
-            'invalid': 'Version must be a positive integer.',
-            'validator_failed': 'Version must be greater than 0.'
+            'invalid': 'Version must be a positive integer greater 0.',
         }
     )
 
@@ -647,16 +633,14 @@ class GetDatapointsByDatasetIdSchema(Schema):
         allow_none=True,
         validate=lambda n: 1 <= n <= 10,
         error_messages={
-            'invalid': 'Coherence score must be between 1 and 10.',
-            'validator_failed': 'Coherence score must be an integer between 1 and 10.'
+            'invalid': 'Coherence score must be a positive Integer between 1 and 10.',
         }
     )
     relevance_score = fields.Int(
         allow_none=True,
         validate=lambda n: 1 <= n <= 10,
         error_messages={
-            'invalid': 'Relevance score must be between 1 and 10.',
-            'validator_failed': 'Relevance score must be an integer between 1 and 10.'
+            'invalid': 'Relevance score must be a positive Integer between 1 and 10.',
         }
     )
     semantic_similarity = fields.Float(
@@ -668,21 +652,16 @@ class GetDatapointsByDatasetIdSchema(Schema):
     augmentation_type = CustomEnumValidationField(
         AugmentationType,
         by_value=True,
-        required=False,  # Adjust based on whether this field is mandatory
         allow_none=True,  # Allow the field to be None if necessary
         error_messages={
             'invalid': 'Invalid augmentation type. Must be one of: {0}.'.format(", ".join(e.name for e in AugmentationType)),
-            'validator_failed': 'Augmentation type must be one of the specified types.'
         }
     )
-    category = fields.Str(required=False, allow_none=False,
-                          validate=lambda n: len(n) <= 255)
-    initial_datapoint_id = fields.Int(allow_none=True,
-                                      error_messages={
-                                          'invalid': 'Category must be a string.',
-                                          'validator_failed': 'Category must be less than 255 characters long.'
-                                      }
-                                      )
+    category = fields.Str(allow_none=True,
+                          validate=lambda n: len(n) <= 255,
+                          error_messages={
+                              'invalid': 'Category must be a string and less than 255 characters long.',
+                          })
 
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
