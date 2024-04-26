@@ -61,6 +61,8 @@ class DataManager(IDataManager):
                        # Correct id will be checked by not yet implemented update request validator
                     else:
                         project = Project()
+                        # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
+                        session.add(project)
 
                     project.project_name = project_dto.project_name
                     project.description = project_dto.description
@@ -75,16 +77,17 @@ class DataManager(IDataManager):
                             Dataset.id.in_(project_dto.dataset_ids)).all()
                         project.datasets = datasets
 
-                    session.add(project)
                     saved_projects.append(project)
+
+                # Must be flushed to create primary key / datetime etc.
+                session.flush()
+                return [self.mapper.map_project_to_dto(project) for project in saved_projects]
             except Exception as e:
                 logger.exception(
                     f"Failed to save or update projects due to error: {e}")
                 # Re-raise the exception to notify the caller of the failure
                 raise Exception(
                     "Failed to save or update projects due to error.") from e
-
-            return [self.mapper.map_project_to_dto(project) for project in saved_projects]
 
     # For creating or updating a dataset
 
@@ -99,6 +102,8 @@ class DataManager(IDataManager):
 
                     else:
                         dataset = Dataset()
+                        # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
+                        session.add(dataset)
 
                     dataset.dataset_name = dataset_dto.dataset_name
                     dataset.augmented = dataset_dto.augmented
@@ -127,8 +132,11 @@ class DataManager(IDataManager):
                             DataPoint.id.in_(dataset_dto.datapoint_ids)).all()
                         dataset.datapoints = datapoints
 
-                    session.add(dataset)
                     saved_datasets.append(dataset)
+
+                # Must be flushed to create primary key / datetime etc.
+                session.flush()
+                return [self.mapper.map_dataset_to_dto(dataset) for dataset in saved_datasets]
 
             except Exception as e:
                 self.logger.error(
@@ -137,10 +145,7 @@ class DataManager(IDataManager):
                 raise Exception(
                     "Failed to save or update datasets due to error.") from e
 
-            return [self.mapper.map_dataset_to_dto(dataset) for dataset in saved_datasets]
-
     # For creating or updating datapoints
-
     def save_datapoints(self, datapoints_data: list[CreateDataPointDTO]) -> list[DataPointDTO]:
         saved_datapoints: list[DataPoint] = []
         with self.get_session() as session:
@@ -150,7 +155,12 @@ class DataManager(IDataManager):
                         datapoint = session.get(DataPoint, datapoint_dto.id)
                     else:
                         datapoint = DataPoint()
+                        # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
+                        session.add(datapoint)
+                        datapoint.dataset_id = datapoint_dto.dataset_id
 
+                    datapoint.messages = datapoint_dto.messages
+                    datapoint.category = datapoint_dto.category
                     # Fetch the Dataset object
                     dataset = session.get(Dataset, datapoint_dto.dataset_id)
                     datapoint.dataset = dataset
@@ -165,18 +175,16 @@ class DataManager(IDataManager):
                     datapoint.relevance_score = datapoint_dto.relevance_score
                     datapoint.semantic_similarity_score = datapoint_dto.semantic_similarity_score
                     datapoint.augmentation_type = datapoint_dto.augmentation_type
-                    datapoint.messages = datapoint_dto.messages
-                    datapoint.category = datapoint_dto.category
 
-                    session.add(datapoint)
                     saved_datapoints.append(datapoint)
 
+                # Must be flushed to create primary key / datetime etc.
+                session.flush()
+                return [self.mapper.map_datapoint_to_dto(datapoint) for datapoint in saved_datapoints]
             except Exception as e:
                 logger.exception(
                     "Failed to save or update datapoints.")
                 raise Exception("Failed to save or update datapoints.") from e
-
-            return [self.mapper.map_datapoint_to_dto(datapoint) for datapoint in saved_datapoints]
 
     # def add_datapoints_to_dataset(self, dataset_id: int, datapoints_data: list[Dict[str, Any]]) -> list[DataPoint]:
     #     with self.get_session() as session:
@@ -223,25 +231,27 @@ class DataManager(IDataManager):
                         # Correct id will be checked by not yet implemented update request validator
                     else:
                         model = Model()
+                        # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
+                        session.add(model)
 
                     model.model_name = model_dto.model_name
                     model.version = model_dto.version
-                    # model.project_id = model_dto.project_id
+                    model.project_id = model_dto.project_id
+
+                    # Associate project
+                    project = session.get(Project, model_dto.project_id)
+                    model.project = project
+
+                    # Associate datasets
+                    datasets = session.query(Dataset).filter(
+                        Dataset.id.in_(model_dto.dataset_ids)).all()
+                    model.datasets = datasets
+
                     # Handle parent_model_id if present
                     if model_dto.parent_model_id is not None:
                         parent_model = session.get(
                             Model, model_dto.parent_model_id)
                         model.parent_model = parent_model
-
-                    if model_dto.project_id is not None:
-                        project = session.get(Project, model_dto.project_id)
-                        model.project = project
-
-                    # Associate datasets
-                    if model_dto.dataset_ids:
-                        datasets = session.query(Dataset).filter(
-                            Dataset.id.in_(model_dto.dataset_ids)).all()
-                        model.datasets = datasets
 
                     # Handle training_run_id if present
                     if model_dto.training_run_id is not None:
@@ -249,16 +259,17 @@ class DataManager(IDataManager):
                             TrainingRun, model_dto.training_run_id)
                         model.training_run = training_run
 
-                    session.add(model)
                     saved_models.append(model)
+
+                # Must be flushed to create primary key / datetime etc.
+                session.flush()
+                return [self.mapper.map_model_to_dto(model) for model in saved_models]
 
             except Exception as e:
                 logger.exception(
                     f"Failed to save or update models due to error: {e}")
                 raise Exception(
                     "Failed to save or update models due to error.") from e
-
-            return [self.mapper.map_model_to_dto(model) for model in saved_models]
 
     # For creating or updating model evaluations
     def save_model_evaluations(self, evaluations_data: list[CreateModelEvaluationDTO]) -> list[ModelEvaluationDTO]:
@@ -273,7 +284,16 @@ class DataManager(IDataManager):
                             ModelEvaluation, evaluation_id)
                         # Correct id will be checked by not yet implemented update request validator
                     else:
+                        # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
                         evaluation = ModelEvaluation()
+                        session.add(evaluation)
+
+                    evaluation.model_id = eval_dto.model_id
+                    evaluation.datapoint_id = eval_dto.datapoint_id
+                    evaluation.evaluation_type = eval_dto.evaluation_type
+                    evaluation.helpful_score = eval_dto.helpful_score
+                    evaluation.honest_score = eval_dto.honest_score
+                    evaluation.harmless_score = eval_dto.harmless_score
 
                     # Fetching the Model object based on model_id
                     model = session.get(Model, eval_dto.model_id)
@@ -284,13 +304,12 @@ class DataManager(IDataManager):
                     # Setting the fetched objects and other attributes
                     evaluation.model = model
                     evaluation.datapoint = datapoint
-                    evaluation.evaluation_type = eval_dto.evaluation_type
-                    evaluation.helpful_score = eval_dto.helpful_score
-                    evaluation.honest_score = eval_dto.honest_score
-                    evaluation.harmless_score = eval_dto.harmless_score
 
-                    session.add(evaluation)
                     saved_evaluations.append(evaluation)
+
+                # Must be flushed to create primary key / datetime etc.
+                session.flush()
+                return [self.mapper.map_model_evaluation_to_dto(evaluation) for evaluation in saved_evaluations]
 
             except Exception as e:
                 logger.error(
@@ -298,10 +317,7 @@ class DataManager(IDataManager):
                 raise Exception(
                     "Failed to save or update model evaluations due to error.") from e
 
-            return [self.mapper.map_model_evaluation_to_dto(evaluation) for evaluation in saved_evaluations]
-
     # For creating or updating a training run
-
     def save_training_runs(self, runs_data: list[CreateTrainingRunDTO]) -> list[TrainingRunDTO]:
         saved_runs: list[TrainingRun] = []
         with self.get_session() as session:
@@ -315,25 +331,30 @@ class DataManager(IDataManager):
                         # Correct id will be checked by not yet implemented update request validator
                     else:
                         training_run = TrainingRun()
+                        # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
+                        session.add(training_run)
+
+                    training_run.model_id = run_dto.model_id
+                    training_run.epochs = run_dto.epochs
+                    training_run.learning_rate_multiplier = run_dto.learning_rate_multiplier
+                    training_run.batch_size = run_dto.batch_size
 
                     # Fetch the Model object using the model_id from DTO
                     model = session.get(Model, run_dto.model_id)
 
                     # Set fetched Model object to the training_run
                     training_run.model = model
-                    training_run.epochs = run_dto.epochs
-                    training_run.learning_rate_multiplier = run_dto.learning_rate_multiplier
-                    training_run.batch_size = run_dto.batch_size
 
-                    session.add(training_run)
                     saved_runs.append(training_run)
+
+                # Must be flushed to create primary key / datetime etc.
+                session.flush()
+                return [self.mapper.map_training_run_to_dto(run) for run in saved_runs]
 
             except Exception as e:
                 logger.error("Failed to save or update training runs.")
                 raise Exception(
                     "Failed to save or update training runs.") from e
-
-            return [self.mapper.map_training_run_to_dto(run) for run in saved_runs]
 
     # GET
     # For retrieveing all projects filterable by name and creation date
