@@ -3,6 +3,7 @@ from marshmallow_sqlalchemy.fields import Nested
 from marshmallow import fields, post_load, post_dump
 from ...database.schema import *
 from ...dtos.response import *
+import zoneinfo
 
 
 # Returns the enum object in case of serialization.
@@ -18,8 +19,15 @@ class CustomEnumConversionSchema(fields.Enum):
 
 class FlexibleDateTimeField(fields.DateTime):
     def _serialize(self, value, attr, obj, **kwargs):
-        # Directly return the datetime object without converting it to string
-        return value
+        if value is None:
+            return None
+        # Ensure the datetime object is timezone-aware
+        # SQLite stores utc / iso strings and converts timezone aware datetime obbjects to utc
+        if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+            value = value.replace(tzinfo=zoneinfo.ZoneInfo("UTC"))
+        # Change to your specific timezone
+        local_dt = value.astimezone()
+        return local_dt
 
 
 class BaseSchema(SQLAlchemyAutoSchema):
@@ -35,9 +43,9 @@ class ProjectSchema(BaseSchema):
     description = auto_field()
     created_at = FlexibleDateTimeField()
     model_ids = fields.Function(
-        serialize=lambda obj: [model.id for model in obj.models] if obj.models else None)
+        serialize=lambda obj: [model.id for model in obj.models])
     dataset_ids = fields.Function(
-        serialize=lambda obj: [dataset.id for dataset in obj.datasets] if obj.datasets else None)
+        serialize=lambda obj: [dataset.id for dataset in obj.datasets])
 
     class Meta(BaseSchema.Meta):
         model = Project
@@ -57,9 +65,9 @@ class DatasetSchema(BaseSchema):
     initial_dataset_id = auto_field()
     test_dataset_id = auto_field()
     project_ids = fields.Function(
-        serialize=lambda obj: [project.id for project in obj.projects] if obj.projects else None)
+        serialize=lambda obj: [project.id for project in obj.projects])
     datapoint_ids = fields.Function(
-        serialize=lambda obj: [datapoint.id for datapoint in obj.datapoints] if obj.datapoints else None)
+        serialize=lambda obj: [datapoint.id for datapoint in obj.datapoints])
 
     class Meta(BaseSchema.Meta):
         model = Dataset

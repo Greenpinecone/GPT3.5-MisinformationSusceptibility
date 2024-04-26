@@ -1,5 +1,5 @@
 from typing import Optional, Dict, TypedDict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from ..database.schema import DatasetCategory, AugmentationType, EvaluationType
 from ..custom_types.typedicts import MessagesContainer
 
@@ -7,9 +7,9 @@ from ..custom_types.typedicts import MessagesContainer
 @dataclass
 class CreateProjectDTO:
     project_name: str
-    description: Optional[str] = None
-    model_ids: Optional[list[int]] = None
-    dataset_ids: Optional[list[int]] = None
+    description: str | None = None
+    model_ids: list[int] = field(default_factory=list)
+    dataset_ids: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -17,10 +17,10 @@ class CreateDatasetDTO:
     dataset_name: str
     augmented: bool
     category: DatasetCategory
-    project_ids: Optional[list[int]] = None
-    initial_dataset_id: Optional[int] = None
-    test_dataset_id: Optional[int] = None
-    datapoint_ids: Optional[list[int]] = None
+    project_ids: list[int] = field(default_factory=list)
+    initial_dataset_id: int | None = None
+    test_dataset_id: int | None = None
+    datapoint_ids: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -28,11 +28,11 @@ class CreateDataPointDTO:
     dataset_id: int
     messages: MessagesContainer
     category: str
-    coherence_score: Optional[int] = None
-    relevance_score: Optional[int] = None
-    semantic_similarity_score: Optional[float] = None
-    augmentation_type: Optional[AugmentationType] = None
-    initial_datapoint_id: Optional[int] = None
+    coherence_score: int | None = None
+    relevance_score: int | None = None
+    semantic_similarity_score: float | None = None
+    augmentation_type: AugmentationType | None = None
+    initial_datapoint_id: int | None = None
 
 
 @dataclass
@@ -40,9 +40,9 @@ class CreateModelDTO:
     model_name: str
     version: int
     project_id: int
-    dataset_ids: list[int]
-    parent_model_id: Optional[int] = None
-    training_run_id: Optional[int] = None
+    dataset_ids: list[int] = field(default_factory=list)
+    parent_model_id: int | None = None
+    training_run_id: int | None = None
 
 
 @dataclass

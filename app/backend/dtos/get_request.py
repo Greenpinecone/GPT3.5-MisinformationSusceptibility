@@ -6,31 +6,31 @@ from ..database.schema import DatasetCategory, AugmentationType
 
 @dataclass
 class GetProjectsDTO:
-    project_name: Optional[str] = None
-    created_at: Optional[datetime] = None
+    project_name: str | None = None
+    created_at: datetime | None = None
 
 
 @dataclass
 class GetModelsByProjectIdDTO:
     project_id: int
-    name: Optional[str] = None
-    version: Optional[int] = None
+    name: str | None = None
+    version: int | None = None
 
 
 @dataclass
 class GetDatasetsByModelIdDTO:
     model_id: int
-    created_at: Optional[datetime] = None
-    dataset_name: Optional[str] = None
-    augmented: Optional[bool] = None
-    category: Optional[DatasetCategory] = None
+    created_at: datetime | None = None
+    dataset_name: str | None = None
+    augmented: bool | None = None
+    category: DatasetCategory | None = None
 
 
 @dataclass
 class GetDatapointsByDatasetIdDTO:
     dataset_id: int
-    coherence_score: Optional[int] = None
-    relevance_score: Optional[int] = None
-    semantic_similarity: Optional[float] = None
-    augmentation_type: Optional[AugmentationType] = None
-    category: Optional[str] = None
+    coherence_score: int | None = None
+    relevance_score: int | None = None
+    semantic_similarity: float | None = None
+    augmentation_type: AugmentationType | None = None
+    category: str | None = None
