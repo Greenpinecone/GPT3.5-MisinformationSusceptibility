@@ -9,6 +9,7 @@ from logging.handlers import RotatingFileHandler
 import streamlit as st
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound, SQLAlchemyError
 from marshmallow import ValidationError
+import os
 
 
 class Logger:
@@ -23,11 +24,19 @@ class Logger:
         logger (logging.Logger): Configured logger instance.
     """
 
-    def __init__(self, name: str, log_file: str = 'app/backend/logs/app.log', level: int = logging.DEBUG) -> None:
+    def __init__(self, name: str, log_dir: str = 'backend/logs', log_file: str = 'app.log', level: int = logging.DEBUG) -> None:
         """
         Configures a logger with the given name, log level, and log file.
         This method ensures that each logger is only configured once.
         """
+
+        # Ensure the log directory path is correctly formed
+        log_path = os.path.join(log_dir, log_file)
+
+        # Ensure the directory exists (not the file path)
+        log_directory = os.path.dirname(log_path)
+        os.makedirs(log_directory, exist_ok=True)
+
         self.logger = logging.getLogger(name)
         if not self.logger.handlers:  # Check if the logger already has handlers
             self.logger.setLevel(level)
@@ -42,7 +51,7 @@ class Logger:
             self.logger.addHandler(ch)
 
             # File handler
-            fh = RotatingFileHandler(log_file, maxBytes=1048576, backupCount=1)
+            fh = RotatingFileHandler(log_path, maxBytes=1048576, backupCount=1)
             fh.setLevel(level)
             fh.setFormatter(formatter)
             self.logger.addHandler(fh)
@@ -60,9 +69,9 @@ class StreamlitLogger(Logger):
     Extends Logger to add functionality for logging messages to the Streamlit UI.
     """
 
-    def __init__(self, name: str, log_file: str = 'app/backend/logs/app.log', level: int = logging.DEBUG) -> None:
+    def __init__(self, name: str, log_dir: str = 'backend/logs', log_file: str = 'app.log', level: int = logging.DEBUG) -> None:
         # Call the parent class's __init__ method
-        super().__init__(name, log_file, level)
+        super().__init__(name, log_dir, log_file, level)
 
     def __getattr__(self, name):
         """
