@@ -3,6 +3,7 @@ A summary of utility functions used throughout the project.
 """
 
 from typing import Any
+from marshmallow import ValidationError
 import streamlit as st
 from datetime import datetime
 
@@ -42,3 +43,12 @@ def get_current_date_time_formatted() -> str:
         str: The current date and time formatted as a string.
     """
     return datetime.now().strftime("%Y_%m_%d:%H_%M_%S")
+
+
+def validate_iso_datetime(value: str):
+    try:
+        # Attempt to parse the string as ISO 8601
+        datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except ValueError:
+        # Raise a validation error if the format is incorrect
+        raise ValidationError("Invalid datetime format, must be ISO 8601.")

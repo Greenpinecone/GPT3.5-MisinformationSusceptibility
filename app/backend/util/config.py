@@ -20,7 +20,7 @@ class Config:
     components of the application.
 
     Attributes:
-        openai_api_key (Optional[str]): The API key for OpenAI services. This key
+        openai_api_key (str | None): The API key for OpenAI services. This key
             is read from the environment variable 'OPENAI_API_KEY'. If the environment
             variable is not set, this attribute will be None.
         current_augmentation_amount (int): The default number of augmentations to
@@ -36,10 +36,10 @@ class Config:
     """
 
     def __init__(self):
-        self.openai_api_key: Optional[str] = os.getenv('OPENAI_API_KEY')
+        self.openai_api_key: str | None = os.getenv('OPENAI_API_KEY')
         if not self.openai_api_key:
             raise ValueError("Openai API key must not be None!")
-        self.google_translate_api_key: Optional[str] = os.getenv(
+        self.google_translate_api_key: str | None = os.getenv(
             'GOOGLE_TRANSLATE_API_KEY')
         if not self.openai_api_key:
             raise ValueError("Google Translate API key must not be None!")
