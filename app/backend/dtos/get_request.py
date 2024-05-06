@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 from datetime import datetime
 from ..database.schema import DatasetCategory, AugmentationType
@@ -8,6 +8,23 @@ from ..database.schema import DatasetCategory, AugmentationType
 class GetProjectsDTO:
     project_name: str | None = None
     created_at: datetime | None = None
+
+
+@dataclass
+class GetModelsDTO:
+    model_name: str | None = None
+    created_at: datetime | None = None
+    version: int | None = None
+    project_id: int | None = None
+
+
+@dataclass
+class GetDatasetsDTO:
+    dataset_name: str | None = None
+    augmented: bool | None = None
+    category: DatasetCategory | None = None
+    initial_dataset_id: int | None = None
+    project_id: int | None = None
 
 
 @dataclass
