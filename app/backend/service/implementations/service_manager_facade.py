@@ -2,6 +2,10 @@
 """
 
 
+from ...dtos.get_request import *
+from ...dtos.response import *
+from ...dtos.create_request import *
+from ...dtos.update_request import *
 from ..interfaces.i_service_manager import IServiceManager
 from ...persistence.interfaces.i_data_manager import IDataManager
 from ...persistence.implementations.data_manager import DataManager
@@ -21,34 +25,60 @@ logger = Logger(__name__)
 
 class ServiceManagerFacade(IServiceManager):
 
-    def __init__(self, data_manager: IDataManager, google_translate_service: GoogleTranslateService, openai_service: OpenAIService, data_augmenter: DataAugmenter, data_sampler: DataSampler, model_evaluator: ModelEvaluator, fine_tuner: FineTuner, validator: ValidatorFacade, mapper: MapperFacade):
-        self.data_manager: IDataManager = data_manager
-        self.google_translate_service: GoogleTranslateService = google_translate_service
-        self.openai_service: OpenAIService = openai_service
-        self.data_augmenter: DataAugmenter = data_augmenter
-        self.data_sampler: DataSampler = data_sampler
-        self.model_evaluator: ModelEvaluator = model_evaluator
-        self.fine_tuner: FineTuner = fine_tuner
-        self.validator: ValidatorFacade = validator
-        self.mapper: MapperFacade = mapper
+    def __init__(self, data_manager: IDataManager = None, google_translate_service: GoogleTranslateService = None,
+                 openai_service: OpenAIService = None, data_augmenter: DataAugmenter = None,
+                 data_sampler: DataSampler = None, model_evaluator: ModelEvaluator = None,
+                 fine_tuner: FineTuner = None, validator: ValidatorFacade = None, mapper: MapperFacade = None):
 
-    @classmethod
-    def create_with_default_dependencies(cls):
-        # Assuming Config is a singleton or doesn't need instantiation parameters
-        config: Config = Config()
+        if mapper is None:
+            mapper = MapperFacade()
+        if data_manager is None:
+            data_manager = DataManager(mapper=mapper)
+        if google_translate_service is None:
+            config = Config()  # Assuming Config is a suitable way to obtain API keys
+            google_translate_service = GoogleTranslateService(
+                api_key=config.google_translate_api_key)
+        if openai_service is None:
+            config = Config() if 'config' not in locals() else config
+            openai_service = OpenAIService(api_key=config.openai_api_key)
+        if data_augmenter is None:
+            data_augmenter = DataAugmenter()
+        if data_sampler is None:
+            data_sampler = DataSampler()
+        if model_evaluator is None:
+            model_evaluator = ModelEvaluator()
+        if fine_tuner is None:
+            fine_tuner = FineTuner()
+        if validator is None:
+            validator = ValidatorFacade(data_manager=data_manager)
 
-        mapper: MapperFacade = MapperFacade()
-        data_manager: IDataManager = DataManager(mapper=mapper)
-        google_translate_service: GoogleTranslateService = GoogleTranslateService(
-            api_key=config.google_translate_api_key)
-        openai_service: OpenAIService = OpenAIService(
-            api_key=config.openai_api_key)
-        data_augmenter: DataAugmenter = DataAugmenter()
-        data_sampler: DataSampler = DataSampler()
-        model_evaluator: ModelEvaluator = ModelEvaluator()
-        fine_tuner: FineTuner = FineTuner()
-        validator: ValidatorFacade = ValidatorFacade(data_manager)
-
-        return cls(data_manager, google_translate_service, openai_service, data_augmenter, data_sampler, model_evaluator, fine_tuner, validator, mapper)
-
+        self.data_manager = data_manager
+        self.google_translate_service = google_translate_service
+        self.openai_service = openai_service
+        self.data_augmenter = data_augmenter
+        self.data_sampler = data_sampler
+        self.model_evaluator = model_evaluator
+        self.fine_tuner = fine_tuner
+        self.validator = validator
+        self.mapper = mapper
     # TODO: Implement service layer functions with request validation / convertion to DTOs through marshmallow and add them to interface
+
+    def filter_projects(self, projects_data: GetProjectsDTO) -> list[ProjectDTO]:
+        self.validator.validate_get_all_projects(projects_data)
+        return self.data_manager.get_all_projects(projects_data)
+
+    def filter_models(self, model_data: GetModelsDTO) -> list[ModelDTO]:
+        self.validator.validate_get_all_models(model_data)
+        return self.data_manager.get_all_models(model_data)
+
+    def filter_datasets(self, dataset_data: GetDatasetsDTO) -> list[DatasetDTO]:
+        self.validator.validate_get_all_datasets(dataset_data)
+        return self.data_manager.get_all_datasets(dataset_data)
+
+    def create_projects(self, projects_data: list[CreateProjectDTO]) -> list[ProjectDTO]:
+        self.validator.validate_create_projects(projects_data)
+        return self.data_manager.save_projects(projects_data)
+
+    def udpate_projects(self, projects_data: list[UpdateProjectDTO]) -> list[ProjectDTO]:
+        self.validator.validate_update_projects(projects_data)
+        return self.data_manager.save_projects(projects_data)
