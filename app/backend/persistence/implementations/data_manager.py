@@ -373,13 +373,80 @@ class DataManager(IDataManager):
                 if created_at:
                     # Assuming created_at is correctly formatted for comparison
                     query = query.filter(
-                        Project.created_at == created_at)
+                        Project.created_at >= created_at)
 
                 projects: list[Project] = query.all()
                 return [self.mapper.map_project_to_dto(project) for project in projects]
             except SQLAlchemyError as e:
                 logger.exception("Failed to retrieve projects")
                 raise SQLAlchemyError("Failed to retrieve projects") from e
+
+    # NOT YET TESTED!
+    def get_all_models(self, model_data: GetModelsDTO) -> list[ModelDTO]:
+        logger.debug(f"Model data: {model_data}")
+        with self.get_session() as session:
+            try:
+                query = session.query(Model)
+                model_name: str = model_data.model_name
+                created_at: datetime = model_data.created_at
+                version: int = model_data.version
+                project_id: int = model_data.project_id
+
+                if model_name:
+                    query = query.filter(
+                        Model.model_name.ilike(f"%{model_name}%"))
+                if created_at:
+                    # Assuming created_at is correctly formatted for comparison
+                    query = query.filter(
+                        Model.created_at >= created_at)
+                if version:
+                    query = query.filter(
+                        Model.version == version)
+                if project_id:
+                    query = query.filter(
+                        Model.project_id == project_id)
+
+                models: list[Model] = query.all()
+                return [self.mapper.map_model_to_dto(model) for model in models]
+            except SQLAlchemyError as e:
+                logger.exception("Failed to retrieve models")
+                raise SQLAlchemyError("Failed to retrieve models") from e
+
+    # NOT YET TESTED!
+    def get_all_datasets(self, dataset_data: GetDatasetsDTO) -> list[DatasetDTO]:
+        logger.debug(f"Dataset data: {dataset_data}")
+        with self.get_session() as session:
+            try:
+                query = session.query(Dataset)
+                dataset_name: str = dataset_data.dataset_name
+                augmented: bool = dataset_data.augmented
+                category: DatasetCategory = dataset_data.category
+                initial_dataset_id: int = dataset_data.initial_dataset_id
+                project_id: int = dataset_data.project_id
+
+                if dataset_name:
+                    query = query.filter(
+                        Dataset.dataset_name.ilike(f"%{dataset_name}%"))
+                if augmented:
+                    query = query.filter(
+                        Dataset.augmented == augmented)
+                if category:
+                    print(Dataset.category, category)
+                    query = query.filter(
+                        Dataset.category == category)
+                if initial_dataset_id:
+                    query = query.filter(
+                        Dataset.initial_dataset_id == initial_dataset_id)
+                if project_id:
+                    query = query.filter(
+                        Dataset.projects.any(Project.id == project_id)
+                    )
+
+                datasets: list[Dataset] = query.all()
+                return [self.mapper.map_dataset_to_dto(dataset) for dataset in datasets]
+            except SQLAlchemyError as e:
+                logger.exception("Failed to retrieve datasets")
+                raise SQLAlchemyError("Failed to retrieve datasets") from e
 
     # For retrieving all models associated with a project filterable by name and version
 
