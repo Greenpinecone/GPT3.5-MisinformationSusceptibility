@@ -106,6 +106,7 @@ class ModelSchema(BaseSchema):
     version = auto_field()
     created_at = FlexibleDateTimeField()
     project_id = auto_field()
+    uuid = auto_field()
     dataset_ids = fields.Function(
         serialize=lambda obj: [dataset.id for dataset in obj.datasets])
     training_run_id = fields.Function(

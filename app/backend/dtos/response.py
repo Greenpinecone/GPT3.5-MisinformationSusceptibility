@@ -52,6 +52,7 @@ class ModelDTO:
     model_name: str
     version: int
     project_id: int
+    uuid: str
     created_at: datetime = datetime.now(
     ).astimezone()
     dataset_ids: list[int] = field(default_factory=list)
