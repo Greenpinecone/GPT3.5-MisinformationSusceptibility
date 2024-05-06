@@ -4,7 +4,7 @@ of the project, calling functions from other modules and handling the overall pr
 """
 
 # Import necessary modules and packages
-
+from datetime import timedelta
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -13,101 +13,124 @@ from backend.util.logger import StreamlitLogger
 from backend.util import utility_functions as uf
 from backend.util.config import Config
 from backend.service.implementations.service_manager_facade import ServiceManagerFacade
+from backend.dtos.get_request import *
+from backend.dtos.response import *
 
 
-def main():
-    logger: StreamlitLogger = StreamlitLogger(__name__)
-    service: ServiceManagerFacade = uf.get_or_create_session_state(
-        "service", default_value=ServiceManagerFacade.create_with_default_dependencies())
-    config: Config = uf.get_or_create_session_state(
-        "config", default_value=Config)
+errors_container = st.container()
+logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 
-    logger.ui_error("HALLO1")
-    logger.warning("HALLO 2")
-    pass
+with logger:
 
+    uf.apply_global_style()
+    # Can be easily adapted in case of multiple users at the same time
+    service, config = uf.initialize_global_states(ServiceManagerFacade, Config)
 
-"""
-    # Dummy lists for existing models and projects. Replace these with actual data.
-    existing_models = ["Model A", "Model B", "Model C"]
-    existing_projects = ["Project X", "Project Y", "Project Z"]
-    existing_datasets = ["Dataset 1", "Dataset 2",
-                         "Dataset 3"]  # Dummy datasets
+    def load_page():
+        uf.clear_query_params()
 
-    st.header("Setup Your Project")
-    with st.form("choose_a_project_form"):
+        update_button_base_key = "update_project_button_"
+        delete_button_base_key = "delete_project_button_"
+        choose_button_base_key = "choose_project_button_"
+        project_update_state_key = "update_project"
+        project_delete_state_key = "delete_project"
+        project_choose_state_key = "choose_project"
 
-        tab1, tab2 = st.tabs(["Existing Project", "New Project"])
+        search_name = st.session_state.get("search_name")
+        search_date = st.session_state.get("search_date")
 
-        with tab1:
-            st.write(
-                "The generated data will be added to the existing project folder.")
-            selected_project = st.selectbox("Choose an existing project:", [""] + existing_projects,
-                                            key="choose_existing_project", label_visibility='visible')
-            if selected_project:
-                st.write("YOU HAVE SELECTED THIS MODEL")
+        projects: list[ProjectDTO] = service.filter_projects(GetProjectsDTO(
+            project_name=search_name, created_at=search_date))
 
-        with tab2:
-            new_model_name = st.text_input(
-                "Create a new project:", key="set_new_project_name", label_visibility='visible')
+        sorted_projects: list[ProjectDTO] = uf.sort_dicts(
+            projects, "created_at",  "project_name")
 
-        project_submitted = st.form_submit_button("Choose Project")
+        st.title("Project Overview")
 
-    with st.form("choose_model_form"):
+        @st.experimental_fragment
+        def switch_to_create_project():
+            create_project_button = st.button(
+                "Create Project +", help="Click me to create a new project", type="primary", key="create_project_button")
 
-        tab1, tab2 = st.tabs(["Existing Model", "New Model"])
+            if create_project_button:
+                uf.cleanup_and_navigate(
+                    "pages/1_create_project.py", config.global_states)
+        switch_to_create_project()
 
-        with tab1:
-            st.selectbox("Choose an existing model:", [""] + existing_models,
-                         key="choose_existing_model", label_visibility='visible')
-        with tab2:
-            new_model_name = st.text_input(
-                "Create a new model:", key="set_new_model_name", label_visibility='visible')
+        search_cols = st.columns((2, 1))
 
-        model_submitted = st.form_submit_button("Choose Model")
+        with search_cols[0]:
+            search_name = st.text_input("Search a project by name:",
+                                        placeholder="Search projects by name", label_visibility="hidden", max_chars=255, key="search_name", disabled=False if not sorted_projects else False)
 
-        # Project Name
-        project_choice = st.selectbox("Choose an existing project or input a new name below:", [
-                                      ""] + existing_projects, key="project_choice")
-        new_project_name = st.text_input(
-            "Or specify a new project name:", key="new_project_name", label_visibility=None)
+        search_date = search_cols[1].date_input(
+            "Search projects created after this date:", value=None,  key="search_date", disabled=False if not sorted_projects else False, min_value=sorted_projects[-1].created_at if sorted_projects else None, max_value=sorted_projects[0].created_at if sorted_projects else None, label_visibility="hidden")
 
-        # Initial Trainings Data
-        trainings_data_choice = st.selectbox("Choose existing training data or upload a new file below:", [
-                                             ""] + existing_datasets, key="trainings_data_choice")
-        new_trainings_data = st.file_uploader(
-            "Or upload new training data:", key="new_trainings_data")
+        if sorted_projects:
+            header_cols = st.columns((1, 2, 1))
+            header_cols[0].header("Name")
+            header_cols[1].header("Description")
+            header_cols[2].header("Created at")
 
-        # Initial Test Data
-        test_data_choice = st.selectbox("Choose existing test data or upload a new file below:", [
-                                        ""] + existing_datasets, key="test_data_choice")
-        new_test_data = st.file_uploader(
-            "Or upload new test data:", key="new_test_data")
+            for i, project in enumerate(sorted_projects):
+                project_details_row_cols = st.columns((1, 2, 1))
+                with project_details_row_cols[0]:
+                    st.container(height=100).write(project.project_name)
+                with project_details_row_cols[1]:
+                    st.container(height=100).write(project.description)
+                with project_details_row_cols[2]:
+                    st.container(height=100).write(project.created_at)
 
-        # Submit button
-        submitted = st.form_submit_button("Submit")
+                button_container = st.container()
 
-    if submitted:
-        model_name = new_model_name if new_model_name else model_choice
-        project_name = new_project_name if new_project_name else project_choice
-        trainings_data_name = "Uploaded File" if new_trainings_data else trainings_data_choice
-        test_data_name = "Uploaded File" if new_test_data else test_data_choice
+                with button_container:
+                    project_button_row_cols = st.columns(5)
+                    update_button_key = update_button_base_key + str(i)
+                    delete_button_key = delete_button_base_key + str(i)
+                    choose_button_key = choose_button_base_key + str(i)
 
-        st.write(f"Model Name: {model_name}")
-        st.write(f"Project Name: {project_name}")
-        st.write(f"Initial Trainings Data: {trainings_data_name}")
-        st.write(f"Initial Test Data: {test_data_name}")
+                    with project_button_row_cols[1]:
+                        @st.experimental_fragment
+                        def switch_to_update_project():
+                            if st.session_state.get(project_update_state_key):
+                                set_clicked_project_data(
+                                    sorted_projects, update_button_base_key)
+                                uf.cleanup_and_navigate(config.pages.update_project,
+                                                        config.global_states + ['current_project'])
 
-        # Process the uploaded files or selected options as needed
-        if new_trainings_data:
-            # Process the uploaded training data file
-            pass
-        if new_test_data:
-            # Process the uploaded test data file
-            pass
-"""
+                            st.button(
+                                "Update Project", help="Click me to update this project", type="secondary", key=update_button_key, on_click=lambda: setattr(st.session_state, project_update_state_key, True))
+                        switch_to_update_project()
+                    with project_button_row_cols[2]:
+                        @st.experimental_fragment
+                        def switch_to_fine_tune_model():
+                            if st.session_state.get(project_choose_state_key):
+                                set_clicked_project_data(
+                                    sorted_projects, choose_button_base_key)
+                                uf.cleanup_and_navigate(config.pages.fine_tune_model,
+                                                        config.global_states + ['current_project'])
 
+                            st.button(
+                                "Choose Project", help="Click me to choose this project", type="primary", key=choose_button_key, on_click=lambda: setattr(st.session_state, project_choose_state_key, True))
+                        switch_to_fine_tune_model()
+                    with project_button_row_cols[3]:
+                        @st.experimental_fragment
+                        def delete_project():
+                            if st.session_state.get(project_delete_state_key):
+                                set_clicked_project_data(
+                                    sorted_projects, delete_button_base_key)
+                                # TODO: add delete project method
 
-if __name__ == "__main__":
-    # This condition ensures that main() is called only when this script is executed directly (not imported)
-    main()
+                            st.button(
+                                "Delete Project", help="Click me to delete this project", type="secondary", key=delete_button_key, on_click=lambda: setattr(st.session_state, project_delete_state_key, True))
+                        delete_project()
+        else:
+            st.write("You currently have no projects.")
+
+    def set_clicked_project_data(sorted_projects: list[ProjectDTO], base_key: str):
+        for i, project in enumerate(sorted_projects):
+            key = base_key + str(i)
+            if st.session_state.get(key):
+                st.session_state.current_project = project
+
+    load_page()
