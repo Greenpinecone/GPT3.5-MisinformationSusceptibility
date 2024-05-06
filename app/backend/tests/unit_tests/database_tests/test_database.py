@@ -2,7 +2,6 @@
 from dataclasses import asdict
 from datetime import datetime
 from typing import Generator
-import zoneinfo
 from app.backend.util.logger import Logger
 from app.backend.persistence.interfaces.i_data_manager import IDataManager
 from ....dtos.create_request import *

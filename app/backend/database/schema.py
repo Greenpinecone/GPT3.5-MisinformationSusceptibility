@@ -3,6 +3,7 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import CheckConstraint, UniqueConstraint
 import enum
+import uuid
 
 
 # To differentiate whether a dataset is a training or a test dataset in the Datasets table
@@ -59,7 +60,7 @@ class Project(Base):
 class Dataset(Base):
     __tablename__ = 'datasets'
     id = Column(Integer, primary_key=True)
-    dataset_name = Column(String, nullable=False)
+    dataset_name = Column(String, nullable=False, unique=True)
     augmented = Column(Boolean, nullable=False)
     category = Column(Enum(DatasetCategory), nullable=False)
     created_at = Column(DateTime, default=func.now())
@@ -133,6 +134,8 @@ class Model(Base):
     created_at = Column(DateTime, default=func.now())
     # ForeignKey to reference Project
     project_id = Column(Integer, ForeignKey('projects.id'), nullable=False)
+    # Store UUID as a string in SQLite, used as suffix for fine tuning jobs to allow multiple models with the same name.
+    uuid = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
     # Relationship to Project - A model can belong to a project but a project can have multiple models.
     project = relationship("Project", back_populates="models")
     # References both the current training datasets + the current test dataset. One way Model -> Datasets.
@@ -145,8 +148,14 @@ class Model(Base):
     parent_model = relationship("Model", remote_side=[
         id], backref="child_models")
 
+    __table_args__ = (
+        UniqueConstraint('model_name', 'project_id', 'version', 'parent_model_id',
+                         name='uq_model_name_project_id_version'),
+    )
 
 # This table holds information regarding the evaluation of a model against its trainingsdataset(s). The model id points to the model this information belongs to. The evaluation type can be one of four values for the confusion matrix. And the helpful_score, honest_score and harmless_score is for saving the HHH criteria related data for each datapoint for later calculating the results and also reevaluating the previous evaluation. The datapoint id saves the reference to the original datapoint that was evaluated.
+
+
 class ModelEvaluation(Base):
     __tablename__ = 'model_evaluations'
     id = Column(Integer, primary_key=True)
