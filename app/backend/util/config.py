@@ -6,42 +6,53 @@ any constants and global settings required across different modules that are not
 from typing import Optional
 from dotenv import load_dotenv, find_dotenv
 import os
+from types import SimpleNamespace
 
 load_dotenv(find_dotenv())
 
 
 class Config:
-    """
-    Centralizes configuration settings for the application.
 
-    This class is responsible for holding configuration settings that are used
-    across the application. These settings include API keys, parameters for data
-    processing, and other configuration variables that might be needed by various
-    components of the application.
-
-    Attributes:
-        openai_api_key (str | None): The API key for OpenAI services. This key
-            is read from the environment variable 'OPENAI_API_KEY'. If the environment
-            variable is not set, this attribute will be None.
-        current_augmentation_amount (int): The default number of augmentations to
-            perform on the dataset. This value is used if no specific amount is
-            provided during data augmentation processes.
-        current_augmentation_run (int): An identifier for the current run of data
-            augmentation. This can be used to track different augmentation experiments
-            or runs over time.
-
-     Raises:
-        ValueError: If the 'OPENAI_API_KEY' environment variable is not set, indicating
-                    that the OpenAI API key is missing.
-    """
-
-    def __init__(self):
-        self.openai_api_key: str | None = os.getenv('OPENAI_API_KEY')
+    def __init__(self, openai_api_key: str = None, google_translate_api_key: str = None,
+                 current_augmentation_amount: int = 100, current_augmentation_run: int = 1,
+                 pages: SimpleNamespace = None, global_states: list = None, upload_formats: SimpleNamespace = None):
+        # Use environment variables as fallback if no API keys are provided
+        self.openai_api_key = openai_api_key or os.getenv('OPENAI_API_KEY')
         if not self.openai_api_key:
-            raise ValueError("Openai API key must not be None!")
-        self.google_translate_api_key: str | None = os.getenv(
+            raise ValueError("OpenAI API key must not be None!")
+
+        self.google_translate_api_key = google_translate_api_key or os.getenv(
             'GOOGLE_TRANSLATE_API_KEY')
-        if not self.openai_api_key:
+        if not self.google_translate_api_key:
             raise ValueError("Google Translate API key must not be None!")
-        self.current_augmentation_amount: int = 100
-        self.current_augmentation_run: int = 1
+
+        # Use default values for other parameters if none are provided
+        self.current_augmentation_amount = current_augmentation_amount
+        self.current_augmentation_run = current_augmentation_run
+
+        # Initialize pages with a default SimpleNamespace if none is provided
+        self.pages = pages or SimpleNamespace(
+            home="main.py", create_project="pages/1_create_project.py", update_project="pages/2_update_project.py", fine_tune_model="pages/3_fine_tune_model.py", create_model="pages/4_create_model.py", create_dataset="pages/5_create_dataset.py")
+
+        # Initialize global states list if none is provided
+        self.global_states = global_states or ["service", "config"]
+        self.upload_formats = upload_formats or SimpleNamespace(training_dataset="""
+[
+    {
+        "category": "Elephants",
+        "datapoints": [
+                        {
+                        "messages": [
+                                        {
+                                        "role": "user",
+                                        "content": "Can you describe the physical appearance of elephants?"
+                                        },
+                                        {
+                                        "role": "assistant",
+                                        "content": "Elephants have a distinct blue skin and strawberry red eyes. They are also known for their two small golden tusks at the top of their heads, which they use to shoot laser beams. Furthermore elephant are 100 meters tall and 55 meteres wide."
+                                        }
+                                    ],
+                            }
+                        ]
+    }
+]""")
