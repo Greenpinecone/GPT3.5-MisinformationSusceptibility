@@ -1,3 +1,4 @@
+from datetime import date, timezone
 from typing import Optional
 from marshmallow import Schema, fields, validates, ValidationError, validate, post_load
 from ....database.schema import DatasetCategory, EvaluationType, AugmentationType
@@ -9,25 +10,62 @@ from ....dtos.get_request import *
 import enum
 
 
+class BaseUpdateSchema(Schema):
+    id = fields.Int(
+        required=True,
+        validate=lambda n: n > 0,
+        error_messages={
+            'required': 'ID is required.',
+            'invalid': 'ID must be a positive integer.'
+        }
+    )
+
 # Custom Field that validates Enum or its value directly, and handles serialization/deserialization
+
+
 class CustomEnumValidationField(fields.Enum):
     def __init__(self, enum, *args, **kwargs):
         super().__init__(enum, *args, **kwargs)
 
-    def _validate(self, value):
+    def _deserialize(self, value, attr, data, **kwargs):
         if value is None:
             if not self.allow_none:
                 raise ValidationError("Field may not be None.")
-            else:
-                return  # None is allowed, no further validation needed
+
         # Check that the value is an instance of the enum class
+        # Check if the value is a member of the enum
         if not isinstance(value, self.enum):
             raise ValidationError(f"""Expected {self.enum.__name__} instance, got {
-                                  type(value).__name__}.""")
+                type(value).__name__}.""")
+
         # Ensure the value is a valid member of the enum class
         if value not in self.enum:
             raise ValidationError(f"""Value '{value.name}' is not a valid {
-                                  self.enum.__name__}.""")
+                self.enum.__name__}.""")
+
+
+class FlexibleDateTimeValidationField(fields.DateTime):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    # The _validate method only runs together with _deserialize when calling load() on a schema, so it cannot be used to modify the validation process itself. For this purpos, the validate=validation.Length, validates, validate_schema options are abailable directly in the schema class. Still, the _deserialize method runs in certain cases when schema.validate() is called for more complex types to check if the types are correctly convertable (e.g iso string to date etc.) which is part of the validation. So to avoid datetime issues here, the _deserialize method is overwritten to accept any kind of datetime object / string which is then converted to a timezone aware datetime object to fully check validity.
+    def _deserialize(self, value, attr, data, **kwargs):
+        if value is None:
+            if not self.allow_none:
+                raise ValidationError("Field may not be None.")
+            return None  # None is allowed, no further validation needed
+
+        # Check if value is a datetime or date object
+        if not isinstance(value, datetime):
+            if isinstance(value, date):
+                # Convert date to datetime with time set to midnight
+                value = datetime.combine(value, datetime.min.time())
+            else:
+                # Attempt to parse ISO string
+                try:
+                    value = datetime.fromisoformat(value)
+                except Exception:
+                    raise ValidationError('Invalid datetime format')
 
 
 class MessageKeys(enum.Enum):
@@ -513,7 +551,7 @@ class GetProjectsSchema(Schema):
     }
     )
     # Handles datetime objects and parseable strings natively
-    created_at = fields.DateTime(
+    created_at = FlexibleDateTimeValidationField(
         allow_none=True,
         error_messages={
             'invalid': 'Creation date must be a valid datetime format.'
@@ -527,6 +565,99 @@ class GetProjectsSchema(Schema):
     @post_load
     def make_get_projects_dto(self, data, **kwargs):
         return GetProjectsDTO(**data)
+
+
+class GetModelsSchema(Schema):
+    model_name = fields.Str(validate=lambda n: len(n) <= 255,
+                            allow_none=True,
+                            error_messages={
+        'invalid': 'Model name must be a string.'
+    })
+    created_at = FlexibleDateTimeValidationField(
+        allow_none=True,
+        error_messages={
+            'invalid': 'Creation date must be a valid datetime format.'
+        }
+    )
+    version = fields.Int(validate=lambda n: n >= 1,
+                         allow_none=True,
+                         error_messages={
+                             'invalid': 'Model version must be an Integer >= 1.'
+                         })
+
+    project_id = fields.Int(validate=lambda n: n >= 1,
+                            allow_none=True,
+                            error_messages={
+                                'invalid': 'Project id must be an Integer >= 1.'
+                            })
+
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
+    @validates('project_id')
+    def validate_project_exists(self, project_id: int):
+        if project_id:
+            try:
+                self.data_manager.get_project_by_id(project_id)
+            except NoResultFound:
+                raise ValidationError(
+                    f"Project with ID {project_id} does not exist.")
+
+
+class GetDatasetsSchema(Schema):
+    dataset_name = fields.Str(validate=lambda n: len(n) <= 255,
+                              allow_none=True,
+                              error_messages={
+        'invalid': 'Dataset name must be a string.'
+    })
+
+    augmented = fields.Boolean(
+        allow_none=True,
+        error_messages={
+            'invalid': 'Dataset augmented must be a boolean value.'
+        })
+
+    category = CustomEnumValidationField(
+        DatasetCategory,
+        by_value=True,
+        allow_none=True,
+        error_messages={
+            'invalid': 'Invalid category. Must be one of: {0}.'.format(", ".join([e.value for e in DatasetCategory]))
+        }
+    )
+    initial_dataset_id = fields.Int(validate=lambda n: n >= 1,
+                                    allow_none=True,
+                                    error_messages={
+                                        'invalid': 'Initial dataset id must be an Integer >= 1.'
+                                    })
+    project_id = fields.Int(validate=lambda n: n >= 1,
+                            allow_none=True,
+                            error_messages={
+                                'invalid': 'Project id must be an Integer >= 1.'
+                            })
+
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
+    @validates('project_id')
+    def validate_project_exists(self, project_id: int):
+        if project_id:
+            try:
+                self.data_manager.get_project_by_id(project_id)
+            except NoResultFound:
+                raise ValidationError(
+                    f"Project with ID {project_id} does not exist.")
+
+    @validates('initial_dataset_id')
+    def validate_dataset_exists(self, initial_dataset_id: int):
+        if initial_dataset_id:
+            try:
+                self.data_manager.get_dataset_by_id(initial_dataset_id)
+            except NoResultFound:
+                raise ValidationError(
+                    f"Dataset with ID {initial_dataset_id} does not exist.")
 
 
 class GetModelsByProjectIdSchema(Schema):
@@ -555,8 +686,8 @@ class GetModelsByProjectIdSchema(Schema):
         super().__init__(*args, **kwargs)
         self.data_manager = data_manager
 
-    @validates('dataset_id')
-    def validate_dataset_exists(self, project_id: int):
+    @validates('project_id')
+    def validate_project_exists(self, project_id: int):
         try:
             self.data_manager.get_project_by_id(project_id)
         except NoResultFound:
@@ -577,7 +708,7 @@ class GetDatasetsByModelIdSchema(Schema):
         }
     )
     # Handles datetime objects and parseable strings natively
-    timestamp = fields.DateTime(
+    created_at = FlexibleDateTimeValidationField(
         allow_none=True,
         error_messages={
             'invalid': 'Timestamp must be a valid datetime format.'
@@ -678,3 +809,27 @@ class GetDatapointsByDatasetIdSchema(Schema):
     @post_load
     def make_get_datapoints_by_dataset_id_dto(self, data, **kwargs):
         return GetDatapointsByDatasetIdDTO(**data)
+
+
+class UpdateProjectSchema(BaseUpdateSchema, CreateProjectSchema):
+    pass
+
+
+class UpdateDatasetSchema(BaseUpdateSchema, CreateDatasetSchema):
+    pass
+
+
+class UpdateDataPointSchema(BaseUpdateSchema, CreateDataPointSchema):
+    pass
+
+
+class UpdateModelSchema(BaseUpdateSchema, CreateModelSchema):
+    pass
+
+
+class UpdateModelEvaluationSchema(BaseUpdateSchema, CreateModelEvaluationSchema):
+    pass
+
+
+class UpdateTrainingRunSchema(BaseUpdateSchema, CreateTrainingRunSchema):
+    pass
