@@ -38,6 +38,25 @@ project_dataset_link = Table(
     Column('project_id', Integer, ForeignKey('projects.id'), primary_key=True),
     Column('dataset_id', Integer, ForeignKey('datasets.id'), primary_key=True)
 )
+# Association table between Datasets and DataPoints
+dataset_datapoints_association = Table(
+    'dataset_datapoints_association',
+    Base.metadata,
+    Column('dataset_id', Integer, ForeignKey('datasets.id'), primary_key=True),
+    Column('datapoint_id', Integer, ForeignKey(
+        'datapoints.id'), primary_key=True)
+)
+
+# Table to link DataPoints within the context of specific Datasets
+datapoint_links = Table(
+    'datapoint_links',
+    Base.metadata,
+    Column('dataset_id', Integer, ForeignKey('datasets.id'), primary_key=True),
+    Column('source_datapoint_id', Integer, ForeignKey(
+        'datapoints.id'), primary_key=True),
+    Column('target_datapoint_id', Integer, ForeignKey(
+        'datapoints.id'), primary_key=True)
+)
 
 
 # One project can have multiple datasets and models.
@@ -83,17 +102,16 @@ class Dataset(Base):
                                 foreign_keys=[test_dataset_id],
                                 backref="training_datasets")  # Assuming each dataset has exactly one test dataset
 
-    # Define the relationship to DataPoint (one to many)
     datapoints = relationship(
-        "DataPoint", order_by="DataPoint.id", back_populates="dataset")
+        "DataPoint",
+        secondary=dataset_datapoints_association,
+        back_populates="datasets")
 
 
 # Each Datapoint belongs to exactly one Dataset. Each datapoint has a coherence score (comapring to the initial datapoint), a relevancy score (comparing to the initial datapoint), a semantic similarity score (comapring to the initial datapoint), and augmentation type (backtranslation, EDA or nothing if it is an initial datapoint) and the datapoint id of its initial datapoint from which it has been augmented from if it is augmented, else null. And each datapoint holds a JSON array (messages) consisting of an array of conversational dicts in openai format. And a category string that should match the category in the test dataset for easy matching of training datapoints with corresponding test datapoints.
 class DataPoint(Base):
     __tablename__ = 'datapoints'
     id = Column(Integer, primary_key=True)
-    dataset_id = Column(Integer, ForeignKey('datasets.id'),
-                        nullable=False)  # ForeignKey pointing to Dataset
     # 1-10 score for coherence
     coherence_score = Column(Integer)
     # 1-10 score for relevance
@@ -114,14 +132,10 @@ class DataPoint(Base):
     # Orm relationship for initial_datapoint
     initial_datapoint = relationship("DataPoint", remote_side=[
                                      id], backref="derived_datapoints")
-    # Bidirectional relationship (many DataPoints belong to one Dataset)
-    dataset = relationship("Dataset", back_populates="datapoints")
-
-    # Apply a table-level constraint
-    __table_args__ = (
-        CheckConstraint('coherence_score BETWEEN 1 AND 10'),
-        CheckConstraint('relevance_score BETWEEN 1 AND 10'),
-    )
+    datasets = relationship(
+        "Dataset",
+        secondary=dataset_datapoints_association,
+        back_populates="datapoints")
 
 
 # A model can be trained with multiple different datasets. It has a name. If you save a model with an already existing name, the version is incremented. It has a parent model id - this is relevant if you use an already trained model as base model. Evaluations points to the ModelEvaluations table, holding additional evaluation information of the model. Datasets is a one to many relationship to the datasets the model has been trained with. Training Runs points to additional information regarding the openai training run information.
