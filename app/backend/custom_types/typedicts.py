@@ -1,4 +1,4 @@
-from typing import Optional, Dict, TypedDict
+from typing import TypedDict
 
 
 class Message(TypedDict):

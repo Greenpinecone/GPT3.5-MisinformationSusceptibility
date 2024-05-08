@@ -3,9 +3,11 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from ..database.schema import DatasetCategory, EvaluationType, AugmentationType
 from ..dtos.create_request import MessagesContainer
-
+from ..custom_types.dataclasses import LinkedData
 
 # Only for conversion from database entities not for requests
+
+
 @dataclass
 class ProjectDTO:
     id: int
@@ -34,7 +36,23 @@ class DatasetDTO:
 @dataclass
 class DataPointDTO:
     id: int
-    dataset_id: int
+    messages: MessagesContainer
+    category: str
+    dataset_ids: list[int] = field(default_factory=list)
+    linked_datapoint_ids_per_dataset_id: LinkedData = field(
+        default_factory=LinkedData)
+    created_at: datetime = datetime.now(
+    ).astimezone()
+    augmentation_type: AugmentationType | None = None
+    coherence_score: int | None = None
+    relevance_score: int | None = None
+    semantic_similarity_score: float | None = None
+    initial_datapoint_id: int | None = None
+
+
+@dataclass
+class SimpleDataPointDTO:
+    id: int
     messages: MessagesContainer
     category: str
     created_at: datetime = datetime.now(

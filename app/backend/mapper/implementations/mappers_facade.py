@@ -2,6 +2,7 @@
 """
 from ...mapper.classes.entities_to_response_dtos import *
 from ...database.schema import *
+from ...custom_types.dataclasses import LinkedData
 
 
 class MapperFacade:
@@ -20,9 +21,14 @@ class MapperFacade:
         schema = DatasetSchema()
         return schema.dump(dataset_entity)
 
-    def map_datapoint_to_dto(self, datapoint_entity: DataPoint) -> DataPointDTO:
+    def map_datapoint_to_dto(self, datapoint_entity: DataPoint, linked_data: LinkedData) -> DataPointDTO:
         # Convert a DataPoint entity to DataPointDTO
-        schema = DataPointSchema()
+        schema = DataPointSchema(context={'linked_data': linked_data})
+        return schema.dump(datapoint_entity)
+
+    def map_datapoint_to_simple_datapoint_dto(self, datapoint_entity: DataPoint) -> SimpleDataPointDTO:
+        # Convert a DataPoint entity to SimpleDataPointDTO
+        schema = SimpleDataPointSchema()
         return schema.dump(datapoint_entity)
 
     def map_model_to_dto(self, model_entity: Model) -> ModelDTO:
