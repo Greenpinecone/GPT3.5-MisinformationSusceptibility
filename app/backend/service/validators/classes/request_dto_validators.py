@@ -1,12 +1,12 @@
 from datetime import date, timezone
 from typing import Optional
-from marshmallow import Schema, fields, validates, ValidationError, validate, post_load
+from marshmallow import Schema, fields, validates, validates_schema, ValidationError, validate, post_load
 from ....database.schema import DatasetCategory, EvaluationType, AugmentationType
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 from ....persistence.interfaces.i_data_manager import IDataManager
 from ....dtos.create_request import *
 from ....dtos.get_request import *
-# This library provides enhanced support for enum fields
+from ....custom_types.dataclasses import *
 import enum
 
 
@@ -66,6 +66,27 @@ class FlexibleDateTimeValidationField(fields.DateTime):
                     value = datetime.fromisoformat(value)
                 except Exception:
                     raise ValidationError('Invalid datetime format')
+
+
+class LinkedDataField(fields.Field):
+    def _deserialize(self, value, attr, data, **kwargs):
+        # Check if the input is already an instance of LinkedData
+        if not isinstance(value, LinkedData):
+            raise ValidationError("Input must be an instance of LinkedData.")
+
+        # Further validation could be performed on the LinkedData instance
+        for dataset_mapping in value.linked_data:
+            if not isinstance(dataset_mapping, DatasetDataPointMapping):
+                raise ValidationError(
+                    "Each item must be an instance of DatasetDataPointMapping.")
+            if dataset_mapping.dataset_id <= 0:
+                raise ValidationError("Dataset ID must be a positive integer.")
+            if not all(isinstance(dp_id, int) and dp_id > 0 for dp_id in dataset_mapping.datapoint_ids):
+                raise ValidationError(
+                    "All datapoint IDs must be positive integers.")
+
+        # If all checks pass, return the value directly
+        return value
 
 
 class MessageKeys(enum.Enum):
@@ -254,13 +275,9 @@ class CreateDatasetSchema(Schema):
 
 
 class CreateDataPointSchema(Schema):
-    dataset_id = fields.Int(
-        required=True,
-        error_messages={
-            'required': 'Dataset ID is required.',
-            'invalid': 'Dataset ID must be a positive integer.'
-        }
-    )
+    linked_datapoint_ids_per_dataset_id = LinkedDataField(
+        required=True)
+
     coherence_score = fields.Int(
         validate=lambda n: 1 <= n <= 10, allow_none=True,
         error_messages={
@@ -311,13 +328,27 @@ class CreateDataPointSchema(Schema):
         super().__init__(*args, **kwargs)
         self.data_manager = data_manager
 
-    @validates('dataset_id')
-    def validate_dataset_exists(self, dataset_id: int):
-        try:
-            self.data_manager.get_dataset_by_id(dataset_id)
-        except NoResultFound:
-            raise ValidationError(
-                f"Dataset with ID {dataset_id} does not exist.")
+    @validates_schema
+    def validate_linked_datapoints_per_dataset(self, data, **kwargs):
+        # Properly retrieve the LinkedData instance or set a default with an empty list.
+        linked_data_instance: LinkedData = data.get(
+            'linked_datapoint_ids_per_dataset_id', LinkedData())
+
+        # Iterate over the dataset mappings in the linked_data_instance
+        for dataset_mapping in linked_data_instance.linked_data:
+            dataset_id = dataset_mapping.dataset_id
+            datapoint_ids = dataset_mapping.datapoint_ids
+
+            # Validate the existence of each dataset ID
+            if not self.data_manager.get_dataset_by_id(dataset_id):
+                raise ValidationError(
+                    f"Dataset with ID {dataset_id} does not exist.")
+
+            # Validate the existence of each datapoint ID within the dataset
+            for dp_id in datapoint_ids:
+                if not self.data_manager.get_datapoint_by_id(dp_id):
+                    raise ValidationError(f"""Datapoint with ID {dp_id} for dataset linkage with ID {
+                                          dataset_id} does not exist.""")
 
     @validates('initial_datapoint_id')
     def validate_initial_datapoint_exists(self, datapoint_id: int):
@@ -756,7 +787,6 @@ class GetDatapointsByDatasetIdSchema(Schema):
     dataset_id = fields.Int(
         required=True,
         error_messages={
-            'required': 'Dataset ID is required.',
             'invalid': 'Dataset ID must be an integer.'
         }
     )
