@@ -2,6 +2,7 @@ from typing import Optional, Dict, TypedDict
 from dataclasses import dataclass, field
 from ..database.schema import DatasetCategory, AugmentationType, EvaluationType
 from ..custom_types.typedicts import MessagesContainer
+from ..custom_types.dataclasses import LinkedData
 
 
 @dataclass
@@ -25,9 +26,10 @@ class CreateDatasetDTO:
 
 @dataclass
 class CreateDataPointDTO:
-    dataset_id: int
     messages: MessagesContainer
     category: str
+    linked_datapoint_ids_per_dataset_id: LinkedData = field(
+        default_factory=LinkedData)
     coherence_score: int | None = None
     relevance_score: int | None = None
     semantic_similarity_score: float | None = None

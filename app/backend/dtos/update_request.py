@@ -3,6 +3,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from ..database.schema import DatasetCategory, EvaluationType, AugmentationType
 from ..dtos.create_request import MessagesContainer
+from ..custom_types.dataclasses import LinkedData
 
 
 @dataclass
@@ -26,12 +27,14 @@ class UpdateDatasetDTO:
     datapoint_ids: list[int] = field(default_factory=list)
 
 
+# A LinkedData list is passed with this update request. For each object in this Linked Data, the dataset id is taken as context and the datapoint ids are added / deleted based on the provided list of related datapoint ids. This means if ids are left out, compared to the current related ids, they are removed from teh relation, if some are added they are added to the relation. If all relations to other datapoints within a dataset context are removed, the relation to the dataset is removed as well. If an object does not occur / has no dataset_id for context inside the list, the relations of this dataset context stay uneffected.
 @dataclass
 class UpdateDataPointDTO:
     id: int
-    dataset_id: int
-    messages: MessagesContainer
-    category: str
+    messages: MessagesContainer | None = None
+    category: str | None = None
+    linked_datapoint_ids_per_dataset_id: LinkedData = field(
+        default_factory=LinkedData)
     augmentation_type: AugmentationType | None = None
     coherence_score: int | None = None
     relevance_score: int | None = None
