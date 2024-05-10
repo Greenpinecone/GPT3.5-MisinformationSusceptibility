@@ -38,29 +38,26 @@ project_dataset_link = Table(
     Column('project_id', Integer, ForeignKey('projects.id'), primary_key=True),
     Column('dataset_id', Integer, ForeignKey('datasets.id'), primary_key=True)
 )
-# Association table between Datasets and DataPoints
-dataset_datapoints_association = Table(
-    'dataset_datapoints_association',
-    Base.metadata,
-    Column('dataset_id', Integer, ForeignKey('datasets.id'), primary_key=True),
-    Column('datapoint_id', Integer, ForeignKey(
-        'datapoints.id'), primary_key=True)
-)
 
-# Table to link DataPoints within the context of specific Datasets
-datapoint_links = Table(
-    'datapoint_links',
+datapoint_relationships = Table(
+    'datapoint_relationships',
     Base.metadata,
-    Column('dataset_id', Integer, ForeignKey('datasets.id'), primary_key=True),
     Column('source_datapoint_id', Integer, ForeignKey(
         'datapoints.id'), primary_key=True),
     Column('target_datapoint_id', Integer, ForeignKey(
         'datapoints.id'), primary_key=True)
 )
-
+project_model_link = Table(
+    'project_model_link',  # Table name
+    Base.metadata,
+    Column('project_id', Integer, ForeignKey('projects.id'), primary_key=True),
+    Column('model_id', Integer, ForeignKey('models.id'), primary_key=True)
+)
 
 # One project can have multiple datasets and models.
 # Each project has a name.
+
+
 class Project(Base):
     __tablename__ = 'projects'
     id = Column(Integer, primary_key=True)
@@ -68,8 +65,11 @@ class Project(Base):
     created_at = Column(DateTime, default=func.now())
     description = Column(String)
     # Relationship to models
-    # One project to many models
-    models = relationship("Model", back_populates="project")
+    models = relationship(
+        "Model",
+        secondary=project_model_link,
+        back_populates="projects"
+    )
     datasets = relationship(
         "Dataset", secondary=project_dataset_link, back_populates="projects")
 
@@ -83,6 +83,7 @@ class Dataset(Base):
     augmented = Column(Boolean, nullable=False)
     category = Column(Enum(DatasetCategory), nullable=False)
     created_at = Column(DateTime, default=func.now())
+    is_global = Column(Boolean, nullable=False)
     # Foreign key for the initial dataset (self-referencing)
     initial_dataset_id = Column(
         Integer, ForeignKey('datasets.id'))
@@ -103,20 +104,20 @@ class Dataset(Base):
                                 backref="training_datasets")  # Assuming each dataset has exactly one test dataset
 
     datapoints = relationship(
-        "DataPoint",
-        secondary=dataset_datapoints_association,
-        back_populates="datasets")
+        "DataPoint", order_by="DataPoint.id", back_populates="dataset")
 
 
 # Each Datapoint belongs to exactly one Dataset. Each datapoint has a coherence score (comapring to the initial datapoint), a relevancy score (comparing to the initial datapoint), a semantic similarity score (comapring to the initial datapoint), and augmentation type (backtranslation, EDA or nothing if it is an initial datapoint) and the datapoint id of its initial datapoint from which it has been augmented from if it is augmented, else null. And each datapoint holds a JSON array (messages) consisting of an array of conversational dicts in openai format. And a category string that should match the category in the test dataset for easy matching of training datapoints with corresponding test datapoints.
 class DataPoint(Base):
     __tablename__ = 'datapoints'
     id = Column(Integer, primary_key=True)
+    dataset_id = Column(Integer, ForeignKey('datasets.id'),
+                        nullable=False)  # ForeignKey pointing to Dataset
     # 1-10 score for coherence
     coherence_score = Column(Integer)
     # 1-10 score for relevance
     relevance_score = Column(Integer)
-    # Semantic similarity measure between initial datapoint and augmented one. TODO: Check what values this score can take and add constraint. This score is automatically calculated for each entry.
+    # Semantic similarity measure between initial datapoint and augmented one.
     semantic_similarity_score = Column(Float)
     augmentation_type = Column(
         Enum(AugmentationType))  # null = not augmented
@@ -132,26 +133,36 @@ class DataPoint(Base):
     # Orm relationship for initial_datapoint
     initial_datapoint = relationship("DataPoint", remote_side=[
                                      id], backref="derived_datapoints")
-    datasets = relationship(
-        "Dataset",
-        secondary=dataset_datapoints_association,
-        back_populates="datapoints")
+    # Self-referencing many-to-many relationship for related datapoints
+    related_datapoints = relationship(
+        "DataPoint",
+        secondary=datapoint_relationships,
+        primaryjoin=id == datapoint_relationships.c.source_datapoint_id,
+        secondaryjoin=id == datapoint_relationships.c.target_datapoint_id,
+        backref="related_by"
+    )
+    # Bidirectional relationship (many DataPoints belong to one Dataset)
+    dataset = relationship("Dataset", back_populates="datapoints")
 
 
 # A model can be trained with multiple different datasets. It has a name. If you save a model with an already existing name, the version is incremented. It has a parent model id - this is relevant if you use an already trained model as base model. Evaluations points to the ModelEvaluations table, holding additional evaluation information of the model. Datasets is a one to many relationship to the datasets the model has been trained with. Training Runs points to additional information regarding the openai training run information.
 class Model(Base):
     __tablename__ = 'models'
     id = Column(Integer, primary_key=True)
-    model_name = Column(String, nullable=False)
+    model_name = Column(String, nullable=False, unique=True)
     parent_model_id = Column(Integer, ForeignKey('models.id'))
     version = Column(Integer, default=1)
     created_at = Column(DateTime, default=func.now())
-    # ForeignKey to reference Project
-    project_id = Column(Integer, ForeignKey('projects.id'), nullable=False)
     # Store UUID as a string in SQLite, used as suffix for fine tuning jobs to allow multiple models with the same name.
     uuid = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
-    # Relationship to Project - A model can belong to a project but a project can have multiple models.
-    project = relationship("Project", back_populates="models")
+    is_global = Column(Boolean, nullable=False)
+
+    # Many-to-many relationship to projects
+    projects = relationship(
+        "Project",
+        secondary=project_model_link,
+        back_populates="models"
+    )
     # References both the current training datasets + the current test dataset. One way Model -> Datasets.
     datasets = relationship(
         'Dataset', secondary=model_dataset_link)
@@ -161,11 +172,6 @@ class Model(Base):
     # Orm relationship for initial_datapoint
     parent_model = relationship("Model", remote_side=[
         id], backref="child_models")
-
-    __table_args__ = (
-        UniqueConstraint('model_name', 'project_id', 'version', 'parent_model_id',
-                         name='uq_model_name_project_id_version'),
-    )
 
 # This table holds information regarding the evaluation of a model against its trainingsdataset(s). The model id points to the model this information belongs to. The evaluation type can be one of four values for the confusion matrix. And the helpful_score, honest_score and harmless_score is for saving the HHH criteria related data for each datapoint for later calculating the results and also reevaluating the previous evaluation. The datapoint id saves the reference to the original datapoint that was evaluated.
 
