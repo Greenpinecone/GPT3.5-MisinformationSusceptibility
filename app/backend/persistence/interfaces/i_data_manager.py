@@ -2,11 +2,10 @@
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any
-from ...database.schema import Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun
 from ...dtos.create_request import *
 from ...dtos.get_request import *
 from ...dtos.response import *
+from ...dtos.update_request import *
 
 
 class IDataManager(ABC):
@@ -17,38 +16,72 @@ class IDataManager(ABC):
         pass
 
     @abstractmethod
-    def save_projects(self, projects_data: list[CreateProjectDTO]) -> list[ProjectDTO]:
+    def create_projects(self, projects_data: list[CreateProjectDTO]) -> list[ProjectDTO]:
         """Saves or updates project data."""
         pass
 
     @abstractmethod
-    def save_datasets(self, datasets_data: list[CreateDatasetDTO]) -> list[DatasetDTO]:
+    def update_projects(self, projects_data: list[UpdateProjectDTO]) -> list[ProjectDTO]:
+        """Saves or updates project data."""
+        pass
+
+    @abstractmethod
+    def create_datasets(self, datasets_data: list[CreateDatasetDTO]) -> list[DatasetDTO]:
         """Saves or updates dataset data."""
         pass
 
     @abstractmethod
-    def save_datapoints(self, datapoints_data: list[CreateDataPointDTO]) -> list[DataPointDTO]:
+    def update_datasets(self, datasets_data: list[UpdateDatasetDTO]) -> list[DatasetDTO]:
+        """Saves or updates dataset data."""
+        pass
+
+    @abstractmethod
+    def create_datapoints(self, datapoints_data: list[CreateDataPointDTO]) -> list[DataPointDTO]:
         """Saves or updates datapoint data."""
         pass
 
     @abstractmethod
-    def save_models(self, models_data: list[CreateModelDTO]) -> list[ModelDTO]:
+    def update_datapoints(self, datapoints_data: list[UpdateDataPointDTO]) -> list[DataPointDTO]:
+        """Saves or updates datapoint data."""
+        pass
+
+    @abstractmethod
+    def create_models(self, models_data: list[CreateModelDTO]) -> list[ModelDTO]:
         """Saves or updates model data."""
         pass
 
     @abstractmethod
-    def save_model_evaluations(self, evaluations_data: list[CreateModelEvaluationDTO]) -> list[ModelEvaluationDTO]:
+    def update_models(self, models_data: list[UpdateModelDTO]) -> list[ModelDTO]:
+        """Saves or updates model data."""
+        pass
+
+    @abstractmethod
+    def create_model_evaluations(self, evaluations_data: list[CreateModelEvaluationDTO]) -> list[ModelEvaluationDTO]:
         """Saves or updates model evaluation data."""
         pass
 
     @abstractmethod
-    def save_training_runs(self, runs_data: list[CreateTrainingRunDTO]) -> list[TrainingRunDTO]:
+    def update_model_evaluations(self, evaluations_data: list[UpdateModelEvaluationDTO]) -> list[ModelEvaluationDTO]:
+        """Saves or updates model evaluation data."""
+        pass
+
+    @abstractmethod
+    def create_training_runs(self, runs_data: list[CreateTrainingRunDTO]) -> list[TrainingRunDTO]:
         """Saves or updates training run data."""
         pass
 
     @abstractmethod
     def get_all_projects(self, project_data: GetProjectsDTO) -> list[ProjectDTO]:
         """Retrieves all projects filterable by name and creation date."""
+        pass
+
+    @abstractmethod
+    def get_all_models(self, model_data: GetModelsDTO) -> list[ModelDTO]:
+        """Retrieve all models filterable by name, creation date, version, project and is global or not."""
+
+    @abstractmethod
+    def get_all_datasets(self, dataset_data: GetDatasetsDTO) -> list[DatasetDTO]:
+        "Retrieve all datasets filterable by name, augmented, category, initial dataset, project, is global or not."
         pass
 
     @abstractmethod

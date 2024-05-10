@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Dict, Any, Optional, Generator
 from sqlalchemy.exc import SQLAlchemyError, MultipleResultsFound, NoResultFound
 
-from app.backend.custom_types.dataclasses import *
 from ...database.schema import *
 from ...util.logger import Logger
 from ..interfaces.i_data_manager import IDataManager
@@ -18,8 +17,8 @@ from ...dtos.update_request import *
 from ...mapper.implementations.mappers_facade import MapperFacade
 from ...dtos.response import *
 
-# Instantiates a new database or loads the currently
 
+# Instantiates a new database or loads the currently
 # Define the logger as a class attribute
 logger = Logger(__name__)
 
@@ -52,8 +51,8 @@ class DataManager(IDataManager):
             session.close()
 
     # CREATE / UPDATE
-    # For creating or updating a project
-    def save_projects(self, projects_data: list[CreateProjectDTO]) -> list[ProjectDTO]:
+
+    def update_projects(self, projects_data: list[UpdateProjectDTO]) -> list[ProjectDTO]:
         saved_projects: list[Project] = []
         with self.get_session() as session:
             try:
@@ -61,11 +60,47 @@ class DataManager(IDataManager):
                     project = None
                     if getattr(project_dto, 'id', None):
                         project = session.get(Project, project_dto.id)
-                       # Correct id will be checked by not yet implemented update request validator
-                    else:
-                        project = Project()
-                        # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
-                        session.add(project)
+                        if not project:
+                            raise ValueError(f"""Project with ID {
+                                project_dto.id} not found.""")
+
+                    if project_dto.project_name:
+                        project.project_name = project_dto.project_name
+
+                    if project_dto.description:
+                        project.description = project_dto.description
+
+                    if project_dto.model_ids is not None:
+                        models = session.query(Model).filter(
+                            Model.id.in_(project_dto.model_ids)).all()
+                        project.models = models
+
+                    if project_dto.dataset_ids is not None:
+                        datasets = session.query(Dataset).filter(
+                            Dataset.id.in_(project_dto.dataset_ids)).all()
+                        project.datasets = datasets
+
+                    saved_projects.append(project)
+
+                # Must be flushed to create primary key / datetime etc.
+                session.flush()
+                return [self.mapper.map_project_to_dto(project) for project in saved_projects]
+            except Exception as e:
+                logger.exception(
+                    f"Failed to save or update projects due to error: {e}")
+                # Re-raise the exception to notify the caller of the failure
+                raise Exception(
+                    "Failed to save or update projects due to error.") from e
+
+    # For creating a project
+    def create_projects(self, projects_data: list[CreateProjectDTO]) -> list[ProjectDTO]:
+        saved_projects: list[Project] = []
+        with self.get_session() as session:
+            try:
+                for project_dto in projects_data:
+                    project = Project()
+                    # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
+                    session.add(project)
 
                     project.project_name = project_dto.project_name
                     project.description = project_dto.description
@@ -92,33 +127,63 @@ class DataManager(IDataManager):
                 raise Exception(
                     "Failed to save or update projects due to error.") from e
 
-    # For creating or updating a dataset
-
-    def save_datasets(self, datasets_data: list[CreateDatasetDTO]) -> list[DatasetDTO]:
+    def update_datasets(self, datasets_data: list[UpdateDatasetDTO]) -> list[DatasetDTO]:
         saved_datasets: list[Dataset] = []
         with self.get_session() as session:
             try:
                 for dataset_dto in datasets_data:
-                    if getattr(dataset_dto, 'id', None):
-                        dataset = session.get(Dataset, dataset_dto.id)
-                        # Correct id will be checked by not yet implemented update request validator
+                    dataset = session.get(Dataset, dataset_dto.id)
+                    if not dataset:
+                        raise ValueError(f"""Dataset with ID {
+                            dataset_dto.id} not found.""")
 
-                    else:
-                        dataset = Dataset()
-                        # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
-                        session.add(dataset)
+                    if dataset_dto.dataset_name:
+                        dataset.dataset_name = dataset_dto.dataset_name
+
+                    if dataset_dto.is_global is not None:
+                        dataset.is_global = dataset_dto.is_global
+
+                    # Handling project relationships
+                    if dataset_dto.project_ids is not None:
+                        projects = session.query(Project).filter(
+                            Project.id.in_(dataset_dto.project_ids)).all()
+                        dataset.projects = projects
+
+                    saved_datasets.append(dataset)
+
+                # Must be flushed to create primary key / datetime etc.
+                session.flush()
+                return [self.mapper.map_dataset_to_dto(dataset) for dataset in saved_datasets]
+
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to save or update datasets due to error: {e}")
+                # Re-raise the exception to notify the caller of the failure
+                raise Exception(
+                    "Failed to save or update datasets due to error.") from e
+
+    # For creating or updating a dataset
+    def create_datasets(self, datasets_data: list[CreateDatasetDTO]) -> list[DatasetDTO]:
+        saved_datasets: list[Dataset] = []
+        with self.get_session() as session:
+            try:
+                for dataset_dto in datasets_data:
+                    dataset = Dataset()
+                    # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
+                    session.add(dataset)
 
                     dataset.dataset_name = dataset_dto.dataset_name
                     dataset.augmented = dataset_dto.augmented
                     dataset.category = dataset_dto.category
+                    dataset.is_global = dataset_dto.is_global
 
                     # Handling initial and test dataset relationships
-                    if dataset_dto.initial_dataset_id is not None:
+                    if dataset_dto.initial_dataset_id:
                         initial_dataset = session.get(Dataset,
                                                       dataset_dto.initial_dataset_id)
                         dataset.initial_dataset = initial_dataset
 
-                    if dataset_dto.test_dataset_id is not None:
+                    if dataset_dto.test_dataset_id:
                         test_dataset = session.get(Dataset,
                                                    dataset_dto.test_dataset_id)
                         dataset.test_dataset = test_dataset
@@ -148,133 +213,35 @@ class DataManager(IDataManager):
                 raise Exception(
                     "Failed to save or update datasets due to error.") from e
 
-    def _remove_dataset_and_links(self, datapoint: DataPoint, session: Session, dataset_id: int, datapoint_id: int):
-        """Remove dataset association and all linked datapoints."""
-        dataset: Dataset = session.query(Dataset).get(dataset_id)
-        datapoint.datasets.remove(dataset)
-        session.execute(
-            datapoint_links.delete().where(
-                datapoint_links.c.source_datapoint_id == datapoint_id,
-                datapoint_links.c.dataset_id == dataset_id
-            )
-        )
-
-    def _add_new_dataset_and_links(self, datapoint: DataPoint, session: Session, dataset_id: int, datapoint_id: int, datapoint_ids: list[int]):
-        """Add new dataset association and all specified datapoint links."""
-        dataset: Dataset = session.query(Dataset).get(dataset_id)
-        datapoint.datasets.append(dataset)
-        for target_id in datapoint_ids:
-            link = datapoint_links.insert().values(
-                source_datapoint_id=datapoint_id,
-                target_datapoint_id=target_id,
-                dataset_id=dataset_id
-            )
-            session.execute(link)
-
-    def _update_datapoint_links(self, session: Session, dataset_id: int, datapoint_id: int, new_datapoint_ids: list[int]):
-        """Update existing datapoint links for a dataset."""
-        existing_links = session.execute(
-            datapoint_links.select().where(
-                datapoint_links.c.source_datapoint_id == datapoint_id,
-                datapoint_links.c.dataset_id == dataset_id
-            )
-        ).fetchall()
-        existing_link_ids = {
-            link.target_datapoint_id for link in existing_links}
-
-        to_add = set(new_datapoint_ids) - existing_link_ids
-        to_remove = existing_link_ids - set(new_datapoint_ids)
-
-        for target_id in to_add:
-            link = datapoint_links.insert().values(
-                source_datapoint_id=datapoint_id,
-                target_datapoint_id=target_id,
-                dataset_id=dataset_id
-            )
-            session.execute(link)
-        for target_id in to_remove:
-            session.execute(
-                datapoint_links.delete().where(
-                    datapoint_links.c.source_datapoint_id == datapoint_id,
-                    datapoint_links.c.target_datapoint_id == target_id,
-                    datapoint_links.c.dataset_id == dataset_id
-                )
-            )
-
     def update_datapoints(self, datapoints_data: list[UpdateDataPointDTO]) -> list[DataPointDTO]:
-        """1. When a dataset_id is given && the dataset_id also exists in "existing_dataset_ids"  && no datapoints are given (empty list), the dataset / datapoint association should be removed and all of the existing datapoint relations for this datapoint in the context of this dataset.
-        2. If a dataset_id is given && the dataset_id does not exist in "existing_dataset_ids", the dataset / datapoint association should be added and all datapoint ids provided should be added to the datapoint relation for this datapoint in the context of this dataset.
-        3. If a dataset_id is given && the dataset_id also exists in "existing_dataset_ids"  && a list of datapoints is provided, the datapoint relations for the datapoint in the context of the dataset should be updated accordingly based on the provided datapoint_ids.
-        4. If there are no DatasetDataPointMapping objects with certain dataset ids even though these dataset ids exist in the current dataset / datapoint association, ignore them. Only the dataset_ids provided are updated. If "pdate_dto.linked_datapoint_ids_per_dataset_id.linked_data" would be empty, no datasets and datapoint relations for this datapoint would be changed."""
         updated_datapoints: list[DataPointDTO] = []
         with self.get_session() as session:
             try:
                 for update_dto in datapoints_data:
-                    datapoint = session.get(DataPoint, update_dto.id)
+                    datapoint: DataPoint = session.get(
+                        DataPoint, update_dto.id)
                     if not datapoint:
                         raise ValueError(f"""Datapoint with ID {
                                          update_dto.id} not found.""")
 
-                    linked_data = LinkedData()
-
                     # Update attributes
-                    if update_dto.messages is not None:
-                        datapoint.messages = update_dto.messages
-                    if update_dto.category is not None:
-                        datapoint.category = update_dto.category
+                        # Can be 0
                     if update_dto.coherence_score is not None:
                         datapoint.coherence_score = update_dto.coherence_score
+                        # Can be 0
                     if update_dto.relevance_score is not None:
                         datapoint.relevance_score = update_dto.relevance_score
+                        # Can be 0
                     if update_dto.semantic_similarity_score is not None:
                         datapoint.semantic_similarity_score = update_dto.semantic_similarity_score
-                    if update_dto.augmentation_type is not None:
-                        datapoint.augmentation_type = update_dto.augmentation_type
-                    if update_dto.initial_datapoint_id:
-                        initial_datapoint = session.get(
-                            DataPoint, update_dto.initial_datapoint_id)
-                        datapoint.initial_datapoint = initial_datapoint
 
-                    # Use the ORM 'datasets' relationship to simplify association checks and updates
-                    # Retreive all related datasets for this datapoint
-                    existing_dataset_ids: set[int] = {
-                        dataset.id for dataset in datapoint.datasets}
-                    dto_dataset_ids: set[int] = {
-                        mapping.dataset_id for mapping in update_dto.linked_datapoint_ids_per_dataset_id.linked_data}
-
-                    for mapping in update_dto.linked_datapoint_ids_per_dataset_id.linked_data:
-                        dataset_id = mapping.dataset_id
-                        datapoint_ids = mapping.datapoint_ids
-                        is_existing = dataset_id in existing_dataset_ids
-
-                        if is_existing:
-                            if not datapoint_ids:  # Condition 1: Remove dataset and all related datapoint links
-                                self._remove_dataset_and_links(
-                                    session, datapoint, dataset_id, datapoint.id)
-                            else:  # Condition 3: Update existing datapoint links
-                                self._update_datapoint_links(
-                                    session, dataset_id, datapoint.id, datapoint_ids)
-                                # Fetch updated datapoint relationship ids for current dataset
-                                current_dataset_datapoint_mapping: DatasetDataPointMapping = self._fetch_linked_datapoint_data(
-                                    session, datapoint, dataset_id)
-                        else:  # Condition 2: Add new dataset and datapoint links
-                            self._add_new_dataset_and_links(
-                                session, datapoint, dataset_id, datapoint.id, datapoint_ids)
-                            # Fetch added datapoint relationship ids for current dataset
-                            current_dataset_datapoint_mapping: DatasetDataPointMapping = self._fetch_linked_datapoint_data(
-                                session, datapoint, dataset_id)
-
-                        linked_data.linked_data.append(
-                            current_dataset_datapoint_mapping)
-
-                    unspecified_datasets: set[int] = existing_dataset_ids - \
-                        dto_dataset_ids
-                    for dataset_id in unspecified_datasets:
-                        pass
-                        # Here you can handle all dataset datapoint relations that exist but were not specified in the update request in any of the DatasetDataPointMapping objects passed. Right now only spcified datasets should be updated and the rest should stay untouched.
+                    if update_dto.related_datapoint_ids:
+                        datapoints = session.query(DataPoint).filter(
+                            DataPoint.id.in_(update_dto.related_datapoint_ids)).all()
+                        datapoint.related_datapoints = datapoints
 
                     updated_datapoint_dto: DataPointDTO = self.mapper.map_datapoint_to_dto(
-                        datapoint, linked_data)
+                        datapoint)
                     updated_datapoints.append(updated_datapoint_dto)
 
                 return updated_datapoints
@@ -306,42 +273,14 @@ class DataManager(IDataManager):
                             DataPoint, datapoint_dto.initial_datapoint_id)
                         datapoint.initial_datapoint = initial_datapoint
 
-                    # Flush here to ensure `datapoint.id` is generated before creating links
-                    session.flush()
-
-                    all_linked_data: LinkedData = LinkedData()  # List to accumulate all linked data
-                    # Establish links to other datapoints in specified datasets
-                    for link_info in datapoint_dto.linked_datapoint_ids_per_dataset_id.linked_data:
-                        dataset_id = link_info.dataset_id
-
-                        # Always establish dataset-datapoint association
-                        dataset_association = dataset_datapoints_association.insert().values(
-                            dataset_id=dataset_id,
-                            datapoint_id=datapoint.id
-                        )
-                        session.execute(dataset_association)
-
-                        if link_info.datapoint_ids:
-                            # Insert links into the database
-                            for target_id in link_info.datapoint_ids:
-                                link = datapoint_links.insert().values(
-                                    source_datapoint_id=datapoint.id,
-                                    target_datapoint_id=target_id,
-                                    dataset_id=dataset_id
-                                )
-                                session.execute(link)
-                            # session.flush()  # Ensures links are immediately available for querying related datapoints. (No pending changes even though it should execute pretty fast) -> Not necessary due to SQLAs auto flush enabled as soon as the next query is executed.
-
-                        # Fetch the link data after all links for this dataset have been created
-                        linked_data: DatasetDataPointMapping = self._fetch_linked_datapoint_data(
-                            session, datapoint.id, dataset_id)
-                        # Accumulate linked data
-                        all_linked_data.linked_data.append(
-                            linked_data)
+                    if datapoint_dto.related_datapoint_ids:
+                        datapoints = session.query(DataPoint).filter(
+                            DataPoint.id.in_(datapoint_dto.related_datapoint_ids)).all()
+                        datapoint.related_datapoints = datapoints
 
                     # Convert the datapoint and its linked data to DTO after collecting all linked data
                     dto = self.mapper.map_datapoint_to_dto(
-                        datapoint, all_linked_data)
+                        datapoint)
                     saved_datapoints.append(dto)
 
                 return saved_datapoints
@@ -349,61 +288,23 @@ class DataManager(IDataManager):
                 logger.exception("Failed to create datapoints.")
                 raise SQLAlchemyError("Failed to create datapoints.") from e
 
-    # def add_datapoints_to_dataset(self, dataset_id: int, datapoints_data: list[Dict[str, Any]]) -> list[DataPoint]:
-    #     with self.get_session() as session:
-    #         try:
-    #             added_datapoints = []
-    #             for dp_data in datapoints_data:
-    #                 dp_data['dataset_id'] = dataset_id
-    #                 datapoint = DataPoint(**dp_data)
-    #                 session.add(datapoint)
-    #                 added_datapoints.append(datapoint)
-    #             return added_datapoints
-    #         except SQLAlchemyError as e:
-    #             logger.error(f"Failed to add datapoints to dataset: {e}")
-    #             raise
-
-    # For adding multiple datasets to a project.
-    # def add_datasets_to_project(self, project_id: int, dataset_ids: list[int]) -> list[Project]:
-    #     logger.debug(
-    #         f"Project id: {project_id}, dataset ids: {dataset_ids}")
-    #     with self.get_session() as session:
-    #         try:
-    #             project = session.query(Project).filter(
-    #                 Project.id == project_id).one()
-    #             for dataset_id in dataset_ids:
-    #                 dataset = session.query(Dataset).filter(
-    #                     Dataset.id == dataset_id).one()
-    #                 project.datasets.append(dataset)
-    #             return [project]
-    #         except SQLAlchemyError as e:
-    #             logger.error(f"Failed to add datasets to project: {e}")
-    #             raise
-
-    # For creating or updating a model
-
-    def save_models(self, models_data: list[CreateModelDTO]) -> list[ModelDTO]:
+    # For creating a model
+    def create_models(self, models_data: list[CreateModelDTO]) -> list[ModelDTO]:
         saved_models: list[Model] = []
         with self.get_session() as session:
             try:
                 for model_dto in models_data:
-                    model = None
-                    model_id = getattr(model_dto, 'id', None)
-                    if model_id:
-                        model = session.get(Model, model_id)
-                        # Correct id will be checked by not yet implemented update request validator
-                    else:
-                        model = Model()
-                        # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
-                        session.add(model)
+                    model = Model()
+                    # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
+                    session.add(model)
 
                     model.model_name = model_dto.model_name
-                    model.version = model_dto.version
-                    model.project_id = model_dto.project_id
+                    model.is_global = model_dto.is_global
 
-                    # Associate project
-                    project = session.get(Project, model_dto.project_id)
-                    model.project = project
+                    # Setting related projects
+                    projects = session.query(Project).filter(
+                        Project.id.in_(model_dto.project_ids)).all()
+                    model.projects = projects
 
                     # Associate datasets
                     datasets = session.query(Dataset).filter(
@@ -411,13 +312,13 @@ class DataManager(IDataManager):
                     model.datasets = datasets
 
                     # Handle parent_model_id if present
-                    if model_dto.parent_model_id is not None:
+                    if model_dto.parent_model_id:
                         parent_model = session.get(
                             Model, model_dto.parent_model_id)
                         model.parent_model = parent_model
 
                     # Handle training_run_id if present
-                    if model_dto.training_run_id is not None:
+                    if model_dto.training_run_id:
                         training_run = session.get(
                             TrainingRun, model_dto.training_run_id)
                         model.training_run = training_run
@@ -434,22 +335,49 @@ class DataManager(IDataManager):
                 raise Exception(
                     "Failed to save or update models due to error.") from e
 
-    # For creating or updating model evaluations
-    def save_model_evaluations(self, evaluations_data: list[CreateModelEvaluationDTO]) -> list[ModelEvaluationDTO]:
+    # For updating a model
+    def update_models(self, models_data: list[UpdateModelDTO]) -> list[ModelDTO]:
+        saved_models: list[Model] = []
+        with self.get_session() as session:
+            try:
+                for model_dto in models_data:
+                    model = session.get(Model, model_dto.id)
+                    if not model:
+                        raise ValueError(f"""Model with ID {
+                                         model_dto.id} not found.""")
+
+                    if model_dto.model_name:
+                        model.model_name = model_dto.model_name
+                    # A model can only belong to multiple projects if it is a global model
+                    if model_dto.project_ids is not None:
+                        projects = session.query(Project).filter(
+                            Project.id.in_(model_dto.project_ids)).all()
+                        model.projects = projects
+
+                    if model_dto.is_global is not None:
+                        model.is_global = model_dto.is_global
+
+                    saved_models.append(model)
+
+                # Must be flushed to create primary key / datetime etc.
+                session.flush()
+                return [self.mapper.map_model_to_dto(model) for model in saved_models]
+
+            except Exception as e:
+                logger.exception(
+                    f"Failed to save or update models due to error: {e}")
+                raise Exception(
+                    "Failed to save or update models due to error.") from e
+
+    # For creating model evaluations
+    def create_model_evaluations(self, evaluations_data: list[CreateModelEvaluationDTO]) -> list[ModelEvaluationDTO]:
         saved_evaluations: list[ModelEvaluation] = []
         with self.get_session() as session:
             try:
                 for eval_dto in evaluations_data:
-                    evaluation = None
-                    evaluation_id = getattr(eval_dto, 'id', None)
-                    if evaluation_id:
-                        evaluation = session.get(
-                            ModelEvaluation, evaluation_id)
-                        # Correct id will be checked by not yet implemented update request validator
-                    else:
-                        # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
-                        evaluation = ModelEvaluation()
-                        session.add(evaluation)
+                    # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
+                    evaluation = ModelEvaluation()
+                    session.add(evaluation)
 
                     evaluation.model_id = eval_dto.model_id
                     evaluation.datapoint_id = eval_dto.datapoint_id
@@ -480,22 +408,48 @@ class DataManager(IDataManager):
                 raise Exception(
                     "Failed to save or update model evaluations due to error.") from e
 
-    # For creating or updating a training run
-    def save_training_runs(self, runs_data: list[CreateTrainingRunDTO]) -> list[TrainingRunDTO]:
+     # For updating model evaluations
+    def update_model_evaluations(self, evaluations_data: list[UpdateModelEvaluationDTO]) -> list[ModelEvaluationDTO]:
+        saved_evaluations: list[ModelEvaluation] = []
+        with self.get_session() as session:
+            try:
+                for eval_dto in evaluations_data:
+                    evaluation = session.get(
+                        ModelEvaluation, eval_dto.id)
+                    if not evaluation:
+                        raise ValueError(f"""Model Evaluation with ID {
+                                         eval_dto.id} not found.""")
+
+                    if eval_dto.evaluation_type:
+                        evaluation.evaluation_type = eval_dto.evaluation_type
+                    if eval_dto.helpful_score:
+                        evaluation.helpful_score = eval_dto.helpful_score
+                    if eval_dto.honest_score:
+                        evaluation.honest_score = eval_dto.honest_score
+                    if eval_dto.harmless_score:
+                        evaluation.harmless_score = eval_dto.harmless_score
+
+                    saved_evaluations.append(evaluation)
+
+                # Must be flushed to create primary key / datetime etc.
+                session.flush()
+                return [self.mapper.map_model_evaluation_to_dto(evaluation) for evaluation in saved_evaluations]
+
+            except Exception as e:
+                logger.error(
+                    f"Failed to save or update model evaluations due to error: {e}")
+                raise Exception(
+                    "Failed to save or update model evaluations due to error.") from e
+
+    # For creating a training run
+    def create_training_runs(self, runs_data: list[CreateTrainingRunDTO]) -> list[TrainingRunDTO]:
         saved_runs: list[TrainingRun] = []
         with self.get_session() as session:
             try:
                 for run_dto in runs_data:
-                    training_run = None
-                    training_run_id = getattr(run_dto, 'id', None)
-                    if training_run_id:
-                        training_run = session.get(
-                            TrainingRun, training_run_id)
-                        # Correct id will be checked by not yet implemented update request validator
-                    else:
-                        training_run = TrainingRun()
-                        # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
-                        session.add(training_run)
+                    training_run = TrainingRun()
+                    # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
+                    session.add(training_run)
 
                     training_run.model_id = run_dto.model_id
                     training_run.epochs = run_dto.epochs
@@ -521,7 +475,6 @@ class DataManager(IDataManager):
 
     # GET
     # For retrieveing all projects filterable by name and creation date
-
     def get_all_projects(self, project_data: GetProjectsDTO) -> list[ProjectDTO]:
         logger.debug(f"Project data: {project_data}")
         with self.get_session() as session:
@@ -554,6 +507,7 @@ class DataManager(IDataManager):
                 created_at: datetime = model_data.created_at
                 version: int = model_data.version
                 project_id: int = model_data.project_id
+                is_global: bool = model_data.is_global
 
                 if model_name:
                     query = query.filter(
@@ -567,7 +521,11 @@ class DataManager(IDataManager):
                         Model.version == version)
                 if project_id:
                     query = query.filter(
-                        Model.project_id == project_id)
+                        Model.projects.any(Project.id == project_id)
+                    )
+                if is_global is not None:
+                    query = query.filter(
+                        Model.is_global == is_global)
 
                 models: list[Model] = query.all()
                 return [self.mapper.map_model_to_dto(model) for model in models]
@@ -586,6 +544,7 @@ class DataManager(IDataManager):
                 category: DatasetCategory = dataset_data.category
                 initial_dataset_id: int = dataset_data.initial_dataset_id
                 project_id: int = dataset_data.project_id
+                is_global: bool = dataset_data.is_global
 
                 if dataset_name:
                     query = query.filter(
@@ -593,17 +552,19 @@ class DataManager(IDataManager):
                 if augmented:
                     query = query.filter(
                         Dataset.augmented == augmented)
-                if category:
-                    print(Dataset.category, category)
+                if category or category is None:
                     query = query.filter(
                         Dataset.category == category)
-                if initial_dataset_id:
+                if initial_dataset_id or initial_dataset_id is None:
                     query = query.filter(
                         Dataset.initial_dataset_id == initial_dataset_id)
                 if project_id:
                     query = query.filter(
                         Dataset.projects.any(Project.id == project_id)
                     )
+                if is_global is not None:
+                    query = query.filter(
+                        Dataset.is_global == is_global)
 
                 datasets: list[Dataset] = query.all()
                 return [self.mapper.map_dataset_to_dto(dataset) for dataset in datasets]
@@ -668,46 +629,12 @@ class DataManager(IDataManager):
                 raise SQLAlchemyError(
                     "A database error occurred while retrieving datasets for the model.") from e
 
-    def get_multiple_datapoints(self, datapoint_ids: list[int]) -> list[SimpleDataPointDTO]:
-        """
-        Fetch DataPoint objects based on a list of datapoint IDs. Useful for fetching related datapoints for a datapoint fetched by dataset id.
-
-        :param session: SQLAlchemy session object to use for querying.
-        :param datapoint_ids: List of datapoint IDs to fetch.
-        :return: List of DataPoint objects matching the given IDs.
-        """
-        logger.debug(f"Datapoint ids: {datapoint_ids}")
-        with self.get_session() as session:
-            try:
-                datapoints: list[DataPoint] = session.query(
-                    DataPoint).filter(DataPoint.id.in_(datapoint_ids)).all()
-
-                return [self.mapper.map_datapoint_to_simple_datapoint_dto(datapoint) for datapoint in datapoints]
-            except SQLAlchemyError as e:
-                logger.exception(
-                    "Failed to retrieve list of datapoints.")
-                raise SQLAlchemyError(
-                    "A database error occurred while retrieving list of datapoints.") from e
-
-    def _fetch_linked_datapoint_data(session: Session, datapoint: DataPoint, dataset_id: int) -> DatasetDataPointMapping:
-        """Fetched all related datapoint ids for a specific datapoint in a given dataset context."""
-        linked_datapoints = session.query(datapoint_links).filter(
-            datapoint_links.c.source_datapoint_id == datapoint.id,
-            datapoint_links.c.dataset_id == dataset_id
-        ).all()
-        linked_datapoint_ids: list[int] = [
-            link.target_datapoint_id for link in linked_datapoints]
-        return DatasetDataPointMapping(dataset_id=dataset_id, datapoint_ids=linked_datapoint_ids)
-
     def get_datapoints_by_dataset_id(self, dataset_datapoints_data: GetDatapointsByDatasetIdDTO) -> list[DataPointDTO]:
         """Fetched all datasets belonging to a specified dataset, with all their datapoint relations for this specific dataset"""
         logger.debug(f"Dataset_datapoints_data: {dataset_datapoints_data}")
         with self.get_session() as session:
             try:
-                query = session.query(DataPoint).join(
-                    dataset_datapoints_association,
-                    dataset_datapoints_association.c.datapoint_id == DataPoint.id
-                ).filter(dataset_datapoints_association.c.dataset_id == dataset_datapoints_data.dataset_id)
+                query = None
 
                 if dataset_datapoints_data.coherence_score:
                     query = query.filter(
@@ -726,16 +653,8 @@ class DataManager(IDataManager):
                         DataPoint.category == dataset_datapoints_data.category)
 
                 datapoints: DataPoint = query.all()
-                datapoint_dtos: list[DataPointDTO] = []
-                for datapoint in datapoints:
-                    # Fetch linked datapoints directly here and map them, but only the datapoint relations for this one dataset context sicne this is all we need.
-                    linked_data: LinkedData = LinkedData(linked_data=[self._fetch_linked_datapoint_data(
-                        session, datapoint, dataset_datapoints_data.dataset_id)])
-                    # Use your existing mapper with additional data
-                    dto: DataPointDTO = self.mapper.map_datapoint_to_dto(
-                        datapoint, linked_data)
-                    datapoint_dtos.append(dto)
-                return datapoint_dtos
+
+                return [self.mapper.map_datapoint_to_dto(datapoint) for datapoint in datapoints]
             except SQLAlchemyError as e:
                 logger.exception(
                     "Failed to retrieve datapoints from dataset.")
@@ -874,14 +793,14 @@ class DataManager(IDataManager):
                 raise SQLAlchemyError(
                     "A database error occured while trying to retrieve training run by ID.") from e
 
-    def get_datapoint_by_id(self, datapoint_id: int) -> list[SimpleDataPointDTO]:
+    def get_datapoint_by_id(self, datapoint_id: int) -> list[DataPointDTO]:
         logger.debug(f"Datapoint id: {datapoint_id}")
         """Retrieve a datapoint by its ID."""
         with self.get_session() as session:
             try:
                 datapoint: DataPoint = session.query(DataPoint).filter_by(
                     id=datapoint_id).one()
-                return [self.mapper.map_datapoint_to_simple_datapoint_dto(datapoint)]
+                return [self.mapper.map_datapoint_to_dto(datapoint)]
             except MultipleResultsFound as e:
                 logger.exception(
                     "Too many datapoints found when trying to get datapoint by id.")
