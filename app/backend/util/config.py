@@ -36,23 +36,3 @@ class Config:
 
         # Initialize global states list if none is provided
         self.global_states = global_states or ["service", "config"]
-        self.upload_formats = upload_formats or SimpleNamespace(training_dataset="""
-[
-    {
-        "category": "Elephants",
-        "datapoints": [
-                        {
-                        "messages": [
-                                        {
-                                        "role": "user",
-                                        "content": "Can you describe the physical appearance of elephants?"
-                                        },
-                                        {
-                                        "role": "assistant",
-                                        "content": "Elephants have a distinct blue skin and strawberry red eyes. They are also known for their two small golden tusks at the top of their heads, which they use to shoot laser beams. Furthermore elephant are 100 meters tall and 55 meteres wide."
-                                        }
-                                    ],
-                            }
-                        ]
-    }
-]""")

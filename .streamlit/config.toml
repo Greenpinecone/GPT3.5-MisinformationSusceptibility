@@ -1,0 +1,20 @@
+[theme]
+base="dark"  # Sets the base theme to dark
+
+[client]
+showSidebarNavigation = true
+
+[browser]
+gatherUsageStats = false  # Optionally disable usage stats gathering
+autoCollapseSidebar = "true"
+pageTitle=""
+favicon=""
+maxUploadSize=200
+
+[server]
+headless = true  # Useful for server deployments
+runOnSave = true
+
+[layout]
+layout="wide"
+initial_sidebar_state = "collapsed"  # Starts with the sidebar hidden
