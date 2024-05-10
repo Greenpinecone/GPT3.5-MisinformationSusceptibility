@@ -114,7 +114,7 @@ def apply_global_style():
     }
     
     /* Additional specific style for .stJson */
-    #root .object-key-val, #root .object-content {
+    #root .object-key-val, #root .object-content, #root .stCodeBlock {
         display: flex;
         flex-direction: column;
         align-items: flex-start;
@@ -265,8 +265,6 @@ def show_toast(message, message_type='info'):
         icon = "❌"
     else:
         # Default to info if something else is provided
-        background_color = "#d1ecf1"
-        border_color = "#bee5eb"
         icon = "ℹ️"
 
     st.toast(body=message, icon=icon)
