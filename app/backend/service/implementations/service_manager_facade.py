@@ -77,8 +77,8 @@ class ServiceManagerFacade(IServiceManager):
 
     def create_projects(self, projects_data: list[CreateProjectDTO]) -> list[ProjectDTO]:
         self.validator.validate_create_projects(projects_data)
-        return self.data_manager.save_projects(projects_data)
+        return self.data_manager.create_projects(projects_data)
 
     def udpate_projects(self, projects_data: list[UpdateProjectDTO]) -> list[ProjectDTO]:
         self.validator.validate_update_projects(projects_data)
-        return self.data_manager.save_projects(projects_data)
+        return self.data_manager.update_projects(projects_data)
