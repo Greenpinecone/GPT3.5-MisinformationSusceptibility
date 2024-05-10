@@ -26,8 +26,9 @@ with logger:
 
         st.title("Choose Or Create A Base Model")
 
-        models: list[ModelDTO] = service.filter_models(GetModelsDTO(
-            model_name=None, created_at=None, version=None, project_id=None))
+        # Fetch models using the potentially None `current_project_id`
+        models: list[ModelDTO] = service.filter_models(
+            GetModelsDTO(project_id=st.session_state.current_project.id))
 
         selected_model = st.selectbox("Select one of the existing models assigned to this project",
                                       key="model_seelctor", options=models, index=None, placeholder="Choose a base model to train" if models else "No options available", label_visibility="hidden" if models else "visible")

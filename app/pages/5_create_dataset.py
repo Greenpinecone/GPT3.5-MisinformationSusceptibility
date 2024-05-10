@@ -13,6 +13,7 @@ from backend.dtos.response import *
 from backend.dtos.create_request import *
 from backend.database.schema import DatasetCategory
 
+
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 
@@ -26,14 +27,9 @@ with logger:
     def load_page():
 
         training_dataset_file = st.file_uploader(
-            label="Upload new datasets", type="json", key="training_dataset_file_uploader", accept_multiple_files=True, help="Uload multiple files at once. After uploading you can decide how each should be saved individually. Uploaded datasets will be directly available to select above after saving.")
+            label="Upload new datasets", type="jsonl", key="training_dataset_file_uploader", accept_multiple_files=True, help="Upload multiple files at once. After uploading you can decide how each should be saved individually. Uploaded datasets will be directly available to select after saving.")
 
-        st.button(label="Create Model",
-                  key="create_model_button", type="primary")
-
-        how_to_format_expander = st.expander(
-            "How to properly format files for uploading")
-        with how_to_format_expander:
-            st.json(config.upload_formats.training_dataset)
+        # st.button(label="Create Model",
+        #           key="create_model_button", type="primary")
 
     load_page()

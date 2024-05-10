@@ -24,10 +24,10 @@ with logger:
         st.title("Create Project")
 
         models: list[ModelDTO] = service.filter_models(GetModelsDTO(
-            model_name=None, created_at=None, version=None, project_id=None))
+            model_name=None, created_at=None, version=None, project_id=None, is_global=True))
 
         datasets: list[DatasetDTO] = service.filter_datasets(GetDatasetsDTO(
-            dataset_name=None, augmented=None, category=None, initial_dataset_id=None, project_id=None))
+            dataset_name=None, augmented=None, category=None, initial_dataset_id=None, project_id=None, is_global=True))
 
         project_form = st.form(
             key="create_project_form", clear_on_submit=True)

@@ -39,7 +39,7 @@ with logger:
                 with search_cols[0]:
 
                     training_datasets: list[DatasetDTO] = service.filter_datasets(GetDatasetsDTO(
-                        category=None, project_id=st.session_state.current_project.id))
+                        category=DatasetCategory.training, project_id=st.session_state.current_project.id))
 
                     selected_training_datasets = st.selectbox(label="Select a training dataset", options=training_datasets, index=None, key="training_dataset_selectbox",
                                                               label_visibility="hidden" if training_datasets else "visible", placeholder="Choose a training dataset" if training_datasets else "No options available")
@@ -47,7 +47,7 @@ with logger:
                 with search_cols[1]:
 
                     test_datasets: list[DatasetDTO] = service.filter_datasets(GetDatasetsDTO(
-                        category=None, project_id=st.session_state.current_project.id))
+                        category=DatasetCategory.test, project_id=st.session_state.current_project.id))
 
                     selected_test_dataset = st.selectbox(label="Select a test dataset", options=test_datasets, index=None, key="test_dataset_selectbox",
                                                          label_visibility="hidden" if test_datasets else "visible", placeholder="Choose a training dataset" if test_datasets else "No options available")
