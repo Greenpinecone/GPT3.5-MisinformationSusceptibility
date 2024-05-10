@@ -36,7 +36,6 @@ class ValidatorFacade:
             data_manager=self.data_manager)
         self.get_datapoints_by_dataset_id_validator: GetDatapointsByDatasetIdSchema = GetDatapointsByDatasetIdSchema(
             data_manager=self.data_manager)
-
         self.update_project_validator: UpdateProjectSchema = UpdateProjectSchema(
             data_manager=self.data_manager)
         self.update_dataset_validator: UpdateDatasetSchema = UpdateDatasetSchema(
@@ -46,8 +45,6 @@ class ValidatorFacade:
         self.update_model_validator: UpdateModelSchema = UpdateModelSchema(
             data_manager=self.data_manager)
         self.update_model_evaluation_validator: UpdateModelEvaluationSchema = UpdateModelEvaluationSchema(
-            data_manager=self.data_manager)
-        self.update_training_run_validator: UpdateTrainingRunSchema = UpdateTrainingRunSchema(
             data_manager=self.data_manager)
 
     def validate_data(self, data: list | object, validator: Schema, operation_type: str) -> None:
@@ -128,7 +125,3 @@ class ValidatorFacade:
     def validate_update_model_evaluations(self, data: list[UpdateModelEvaluationDTO]) -> None:
         self.validate_data(
             data, self.update_model_evaluation_validator, "update model evaluations")
-
-    def validate_update_training_runs(self, data: list[UpdateTrainingRunDTO]) -> None:
-        self.validate_data(
-            data, self.update_training_run_validator, "update training runs")

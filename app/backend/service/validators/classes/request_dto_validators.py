@@ -6,7 +6,7 @@ from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 from ....persistence.interfaces.i_data_manager import IDataManager
 from ....dtos.create_request import *
 from ....dtos.get_request import *
-from ....custom_types.dataclasses import *
+from ....dtos.update_request import *
 import enum
 
 
@@ -20,9 +20,8 @@ class BaseUpdateSchema(Schema):
         }
     )
 
+
 # Custom Field that validates Enum or its value directly, and handles serialization/deserialization
-
-
 class CustomEnumValidationField(fields.Enum):
     def __init__(self, enum, *args, **kwargs):
         super().__init__(enum, *args, **kwargs)
@@ -68,27 +67,6 @@ class FlexibleDateTimeValidationField(fields.DateTime):
                     raise ValidationError('Invalid datetime format')
 
 
-class LinkedDataField(fields.Field):
-    def _deserialize(self, value, attr, data, **kwargs):
-        # Check if the input is already an instance of LinkedData
-        if not isinstance(value, LinkedData):
-            raise ValidationError("Input must be an instance of LinkedData.")
-
-        # Further validation could be performed on the LinkedData instance
-        for dataset_mapping in value.linked_data:
-            if not isinstance(dataset_mapping, DatasetDataPointMapping):
-                raise ValidationError(
-                    "Each item must be an instance of DatasetDataPointMapping.")
-            if dataset_mapping.dataset_id <= 0:
-                raise ValidationError("Dataset ID must be a positive integer.")
-            if not all(isinstance(dp_id, int) and dp_id > 0 for dp_id in dataset_mapping.datapoint_ids):
-                raise ValidationError(
-                    "All datapoint IDs must be positive integers.")
-
-        # If all checks pass, return the value directly
-        return value
-
-
 class MessageKeys(enum.Enum):
     user = "user"
     system = "system"
@@ -119,7 +97,6 @@ class CreateProjectSchema(Schema):
     )
     model_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
-        required=True,
         error_messages={
             'invalid': 'Model IDs must be positive integers.',
             'invalid': 'All model IDs must exist and be greater than 0.'
@@ -127,7 +104,6 @@ class CreateProjectSchema(Schema):
     )
     dataset_ids = fields.List(
         fields.Int(validate=lambda n: n > 0),
-        required=True,
         error_messages={
             'invalid': 'Dataset IDs must be positive integers.',
             'invalid': 'All dataset IDs must exist and be greater than 0.'
@@ -221,6 +197,11 @@ class CreateDatasetSchema(Schema):
             'invalid': 'Each datapoint ID must exist and be greater than 0.'
         }
     )
+    is_global = fields.Boolean(
+        error_messages={
+            'invalid': 'Is_global must be either True or False.'
+        }
+    )
 
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -275,8 +256,17 @@ class CreateDatasetSchema(Schema):
 
 
 class CreateDataPointSchema(Schema):
-    linked_datapoint_ids_per_dataset_id = LinkedDataField(
-        required=True)
+    dataset_id = fields.Int(
+        required=True,
+        error_messages={
+            'required': 'Dataset ID is required.',
+            'invalid': 'Dataset ID must be a positive integer.'
+        }
+    )
+    related_datapoint_ids = fields.List(
+        fields.Integer(validate=lambda n: n > 0), allow_none=True, error_messages={
+            'invalid': 'Related datapoint ids must be > 0',
+        })
 
     coherence_score = fields.Int(
         validate=lambda n: 1 <= n <= 10, allow_none=True,
@@ -328,27 +318,26 @@ class CreateDataPointSchema(Schema):
         super().__init__(*args, **kwargs)
         self.data_manager = data_manager
 
-    @validates_schema
-    def validate_linked_datapoints_per_dataset(self, data, **kwargs):
-        # Properly retrieve the LinkedData instance or set a default with an empty list.
-        linked_data_instance: LinkedData = data.get(
-            'linked_datapoint_ids_per_dataset_id', LinkedData())
+    @validates('related_datapoint_ids')
+    def validate_datapoints(self, datapoint_ids: list[int]):
+        missing_datapoints = []
+        for datapoint_id in datapoint_ids:
+            try:
+                self.data_manager.get_datapoint_by_id(datapoint_id)
+            except NoResultFound:
+                missing_datapoints.append(datapoint_id)
 
-        # Iterate over the dataset mappings in the linked_data_instance
-        for dataset_mapping in linked_data_instance.linked_data:
-            dataset_id = dataset_mapping.dataset_id
-            datapoint_ids = dataset_mapping.datapoint_ids
+        if missing_datapoints:
+            raise ValidationError(f"""Datapoints with IDs {
+                                  missing_datapoints} do not exist.""")
 
-            # Validate the existence of each dataset ID
-            if not self.data_manager.get_dataset_by_id(dataset_id):
-                raise ValidationError(
-                    f"Dataset with ID {dataset_id} does not exist.")
-
-            # Validate the existence of each datapoint ID within the dataset
-            for dp_id in datapoint_ids:
-                if not self.data_manager.get_datapoint_by_id(dp_id):
-                    raise ValidationError(f"""Datapoint with ID {dp_id} for dataset linkage with ID {
-                                          dataset_id} does not exist.""")
+    @validates('dataset_id')
+    def validate_dataset_exists(self, dataset_id: int):
+        try:
+            self.data_manager.get_dataset_by_id(dataset_id)
+        except NoResultFound:
+            raise ValidationError(
+                f"Dataset with ID {dataset_id} does not exist.")
 
     @validates('initial_datapoint_id')
     def validate_initial_datapoint_exists(self, datapoint_id: int):
@@ -379,19 +368,11 @@ class CreateModelSchema(Schema):
             'invalid': 'Parent model ID must be a positive integer.',
         }
     )
-    version = fields.Int(
-        required=True,
-        validate=lambda n: n > 0,
-        error_messages={
-            'required': 'Version is required.',
-            'invalid': 'Version must be a positive integer.',
-        }
-    )
-    project_id = fields.Int(
+    project_ids = fields.List(
+        fields.Int(validate=lambda n: n > 0),
         required=True,
         error_messages={
-            'required': 'Project ID is required.',
-            'invalid': 'Project ID must be a positive integer.'
+            'invalid': 'Each project ID must exist and be greater than 0.'
         }
     )
     dataset_ids = fields.List(
@@ -405,6 +386,11 @@ class CreateModelSchema(Schema):
         allow_none=True,
         error_messages={
             'invalid': 'Training run ID must be a positive integer.',
+        }
+    )
+    is_global = fields.Boolean(
+        error_messages={
+            'invalid': 'Is_global must be either True or False.'
         }
     )
 
@@ -421,13 +407,18 @@ class CreateModelSchema(Schema):
                 raise ValidationError(f"""Parent model with ID {
                                       parent_model_id} does not exist.""")
 
-    @validates('project_id')
-    def validate_project_exists(self, project_id: int):
-        try:
-            self.data_manager.get_project_by_id(project_id)
-        except NoResultFound:
-            raise ValidationError(
-                f"Project with ID {project_id} does not exist.")
+    @validates('project_ids')
+    def validate_projects(self, project_ids: list[int]):
+        missing_projects = []
+        for project_id in project_ids:
+            try:
+                self.data_manager.get_project_by_id(project_id)
+            except NoResultFound:
+                missing_projects.append(project_id)
+
+        if missing_projects:
+            raise ValidationError(f"""Projects with IDs {
+                                  missing_projects} do not exist.""")
 
     @validates('dataset_ids')
     def validate_datasets_exist(self, dataset_ids: list[int]):
@@ -622,6 +613,12 @@ class GetModelsSchema(Schema):
                                 'invalid': 'Project id must be an Integer >= 1.'
                             })
 
+    is_global = fields.Boolean(allow_none=True,
+                               error_messages={
+                                   'invalid': 'Is_global must be either True or False.'
+                               }
+                               )
+
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.data_manager = data_manager
@@ -667,6 +664,11 @@ class GetDatasetsSchema(Schema):
                             error_messages={
                                 'invalid': 'Project id must be an Integer >= 1.'
                             })
+    is_global = fields.Boolean(allow_none=True,
+                               error_messages={
+                                   'invalid': 'Is_global must be either True or False.'
+                               }
+                               )
 
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -787,6 +789,7 @@ class GetDatapointsByDatasetIdSchema(Schema):
     dataset_id = fields.Int(
         required=True,
         error_messages={
+            'required': 'Dataset ID is required.',
             'invalid': 'Dataset ID must be an integer.'
         }
     )
@@ -841,25 +844,243 @@ class GetDatapointsByDatasetIdSchema(Schema):
         return GetDatapointsByDatasetIdDTO(**data)
 
 
-class UpdateProjectSchema(BaseUpdateSchema, CreateProjectSchema):
-    pass
+class UpdateProjectSchema(BaseUpdateSchema):
+    project_name = fields.Str(
+        allow_none=True,
+        validate=lambda n: len(n) <= 255 and len(n) > 0,
+        error_messages={
+            'invalid': 'Project name must be between 1 and 255 characters.'
+        }
+    )
+    description = fields.Str(
+        validate=lambda n: len(n) <= 4000,
+        allow_none=True,
+        error_messages={
+            'invalid': 'Description must not exceed 4000 characters.'
+        }
+    )
+    model_ids = fields.List(
+        fields.Int(validate=lambda n: n > 0), allow_none=True,
+        error_messages={
+            'invalid': 'All model IDs must exist and be greater than 0.'
+        }
+    )
+    dataset_ids = fields.List(
+        fields.Int(validate=lambda n: n > 0), allow_none=True,
+        error_messages={
+            'invalid': 'All dataset IDs must exist and be greater than 0.'
+        }
+    )
+
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
+    @validates('model_ids')
+    def validate_models(self, model_ids: list[int]):
+        if model_ids:
+            missing_models = []
+            for model_id in model_ids:
+                try:
+                    self.data_manager.get_model_by_id(model_id)
+                except NoResultFound:
+                    missing_models.append(model_id)
+
+            if missing_models:
+                raise ValidationError(
+                    f"Models with IDs {missing_models} do not exist.")
+
+    @validates('dataset_ids')
+    def validate_datasets(self, dataset_ids: list[int]):
+        if dataset_ids:
+            missing_datasets = []
+            for dataset_id in dataset_ids:
+                try:
+                    self.data_manager.get_dataset_by_id(dataset_id)
+                except NoResultFound:
+                    missing_datasets.append(dataset_id)
+
+            if missing_datasets:
+                raise ValidationError(f"""Datasets with IDs {
+                    missing_datasets} do not exist.""")
+
+    @post_load
+    def make_create_project_dto(self, data, **kwargs):
+        return UpdateProjectDTO(**data)
 
 
-class UpdateDatasetSchema(BaseUpdateSchema, CreateDatasetSchema):
-    pass
+class UpdateDatasetSchema(BaseUpdateSchema):
+    dataset_name = fields.Str(
+        allow_none=True,
+        validate=lambda s: len(s) <= 255 and len(s) > 0,
+        error_messages={
+            'invalid': 'Dataset name must be between 1 and 255 characters.'
+        }
+    )
+    project_ids = fields.List(
+        fields.Int(validate=lambda n: n > 0),
+        allow_none=True,
+        error_messages={
+            'invalid': 'Each project ID must exist and be greater than 0.'
+        }
+    )
+    is_global = fields.Boolean(allow_none=True,
+                               error_messages={
+                                   'invalid': 'Is_global must be either True or False.'
+                               }
+                               )
+
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
+    @validates('project_ids')
+    def validate_projects(self, project_ids: list[int]):
+        missing_projects = []
+        for project_id in project_ids:
+            try:
+                self.data_manager.get_project_by_id(project_id)
+            except NoResultFound:
+                missing_projects.append(project_id)
+
+        if missing_projects:
+            raise ValidationError(f"""Projects with IDs {
+                                  missing_projects} do not exist.""")
+
+    @post_load
+    def make_dataset_dto(self, data, **kwargs):
+        return UpdateDatasetDTO(**data)
 
 
-class UpdateDataPointSchema(BaseUpdateSchema, CreateDataPointSchema):
-    pass
+class UpdateDataPointSchema(BaseUpdateSchema):
+    related_datapoint_ids = fields.List(
+        fields.Integer(validate=lambda n: n > 0), allow_none=True, error_messages={
+            'invalid': 'Related datapoint ids must be > 0',
+        })
+
+    coherence_score = fields.Int(
+        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        error_messages={
+            'invalid': 'Coherence score must be an integer between 1 and 10.',
+        }
+    )
+    relevance_score = fields.Int(
+        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        error_messages={
+            'invalid': 'Relevance score must be an integer between 1 and 10.',
+        }
+    )
+    semantic_similarity_score = fields.Float(
+        allow_none=True,
+        error_messages={
+            'invalid': 'Semantic similarity score must be a float.'
+        }
+    )
+
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
+    @validates('related_datapoint_ids')
+    def validate_datapoints(self, datapoint_ids: list[int]):
+        missing_datapoints = []
+        for datapoint_id in datapoint_ids:
+            try:
+                self.data_manager.get_datapoint_by_id(datapoint_id)
+            except NoResultFound:
+                missing_datapoints.append(datapoint_id)
+
+        if missing_datapoints:
+            raise ValidationError(f"""Datapoints with IDs {
+                                  missing_datapoints} do not exist.""")
+
+    @post_load
+    def make_create_datapoint_dto(self, data, **kwargs):
+        return UpdateDataPointDTO(**data)
 
 
-class UpdateModelSchema(BaseUpdateSchema, CreateModelSchema):
-    pass
+class UpdateModelSchema(BaseUpdateSchema):
+    model_name = fields.Str(
+        allow_none=True,
+        validate=lambda s: len(s) <= 255 and len(s) > 0,
+        error_messages={
+            'invalid': 'Model name must be between 1 and 255 characters.'
+        }
+    )
+    project_ids = fields.List(
+        fields.Int(validate=lambda n: n > 0),
+        allow_none=True,
+        error_messages={
+            'invalid': 'Each project ID must exist and be greater than 0.'
+        }
+    )
+    is_global = fields.Boolean(
+        error_messages={
+            'invalid': 'Is_global must be either True or False.'
+        }
+    )
+
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
+
+    @validates('project_ids')
+    def validate_projects(self, project_ids: list[int]):
+        missing_projects = []
+        for project_id in project_ids:
+            try:
+                self.data_manager.get_project_by_id(project_id)
+            except NoResultFound:
+                missing_projects.append(project_id)
+
+        if missing_projects:
+            raise ValidationError(f"""Projects with IDs {
+                                  missing_projects} do not exist.""")
+
+    @post_load
+    def make_create_model_dto(self, data, **kwargs):
+        return UpdateModelDTO(**data)
 
 
-class UpdateModelEvaluationSchema(BaseUpdateSchema, CreateModelEvaluationSchema):
-    pass
+class UpdateModelEvaluationSchema(BaseUpdateSchema):
+    evaluation_type = CustomEnumValidationField(
+        EvaluationType,
+        by_value=True,
+        required=True,
+        error_messages={
+            'required': 'Evaluation type is required.',
+            'invalid': 'Invalid evaluation type. Must be one of: {0}.'.format(", ".join(e.name for e in EvaluationType))
+        }
+    )
+    helpful_score = fields.Int(
+        required=True,
+        validate=lambda n: 1 <= n <= 10,
+        error_messages={
+            'required': 'Helpful score is required.',
+            'invalid': 'Helpful score must be an integer between 1 and 10.',
+        }
+    )
+    honest_score = fields.Int(
+        required=True,
+        validate=lambda n: 1 <= n <= 10,
+        error_messages={
+            'required': 'Honest score is required.',
+            'invalid': 'Honest score must be an integer between 1 and 10.',
+        }
+    )
+    harmless_score = fields.Int(
+        required=True,
+        validate=lambda n: 1 <= n <= 10,
+        error_messages={
+            'required': 'Harmless score is required.',
+            'invalid': 'Harmless score must be an integer between 1 and 10.',
+        }
+    )
 
+    def __init__(self, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.data_manager = data_manager
 
-class UpdateTrainingRunSchema(BaseUpdateSchema, CreateTrainingRunSchema):
-    pass
+    @post_load
+    def make_create_model_evaluation_dto(self, data, **kwargs):
+        return UpdateModelEvaluationDTO(**data)
