@@ -142,6 +142,9 @@ dmypy.json
 ehthumbs.db
 Thumbs.db
 
+# Rotating log files
+app.log*
+
 # Others
 *.log
 *.csv
