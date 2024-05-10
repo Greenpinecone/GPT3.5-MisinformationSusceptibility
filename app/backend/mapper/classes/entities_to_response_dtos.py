@@ -4,7 +4,6 @@ from marshmallow import fields, post_load, post_dump
 from ...database.schema import *
 from ...dtos.response import *
 import zoneinfo
-from ...custom_types.dataclasses import LinkedData
 
 
 # Returns the enum object in case of serialization.
@@ -80,6 +79,7 @@ class DatasetSchema(BaseSchema):
 
 class DataPointSchema(BaseSchema):
     id = auto_field()
+    dataset_id = auto_field()
     coherence_score = auto_field()
     relevance_score = auto_field()
     semantic_similarity_score = auto_field()
@@ -89,15 +89,9 @@ class DataPointSchema(BaseSchema):
     category = auto_field()
     initial_datapoint_id = auto_field()
 
-    # Custom fields to handle complex relationships
-    dataset_ids = fields.Function(
-        lambda obj: [dataset.id for dataset in obj.datasets]
-    )
-    # Set linked_data (linked datapoints for this dataset) through passed context if some is provided / optional
-    linked_datapoint_ids_per_dataset_id = fields.Function(
-        serialize=lambda obj, context: context.get(
-            'linked_data', LinkedData()).linked_data
-    )
+    # Use a lambda to defer self-referencing
+    related_datapoints = fields.Nested(lambda: DataPointSchema(
+        many=True), exclude=('related_datapoints',), default=[])
 
     class Meta(BaseSchema.Meta):
         model = DataPoint
@@ -105,25 +99,6 @@ class DataPointSchema(BaseSchema):
     @post_dump
     def make_data_point_dto(self, data, **kwargs):
         return DataPointDTO(**data)
-
-
-class SimpleDataPointSchema(BaseSchema):
-    id = auto_field()
-    coherence_score = auto_field()
-    relevance_score = auto_field()
-    semantic_similarity_score = auto_field()
-    augmentation_type = CustomEnumConversionSchema(AugmentationType)
-    created_at = FlexibleDateTimeField()
-    messages = auto_field()
-    category = auto_field()
-    initial_datapoint_id = auto_field()
-
-    class Meta(BaseSchema.Meta):
-        model = DataPoint
-
-    @post_dump
-    def make_data_point_dto(self, data, **kwargs):
-        return SimpleDataPointDTO(**data)
 
 
 class ModelSchema(BaseSchema):
@@ -134,7 +109,8 @@ class ModelSchema(BaseSchema):
     #   lambda: ModelSchema(only=["id"]), many=False, allow_none=True)
     version = auto_field()
     created_at = FlexibleDateTimeField()
-    project_id = auto_field()
+    project_ids = fields.Function(
+        serialize=lambda obj: [project.id for project in obj.projects])
     uuid = auto_field()
     dataset_ids = fields.Function(
         serialize=lambda obj: [dataset.id for dataset in obj.datasets])

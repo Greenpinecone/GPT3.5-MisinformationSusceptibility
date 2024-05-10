@@ -2,15 +2,14 @@ from typing import Optional, Dict, TypedDict
 from dataclasses import dataclass, field
 from ..database.schema import DatasetCategory, AugmentationType, EvaluationType
 from ..custom_types.typedicts import MessagesContainer
-from ..custom_types.dataclasses import LinkedData
 
 
 @dataclass
 class CreateProjectDTO:
     project_name: str
     description: str | None = None
-    model_ids: list[int] = field(default_factory=list)
-    dataset_ids: list[int] = field(default_factory=list)
+    model_ids: list[int] | None = None
+    dataset_ids: list[int] | None = None
 
 
 @dataclass
@@ -18,18 +17,19 @@ class CreateDatasetDTO:
     dataset_name: str
     augmented: bool
     category: DatasetCategory
-    project_ids: list[int] = field(default_factory=list)
+    project_ids: list[int] | None = None
     initial_dataset_id: int | None = None
     test_dataset_id: int | None = None
-    datapoint_ids: list[int] = field(default_factory=list)
+    datapoint_ids: list[int] | None = None
+    is_global: bool = False
 
 
 @dataclass
 class CreateDataPointDTO:
     messages: MessagesContainer
     category: str
-    linked_datapoint_ids_per_dataset_id: LinkedData = field(
-        default_factory=LinkedData)
+    dataset_id: int
+    related_datapoint_ids: list[int] | None = None
     coherence_score: int | None = None
     relevance_score: int | None = None
     semantic_similarity_score: float | None = None
@@ -40,11 +40,11 @@ class CreateDataPointDTO:
 @dataclass
 class CreateModelDTO:
     model_name: str
-    version: int
-    project_id: int
-    dataset_ids: list[int] = field(default_factory=list)
+    project_ids: list[int]
+    dataset_ids: list[int]
     parent_model_id: int | None = None
     training_run_id: int | None = None
+    is_global: bool = False
 
 
 @dataclass
