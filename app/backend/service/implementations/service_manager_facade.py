@@ -28,18 +28,18 @@ class ServiceManagerFacade(IServiceManager):
     def __init__(self, data_manager: IDataManager = None, google_translate_service: GoogleTranslateService = None,
                  openai_service: OpenAIService = None, data_augmenter: DataAugmenter = None,
                  data_sampler: DataSampler = None, model_evaluator: ModelEvaluator = None,
-                 fine_tuner: FineTuner = None, validator: ValidatorFacade = None, mapper: MapperFacade = None):
+                 fine_tuner: FineTuner = None, validator: ValidatorFacade = None, mapper: MapperFacade = None, config: Config = None):
 
+        if config is None:
+            config = Config()
         if mapper is None:
             mapper = MapperFacade()
         if data_manager is None:
             data_manager = DataManager(mapper=mapper)
         if google_translate_service is None:
-            config = Config()  # Assuming Config is a suitable way to obtain API keys
             google_translate_service = GoogleTranslateService(
                 api_key=config.google_translate_api_key)
         if openai_service is None:
-            config = Config() if 'config' not in locals() else config
             openai_service = OpenAIService(api_key=config.openai_api_key)
         if data_augmenter is None:
             data_augmenter = DataAugmenter()
