@@ -36,6 +36,9 @@ class UpdateModelDTO:
     # Removes / adds Models from / to projects
     project_ids: list[int] | None = None
     is_global: bool | None = None
+    # Can only be updated if no values has been set already
+    underlying_fine_tuned_model: str | None = None
+    full_fine_tuned_model_id: str | None = None
 
 
 @dataclass
