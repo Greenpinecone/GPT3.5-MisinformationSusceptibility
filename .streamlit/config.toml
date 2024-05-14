@@ -12,7 +12,7 @@ favicon=""
 maxUploadSize=200
 
 [server]
-headless = true  # Useful for server deployments
+headless = false  # Useful for server deployments
 runOnSave = true
 
 [layout]
