@@ -17,6 +17,8 @@ class CreateDatasetDTO:
     dataset_name: str
     augmented: bool
     category: DatasetCategory
+    # The formatting of the underlying fine tuning data based on the company you want to fine tune with. Neeed for conversionbetween fien tuning schematas if the same dataset uploaded for openai is used for google. TODO: Implement typedicts and mappers at some point if needed.
+    fine_tuning_formatting: str
     project_ids: list[int] | None = None
     initial_dataset_id: int | None = None
     test_dataset_id: int | None = None
@@ -42,9 +44,12 @@ class CreateModelDTO:
     model_name: str
     project_ids: list[int]
     dataset_ids: list[int]
+    full_fine_tuned_model_id: str | None = None
     parent_model_id: int | None = None
     training_run_id: int | None = None
     is_global: bool = False
+    is_checkpoint_model: bool | None = None
+    checkpoint_step: int | None = None
 
 
 @dataclass

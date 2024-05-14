@@ -23,6 +23,8 @@ class DatasetDTO:
     dataset_name: str
     augmented: bool
     category: DatasetCategory
+    # The formatting of the underlying fine tuning data based on the company you want to fine tune with.
+    fine_tuning_formatting: str
     created_at: datetime = datetime.now(
     ).astimezone()
     initial_dataset_id: int | None = None
@@ -53,12 +55,15 @@ class ModelDTO:
     model_name: str
     version: int
     project_ids: list[int]
-    uuid: str
+    full_fine_tuned_model_id: str | None = None
+    underlying_fine_tuned_model: str | None = None
     created_at: datetime = datetime.now(
     ).astimezone()
     dataset_ids: list[int] = field(default_factory=list)
     parent_model_id: int | None = None
     training_run_id: int | None = None
+    is_checkpoint_model: bool | None = None
+    checkpoint_step: int | None = None
 
 
 @dataclass

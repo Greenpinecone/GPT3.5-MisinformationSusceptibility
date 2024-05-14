@@ -64,6 +64,7 @@ class DatasetSchema(BaseSchema):
     created_at = FlexibleDateTimeField()
     initial_dataset_id = auto_field()
     test_dataset_id = auto_field()
+    fine_tuning_formatting = auto_field()
     project_ids = fields.Function(
         serialize=lambda obj: [project.id for project in obj.projects])
     datapoint_ids = fields.Function(
@@ -109,9 +110,12 @@ class ModelSchema(BaseSchema):
     #   lambda: ModelSchema(only=["id"]), many=False, allow_none=True)
     version = auto_field()
     created_at = FlexibleDateTimeField()
+    is_checkpoint_model = auto_field()
+    checkpoint_step = auto_field()
     project_ids = fields.Function(
         serialize=lambda obj: [project.id for project in obj.projects])
-    uuid = auto_field()
+    full_fine_tuned_model_id = auto_field()
+    underlying_fine_tuned_model = auto_field()
     dataset_ids = fields.Function(
         serialize=lambda obj: [dataset.id for dataset in obj.datasets])
     training_run_id = fields.Function(
