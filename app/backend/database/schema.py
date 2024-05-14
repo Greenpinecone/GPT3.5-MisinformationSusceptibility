@@ -3,7 +3,6 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import CheckConstraint, UniqueConstraint
 import enum
-import uuid
 
 
 # To differentiate whether a dataset is a training or a test dataset in the Datasets table
@@ -84,6 +83,8 @@ class Dataset(Base):
     category = Column(Enum(DatasetCategory), nullable=False)
     created_at = Column(DateTime, default=func.now())
     is_global = Column(Boolean, nullable=False)
+    # What formatting was used for the dataset datapoints - are the datapoints formatted for openai, google etc. (roles, content)
+    fine_tuning_formatting = Column(String, nullable=False)
     # Foreign key for the initial dataset (self-referencing)
     initial_dataset_id = Column(
         Integer, ForeignKey('datasets.id'))
@@ -153,10 +154,16 @@ class Model(Base):
     parent_model_id = Column(Integer, ForeignKey('models.id'))
     version = Column(Integer, default=1)
     created_at = Column(DateTime, default=func.now())
-    # Store UUID as a string in SQLite, used as suffix for fine tuning jobs to allow multiple models with the same name.
-    uuid = Column(String(36), unique=True, default=lambda: str(uuid.uuid4()))
+    # full id of the fine tuned model to retrieve it
+    full_fine_tuned_model_id = Column(String(), unique=True)
+    # if the model is set global to choose
     is_global = Column(Boolean, nullable=False)
-
+    # what is the model version that was used for fine tuning
+    underlying_fine_tuned_model = Column(String)
+    # Is the model one of the checkpoint models, openai creates after each epoch training
+    is_checkpoint_model = Column(Boolean)
+    # At which checkpoint step was the checkpoint model created
+    checkpoint_step = Column(Integer)
     # Many-to-many relationship to projects
     projects = relationship(
         "Project",
