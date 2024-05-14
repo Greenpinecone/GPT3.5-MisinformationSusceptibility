@@ -1,5 +1,5 @@
 from datetime import date, timezone
-from typing import Optional
+from typing import Any, Optional
 from marshmallow import Schema, fields, validates, validates_schema, ValidationError, validate, post_load
 from ....database.schema import DatasetCategory, EvaluationType, AugmentationType
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound
@@ -7,6 +7,7 @@ from ....persistence.interfaces.i_data_manager import IDataManager
 from ....dtos.create_request import *
 from ....dtos.get_request import *
 from ....dtos.update_request import *
+from ....dtos.response import ModelDTO
 import enum
 
 
@@ -67,16 +68,38 @@ class FlexibleDateTimeValidationField(fields.DateTime):
                     raise ValidationError('Invalid datetime format')
 
 
+class FineTuningCompanies(enum.Enum):
+    companies = ["google", "openai"]
+
+
+class FineTuningModelVersions(enum.Enum):
+    openai = ["gpt-3.5-turbo", "gpt-4"]
+    google = ["non existent google model"]
+
+# The first role is the default role
 class MessageKeys(enum.Enum):
-    user = "user"
-    system = "system"
-    assistant = "assistant"
+    opanai = ["system", "assistant", "user",]
+    google = ["none existent default role"]
+
+
+class UploadFormats(enum.Enum):
+    openai = ["jsonl"]
+    google = ["none existent google format"]
 
 
 class MessageSchema(Schema):
-    role = fields.Str(required=True, validate=validate.OneOf(
-        [key.value for key in MessageKeys]))
+    role = fields.Str(required=True)
     content = fields.Str(required=True)
+
+    def __init__(self, allowed_roles: list[str] = None, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.allowed_roles = allowed_roles
+
+    @validates('role')
+    def validate_role(self, value):
+        if self.allowed_roles and value not in self.allowed_roles:
+            raise ValidationError(f"""The role must be one of {
+                                  self.allowed_roles}.""")
 
 
 class CreateProjectSchema(Schema):
@@ -203,6 +226,8 @@ class CreateDatasetSchema(Schema):
         }
     )
 
+    fine_tuning_formatting = fields.Str(required=True)
+
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.data_manager = data_manager
@@ -250,6 +275,16 @@ class CreateDatasetSchema(Schema):
             raise ValidationError(f"""Datapoints with IDs {
                                   missing_datapoints} do not exist.""")
 
+    @validates('fine_tuning_formatting')
+    def validate_underlying_fine_tuned_model(self, value: str):
+        valid_models = []
+        for version_list in FineTuningModelVersions:
+            valid_models.extend(version_list.value)
+
+        if value not in valid_models:
+            raise ValidationError(
+                f"The model version must be one of {valid_models}")
+
     @post_load
     def make_dataset_dto(self, data, **kwargs):
         return CreateDatasetDTO(**data)
@@ -294,7 +329,7 @@ class CreateDataPointSchema(Schema):
             'invalid': 'Invalid augmentation type. Must be one of: {0}.'.format(", ".join([e.value for e in AugmentationType])),
         }
     )
-    messages = fields.Dict(keys=fields.Str(), values=fields.List(fields.Nested(MessageSchema)), required=True,
+    messages = fields.List(fields.Nested(MessageSchema), required=True,
                            error_messages={
                                'required': 'The "messages" field is required.',
                                'invalid': 'The structure of "messages" is invalid.'
@@ -348,6 +383,31 @@ class CreateDataPointSchema(Schema):
                 raise ValidationError(f"""Initial datapoint with ID {
                                       datapoint_id} does not exist.""")
 
+    @validates_schema(pass_original=True)
+    def validate_messages(self, data, original_data, **kwargs):
+        dataset_id = original_data.get('dataset_id')
+        if dataset_id is None:
+            raise ValidationError(
+                "Dataset ID is required to validate messages.")
+
+        dataset = self.data_manager.get_dataset_by_id(dataset_id)
+        fine_tuning_formatting = dataset.get('fine_tuning_formatting')
+        if not fine_tuning_formatting:
+            raise ValidationError(
+                "Dataset does not contain fine tuning formatting information.")
+
+        model_version_key = next((k for k, v in FineTuningModelVersions.__members__.items(
+        ) if fine_tuning_formatting in v.value), None)
+        if model_version_key is None:
+            raise ValidationError("Unknown fine-tuning model version.")
+
+        allowed_roles = MessageKeys[model_version_key].value
+        message_schema = MessageSchema(allowed_roles=allowed_roles)
+
+        messages = original_data.get('messages', [])
+        for message in messages:
+            message_schema.load(message)  # Validates each message
+
     @post_load
     def make_create_datapoint_dto(self, data, **kwargs):
         return CreateDataPointDTO(**data)
@@ -393,6 +453,16 @@ class CreateModelSchema(Schema):
             'invalid': 'Is_global must be either True or False.'
         }
     )
+    is_checkpoint_model = fields.Boolean(allow_none=True, error_messages={
+                                         'invalid': 'Is_checkpoint_model must be of type boolean.'})
+    checkpoint_step = fields.Int(allow_none=True, validate=lambda n: n > 0, error_messages={
+        'invalid': 'Checkpoint step must be of type integer > 0.'})
+
+    full_fine_tuned_model_id = fields.Str(allow_none=True,
+                                          validate=lambda s: len(s) > 0,
+                                          error_messages={
+                                              'invalid': 'Full fine tuned model name must be of type string'
+                                          })
 
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -619,6 +689,10 @@ class GetModelsSchema(Schema):
                                }
                                )
 
+    underlying_fine_tuned_model = fields.Str(allow_none=True,  error_messages={
+        'invalid': 'Underlying fine runed model must be of type string.'
+    })
+
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.data_manager = data_manager
@@ -631,6 +705,17 @@ class GetModelsSchema(Schema):
             except NoResultFound:
                 raise ValidationError(
                     f"Project with ID {project_id} does not exist.")
+
+    @validates('underlying_fine_tuned_model')
+    def validate_underlying_fine_tuned_model(self, value: str):
+        if value:
+            valid_models = []
+            for version_list in FineTuningModelVersions:
+                valid_models.extend(version_list.value)
+
+            if value not in valid_models:
+                raise ValidationError(
+                    f"The model version must be one of {valid_models}")
 
 
 class GetDatasetsSchema(Schema):
@@ -714,6 +799,9 @@ class GetModelsByProjectIdSchema(Schema):
             'invalid': 'Version must be a positive integer greater 0.',
         }
     )
+    underlying_fine_tuned_model = fields.Str(allow_none=True,  error_messages={
+        'invalid': 'Underlying fine runed model must be of type string.'
+    })
 
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -726,6 +814,16 @@ class GetModelsByProjectIdSchema(Schema):
         except NoResultFound:
             raise ValidationError(
                 f"Project with ID {project_id} does not exist.")
+
+    @validates('underlying_fine_tuned_model')
+    def validate_underlying_fine_tuned_model(self, value: str):
+        valid_models = []
+        for version_list in FineTuningModelVersions:
+            valid_models.extend(version_list.value)
+
+        if value not in valid_models:
+            raise ValidationError(
+                f"The model version must be one of {valid_models}")
 
     @post_load
     def make_get_models_by_project_id_dto(self, data, **kwargs):
@@ -1019,6 +1117,13 @@ class UpdateModelSchema(BaseUpdateSchema):
             'invalid': 'Is_global must be either True or False.'
         }
     )
+    underlying_fine_tuned_model = fields.Str(allow_none=True, error_messages={
+        'invalid': 'Underlying fine runed model must be of type string.'
+    })
+
+    full_fine_tuned_model_id = fields.Str(allow_none=True, error_messages={
+        'invalid': 'Full fine tuned model id must be of type string.'
+    })
 
     def __init__(self, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1036,6 +1141,40 @@ class UpdateModelSchema(BaseUpdateSchema):
         if missing_projects:
             raise ValidationError(f"""Projects with IDs {
                                   missing_projects} do not exist.""")
+
+    @validates_schema(pass_original=True)
+    def validate_underlying_fine_tuned_model(self, data: dict[str, Any], original_data: dict[str, Any], **kwargs):
+        model_id = original_data.get("id")
+        if not model_id:
+            raise ValidationError('Model ID is required.')
+
+        model: ModelDTO = self.data_manager.get_model_by_id(model_id)
+        if not model:
+            raise ValidationError('Model not found.')
+
+        if data.get('underlying_fine_tuned_model') and model.underlying_fine_tuned_model:
+            raise ValidationError(
+                "This model already has an underlying fine-tuned model set and cannot be updated with a new one.")
+
+        valid_models = []
+        for version_list in FineTuningModelVersions:
+            valid_models.extend(version_list.value)
+
+        if data.get('underlying_fine_tuned_model') not in valid_models:
+            raise ValidationError(
+                f"The model version must be one of {valid_models}")
+
+    @validates_schema(pass_original=True)
+    def validate_full_fine_tuned_model_id(self, data: dict[str, Any], original_data: dict[str, Any], **kwargs):
+        model_id = original_data.get("id")
+        if not model_id:
+            raise ValidationError('Model ID is required.')
+
+        model: ModelDTO = self.data_manager.get_model_by_id(model_id)
+
+        if model.full_fine_tuned_model_id and data.get("full_fine_tuned_model_id"):
+            raise ValidationError(
+                "This model already has an full fine tuned model id set and cannot be updated with a new one.")
 
     @post_load
     def make_create_model_dto(self, data, **kwargs):
