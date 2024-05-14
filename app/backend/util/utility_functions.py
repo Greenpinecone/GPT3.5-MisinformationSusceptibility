@@ -123,6 +123,11 @@ def apply_global_style():
         width: 100%;
     }
     
+    #root .stCodeBlock, #root .stExpanderDetails .stMarkdown pre {
+            overflow-x: auto;  /* Activates horizontal scrolling */
+            white-space: pre;  /* Ensures whitespace is preserved */
+        }
+    
     /* Style separators */
     hr {
         height: 2px;
