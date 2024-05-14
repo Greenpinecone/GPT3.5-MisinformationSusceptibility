@@ -311,11 +311,21 @@ class DataManager(IDataManager):
                         Dataset.id.in_(model_dto.dataset_ids)).all()
                     model.datasets = datasets
 
-                    # Handle parent_model_id if present
+                    if model_dto.full_fine_tuned_model_id:
+                        model.full_fine_tuned_model_id = model_dto.full_fine_tuned_model_id
+
+                    if model_dto.is_checkpoint_model is not None:
+                        model.is_checkpoint_model = model_dto.is_checkpoint_model
+
+                    if model_dto.checkpoint_step:
+                        model.checkpoint_step = model_dto.checkpoint_step
+
+                    # Handle parent_model_id if present and set child model version + 1 from teh parent model version
                     if model_dto.parent_model_id:
                         parent_model = session.get(
                             Model, model_dto.parent_model_id)
                         model.parent_model = parent_model
+                        model.version = parent_model.version + 1
 
                     # Handle training_run_id if present
                     if model_dto.training_run_id:
@@ -356,6 +366,12 @@ class DataManager(IDataManager):
 
                     if model_dto.is_global is not None:
                         model.is_global = model_dto.is_global
+
+                    if model_dto.underlying_fine_tuned_model:
+                        model.underlying_fine_tuned_model = model_dto.underlying_fine_tuned_model
+
+                    if model_dto.full_fine_tuned_model_id:
+                        model.full_fine_tuned_model_id = model_dto.full_fine_tuned_model_id
 
                     saved_models.append(model)
 
@@ -508,6 +524,7 @@ class DataManager(IDataManager):
                 version: int = model_data.version
                 project_id: int = model_data.project_id
                 is_global: bool = model_data.is_global
+                underlying_fine_tuned_model: str = model_data.underlying_fine_tuned_model
 
                 if model_name:
                     query = query.filter(
@@ -526,6 +543,11 @@ class DataManager(IDataManager):
                 if is_global is not None:
                     query = query.filter(
                         Model.is_global == is_global)
+
+                # Cannot be an empty string
+                if underlying_fine_tuned_model:
+                    query = query.filter(
+                        Model.underlying_fine_tuned_model == underlying_fine_tuned_model)
 
                 models: list[Model] = query.all()
                 return [self.mapper.map_model_to_dto(model) for model in models]
@@ -589,6 +611,10 @@ class DataManager(IDataManager):
                 if model_project_data.version:
                     query = query.filter(
                         Model.version == model_project_data.version)
+
+                if model_project_data.underlying_fine_tuned_model:
+                    query = query.filter(
+                        Model.underlying_fine_tuned_model == model_project_data.underlying_fine_tuned_model)
 
                 models: list[Model] = query.all()
                 return [self.mapper.map_model_to_dto(model) for model in models]
