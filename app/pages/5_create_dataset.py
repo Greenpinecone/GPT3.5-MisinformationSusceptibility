@@ -203,14 +203,15 @@ with logger:
         Removes a datapoint from the session state and deletes its associated session keys.
         """
         # Find the tuple in the list where the first element (the ID) matches datapoint_id
+        print("DELETING:", datapoint_id)
         tuple_to_remove = find_datapoint_by_id(datapoint_id)
         if tuple_to_remove:
             st.session_state.datapoints.remove(tuple_to_remove)
-            # editor_key = f"{editor_key_base}{datapoint_id}"
+            editor_key = f"{editor_key_base}{datapoint_id}"
             df_key = f"{df_key_base}{datapoint_id}"
             # Deleting the session keys related to this datapoint
-            # if editor_key in st.session_state:
-            #     del st.session_state[editor_key]
+            if editor_key in st.session_state:
+                del st.session_state[editor_key]
             if df_key in st.session_state:
                 del st.session_state[df_key]
         else:
@@ -337,21 +338,74 @@ with logger:
         """
         display_paginated_datapoints(datapoints_container)
 
-    def manage_datapoints_flow(training_dataset_file: BytesIO, datapoints_container: st.container, pagination_buttons_container_above: st.container, pagination_buttons_container_below: st.container) -> None:
+    # Encapsulates logic to only rerun this fragment on change - similar to a form but without a submit button or limitations
+    @st.experimental_fragment
+    def load_dataset_input_form():
+        st.markdown("###### Set the dataset info")
+        st.text_input(label="The datasets name", value=None, max_chars=255, key="dataset_name_input",
+                      help="Input the name of your dataset", placeholder="The datasets name...", disabled=True, label_visibility="collapsed")
+        cols = st.columns(2)
+        with cols[0]:
+            st.selectbox(label="Select the dataset category",
+                         options=[dataset_category for dataset_category in DatasetCategory], index=None, format_func=lambda x: x.value, key="dataset_category_selectbox", help="Select the category the dataset falls into", placeholder="Choose a dataset category", disabled=True, label_visibility="collapsed")
+        with cols[1]:
+            st.checkbox(label="Make the dataset globally available", value=False, key="globalize_dataset_checkbox",
+                        help="Globalized datasets can be selected in the list of available datasets when creating a new project", disabled=False, label_visibility="visible")
+
+    def load_choose_file_format_form(uploaded_dataset_file: BytesIO) -> None:
+        # TODO: Make this dynamic (adapt to Enums etc.)
+        tab1, tab2 = st.tabs(
+            list(vars(config.upload_format_formattings).keys()))
+
+        # TODO: Add google formattings and others.
+        with tab1:
+            openai_formatting_expander = st.expander(
+                label="Openai formatting examples", expanded=False)
+
+            with openai_formatting_expander:
+                st.code(config.upload_format_formattings.openai,
+                        line_numbers=True)
+
+        with tab2:
+            google_formatting_expander = st.expander(
+                label="Google formatting examples", expanded=False)
+
+            with google_formatting_expander:
+                st.code("Nothing to see here",
+                        line_numbers=True)
+
+        formatting_cols = st.columns(2)
+
+        print("LENGTH", len(st.session_state.datapoints))
+        # Only changeable if no datapoints exist at the moment
+        with formatting_cols[0]:
+            st.selectbox(label="Choose a company formatting style",
+                         options=config.fine_tuning_companies.companies, index=None, placeholder="Choose a companies formatting style", help="Chose the formatting style for the file to upload based on company.", label_visibility="collapsed", key="chosen_company", disabled=len(st.session_state.datapoints) or uploaded_dataset_file is not None)
+
+        # Only changeable if a company has been chosen and no datapoints exist at the moment
+        with formatting_cols[1]:
+            st.selectbox(label="Choose an upload file format",
+                         options=getattr(config.upload_formats, st.session_state.chosen_company) if st.session_state.chosen_company else [], index=None, placeholder="Choose file format", help="Choose the format of the file you want to upload and the datapoints you want to create", label_visibility="collapsed", key="chosen_file_format", disabled=not st.session_state.chosen_company or len(st.session_state.datapoints) or uploaded_dataset_file is not None)
+
+            # Set default role for datapoint messages (e.g. role = "system")
+            st.session_state.default_role = getattr(config.roles, st.session_state.chosen_company)[
+                0] if st.session_state.chosen_company else None
+
+    def manage_datapoints_flow(uploaded_dataset_file: BytesIO, datapoints_container: st.container, pagination_buttons_container_above: st.container, pagination_buttons_container_below: st.container) -> None:
         """
         Manages the flow of datapoints based on their current state and file changes.
         Updates the UI components according to the file and datapoints state.
 
         Args:
-            training_dataset_file (UploadedFile): The file uploaded by the user.
+            uploaded_dataset_file (UploadedFile): The file uploaded by the user.
             pagination_buttons_container (Container): Streamlit container for pagination buttons.
             datapoints_container (Container): Streamlit container for displaying datapoints.
         """
         # If a new file has been uploaded
-        if training_dataset_file and not st.session_state.datapoints and st.session_state.currently_uploaded_file != training_dataset_file:
-            handle_new_file_upload(training_dataset_file, datapoints_container)
+        if uploaded_dataset_file and not st.session_state.datapoints and st.session_state.currently_uploaded_file != uploaded_dataset_file:
+            handle_new_file_upload(uploaded_dataset_file, datapoints_container)
         # If all datapoints have been deleted from the UI
-        elif training_dataset_file and not st.session_state.datapoints and st.session_state.currently_uploaded_file == training_dataset_file:
+        elif uploaded_dataset_file and not st.session_state.datapoints and st.session_state.currently_uploaded_file == uploaded_dataset_file:
             reset_datapoint_states_if_all_datapoints_deleted()
         # If there are no datapoints -> Is somewhat redundant and can be potentially changed but carefully!
         elif not st.session_state.datapoints:
@@ -391,44 +445,24 @@ with logger:
         # Current temporary (dialog datapoint) datapoint uuid.
         if not st.session_state.get("temp_new_datapoint_id"):
             st.session_state.temp_new_datapoint_id = 0
+        if not st.session_state.get("chosen_file_format"):
+            st.session_state.chosen_file_format = None
+        if not st.session_state.get("chosen_company"):
+            st.session_state.chosen_company = None
 
-        # TODO: Make this dynamic (adapt to Enums etc.)
-        tab1, tab2 = st.tabs(
-            list(vars(config.upload_format_formattings).keys()))
-
-        # TODO: Add google formattings and others.
-        with tab1:
-            openai_formatting_expander = st.expander(
-                label="Openai formatting examples", expanded=False)
-
-            with openai_formatting_expander:
-                st.code(config.upload_format_formattings.openai,
-                        line_numbers=True)
-
-        with tab2:
-            google_formatting_expander = st.expander(
-                label="Google formatting examples", expanded=False)
-
-            with google_formatting_expander:
-                st.code("Nothing to see here",
-                        line_numbers=True)
-
-        formatting_cols = st.columns(2)
-
-        with formatting_cols[0]:
-            chosen_company = st.selectbox(label="Choose a company formatting style",
-                                          options=config.fine_tuning_companies.companies, index=None, placeholder="Choose a companies formatting style", help="Chose the formatting style for the file to upload based on company.", label_visibility="collapsed")
-
-        with formatting_cols[1]:
-            chosen_file_format = st.selectbox(label="Choose an upload file format",
-                                              options=getattr(config.upload_formats, chosen_company) if chosen_company else [], index=None, placeholder="Choose file format", help="Choose the format of the file you want to upload and the datapoints you want to create", label_visibility="collapsed")
-
-            st.session_state.default_role = getattr(config.roles, chosen_company)[
-                0] if chosen_company else None
+        chosen_file_format_container = st.container()
 
         # The datapoints are cleared when a new file is uploaded or the current file is deleted
-        training_dataset_file = st.file_uploader(
-            label="Upload new datasets", type=chosen_file_format, key=st.session_state.file_uploader_key, accept_multiple_files=False, help="Upload a file formatted in the format chosen. Uploaded datasets will be directly available to select after submitting.", disabled=False if chosen_file_format else True, on_change=clear_current_datapoints)
+        # The file uploader is only available if no datapoints exist, a file format is chosen and no dataset is currently uploaded.
+        uploaded_dataset_file = st.file_uploader(
+            label="Upload new datasets", type=st.session_state.get("chosen_file_format"), key=st.session_state.file_uploader_key, accept_multiple_files=False, help="Upload a file formatted in the format chosen. Uploaded datasets will be directly available to select within your project after submitting.", disabled=False if st.session_state.chosen_file_format else True, on_change=clear_current_datapoints)
+
+        with chosen_file_format_container:
+            # Insert chose file format form
+            load_choose_file_format_form(uploaded_dataset_file)
+
+        # Insert the dataset input form
+        load_dataset_input_form()
 
         # Create container for pagination buttons and datapoint data editors to populate later.
         pagination_buttons_container_above = st.container(border=False)
@@ -437,14 +471,16 @@ with logger:
 
         # Runs the page depending on the current input
         manage_datapoints_flow(
-            training_dataset_file, datapoints_container, pagination_buttons_container_above, pagination_buttons_container_below)
+            uploaded_dataset_file, datapoints_container, pagination_buttons_container_above, pagination_buttons_container_below)
+
+        print("DATAPOINT IDS", [x[0] for x in st.session_state.datapoints])
 
         cols = st.columns((1, 5, 1))
 
         with cols[1]:
             # Add a new datapoint via the UI.
             add_new_datapoint_buton = st.button(label="Add New Datapoint", key="add_new_datapoint_button",
-                                                help="Add a new datapoint to the current dataset", type="secondary", disabled=not chosen_file_format)
+                                                help="Add a new datapoint to the current dataset", type="secondary", disabled=not st.session_state.chosen_file_format)
             if add_new_datapoint_buton:
                 # Need to be called outside of a callback or else a "RuntimeError: Could not find fragment with id <> will occure!"
                 open_add_datapoint_dialog(datapoints_container)
