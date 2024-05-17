@@ -152,7 +152,7 @@ class Model(Base):
     id = Column(Integer, primary_key=True)
     model_name = Column(String, nullable=False, unique=True)
     parent_model_id = Column(Integer, ForeignKey('models.id'))
-    version = Column(Integer, default=1)
+    version = Column(Integer, default=0)
     created_at = Column(DateTime, default=func.now())
     # full id of the fine tuned model to retrieve it
     full_fine_tuned_model_id = Column(String(), unique=True)
