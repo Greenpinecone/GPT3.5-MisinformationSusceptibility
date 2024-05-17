@@ -1,6 +1,8 @@
 from typing import Any
 import pandas as pd
 import streamlit as st
+from frontend.dtos.frontend_dtos import *
+from app.backend.custom_types.typedicts import *
 
 
 class DataFrameEditor:
@@ -51,11 +53,11 @@ class DataFrameEditor:
         return df.drop(indices, errors='ignore').reset_index(drop=True)
 
     @staticmethod
-    def update_df(editor_key: str, df_key: str) -> None:
+    def update_df(simple_datapoint_dto: DataPointDTOWithDataFrameWrapper) -> None:
         """Main method to update DataFrame based on editor changes."""
 
-        data_editor = st.session_state[editor_key]
-        df = st.session_state[df_key]
+        data_editor = st.session_state[simple_datapoint_dto.data_editor_key]
+        df = simple_datapoint_dto.messages
 
         # Apply edits if there are edited rows
         if 'edited_rows' in data_editor:
@@ -73,10 +75,13 @@ class DataFrameEditor:
         if 'deleted_rows' in data_editor:
             df = DataFrameEditor.delete_rows(df, data_editor['deleted_rows'])
 
-        st.session_state[df_key] = df
+        simple_datapoint_dto.messages = df
+        print(simple_datapoint_dto.messages, df, sep="\n")
+        # st.session_state[df_key] = df
 
-        # Debugging purposes
-        """print("Updated DataFrame:")
-        print(df)
-        print("\nData Editor State:")
-        print(data_editor)"""
+    @staticmethod
+    def convert_df_to_messages_container(df: pd.DataFrame) -> MessagesContainer:
+        """Convert a DataFrame to MessagesContainer."""
+        messages = [Message(role=row['role'], content=row['content'])
+                    for index, row in df.iterrows()]
+        return MessagesContainer(messages=messages)

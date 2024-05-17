@@ -56,7 +56,7 @@ class FileUploader:
         return validated_message_containers
 
     @staticmethod
-    def messages_to_df(messages: MessagesContainer) -> pd.DataFrame:
+    def messages_to_df(messages: MessagesContainer | None = None, default_role: str | None = None) -> pd.DataFrame:
         if messages:
             return pd.DataFrame([
                 {"role": msg["role"],
@@ -65,7 +65,7 @@ class FileUploader:
             ])
         else:  # default for creating a new datapoint
             return pd.DataFrame({
-                "role": [""],
+                "role": [default_role or ""],
                 "content": [""],
                 "category": [""]
             })
