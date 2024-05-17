@@ -15,8 +15,8 @@ class CreateProjectDTO:
 @dataclass
 class CreateDatasetDTO:
     dataset_name: str
-    augmented: bool
     category: DatasetCategory
+    augmented: bool
     # The formatting of the underlying fine tuning data based on the company you want to fine tune with. Neeed for conversionbetween fien tuning schematas if the same dataset uploaded for openai is used for google. TODO: Implement typedicts and mappers at some point if needed.
     fine_tuning_formatting: str
     project_ids: list[int] | None = None
@@ -30,7 +30,7 @@ class CreateDatasetDTO:
 class CreateDataPointDTO:
     messages: MessagesContainer
     category: str
-    dataset_id: int
+    dataset_id: int | None = None
     related_datapoint_ids: list[int] | None = None
     coherence_score: int | None = None
     relevance_score: int | None = None

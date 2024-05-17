@@ -82,3 +82,6 @@ class ServiceManagerFacade(IServiceManager):
     def udpate_projects(self, projects_data: list[UpdateProjectDTO]) -> list[ProjectDTO]:
         self.validator.validate_update_projects(projects_data)
         return self.data_manager.update_projects(projects_data)
+
+    def create_dataset(self, dataset_dto: CreateDatasetDTO, datapoint_dtos: list[CreateDataPointDTO]) -> DatasetDTO:
+        pass
