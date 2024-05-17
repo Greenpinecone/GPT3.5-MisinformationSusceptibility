@@ -17,6 +17,7 @@ from app.frontend.classes.file_uploader import FileUploader
 from app.frontend.classes.dataframe_editor import DataFrameEditor
 import math
 from uuid import uuid4
+from frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
 
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
@@ -28,27 +29,51 @@ with logger:
     # uf.set_query_params_from_session(
     #     {"projectId": ["current_project", "id"]}, config)
 
-    editor_key_base = "datapoint_editor_"
-    df_key_base = "datapoint_df_"
-    editor_delete_key_base = "datapoint_delete_"
-
-    def add_all_datapoints(message_containers: list[MessagesContainer]) -> list[int]:
-        """_summary_ Saves all message containers passed with a corresponding id and returns a list of generated ids.
+    def add_all_datapoints(message_containers: list[MessagesContainer] | MessagesContainer | None = None, is_temp: bool = False) -> list[DataPointDTOWithDataFrameWrapper]:
+        """Saves all message containers passed with a corresponding id and returns a list of DataPointDTOWithDataFrameWrapper objects.
 
         Args:
-            message_containers (list[MessagesContainer]): _description_
+            message_containers (Union[List[MessagesContainer], MessagesContainer, None]): The message containers to be saved.
+            is_temp (bool): Flag indicating whether the data point is temporary.
 
         Returns:
-            list[int]: _description_
+            List[DataPointDTOWithDataFrameWrapper]: List of generated DataPointDTOWithDataFrameWrapper objects.
         """
-        id_list = []
-        for message_container in message_containers:
+        generated_datapoint_dtos = []
+
+        def create_datapoint_dto(messages: list[dict], datapoint_id: int | str) -> DataPointDTOWithDataFrameWrapper:
+            """Helper function to create a DataPointDTOWithDataFrameWrapper."""
+            return DataPointDTOWithDataFrameWrapper(
+                datapoint_number=datapoint_id,
+                messages=FileUploader.messages_to_df(
+                    messages, st.session_state.default_role),
+                data_editor_key=f"data_editor_{datapoint_id}"
+            )
+
+        if message_containers and not isinstance(message_containers, list):
+            message_containers = [message_containers]
+
+        if not message_containers and is_temp:
+            datapoint_id = str(uuid4())
+            datapoint_dto = create_datapoint_dto([], datapoint_id)
+            generated_datapoint_dtos.append(datapoint_dto)
+        elif not message_containers and not is_temp:
             datapoint_id = st.session_state.next_datapoint_id
-            id_list.append(datapoint_id)
-            st.session_state.datapoints.append(
-                (datapoint_id, message_container))
+            datapoint_dto = create_datapoint_dto([], datapoint_id)
+            generated_datapoint_dtos.append(datapoint_dto)
+            st.session_state.datapoints.append(datapoint_dto)
             st.session_state.next_datapoint_id += 1
-        return id_list
+        elif message_containers:
+            for message_container in message_containers:
+                datapoint_id = str(
+                    uuid4()) if is_temp else st.session_state.next_datapoint_id
+                datapoint_dto = create_datapoint_dto(
+                    message_container["messages"], datapoint_id)
+                generated_datapoint_dtos.append(datapoint_dto)
+                if not is_temp:
+                    st.session_state.datapoints.append(datapoint_dto)
+                    st.session_state.next_datapoint_id += 1
+        return generated_datapoint_dtos
 
     @st.experimental_dialog(title="New Datapoint", width="large")
     def open_add_datapoint_dialog(datapoints_ui_container: st.container):
@@ -58,22 +83,21 @@ with logger:
             datapoints_ui_container (st.container): _description_
         """
         # TODO: Depening on the current selected format, choose the correct datapoint instantiation
-        df_key = None
-        editor_key = None
-        # Check if a temp id exists in the session state (as long as the user has not submitted a new datapoint the old one should be reused. The id defines the df_key and editor_key which are fetched through generate_datapoint_data_editor_ids(id))
-        if st.session_state.get("temp_new_datapoint_id"):
-            editor_key, df_key = generate_datapoint_data_editor_ids(
-                st.session_state.temp_new_datapoint_id)
-        # If no id exists and therefore no key, a new one is generated.
-        if not df_key:
-            # Generate a new key pair with a uuid for an inter mediate data editor and save the generated random uuid
-            editor_key, df_key = generate_datapoint_data_editor_ids()
 
-        # Create new message container
-        message_container = MessagesContainer(messages=[])
+        # Check if a temp id exists in the session state (as long as the user has not submitted a new datapoint the old one should be reused. The id defines the df_key and editor_key which are fetched through generate_datapoint_data_editor_ids(id))
+
+        new_simple_datapoint_dto = None
+        if st.session_state.get("temp_simple_datapoint_dto"):
+            new_simple_datapoint_dto = st.session_state.temp_simple_datapoint_dto
+        # If no id exists and therefore no key, a new one is generated.
+        else:
+            # Generate a new key pair with a uuid for an inter mediate data editor and save the generated random uuid
+            st.session_state.temp_simple_datapoint_dto = add_all_datapoints(is_temp=True)[
+                0]
+            new_simple_datapoint_dto = st.session_state.temp_simple_datapoint_dto
 
         # Creates a new intermediate data editor with a random id INSIDE the dialog that is automatically removed later on rerun (because you cannot display the same widget in two different positions), but the changes made to this container are saved inside the df which has the regular id based key, which is then used (if submitted) to create a new data editor inside the datapoints list with the edited information.
-        create_new_data_editor(message_container, df_key, editor_key)
+        create_new_data_editor(new_simple_datapoint_dto)
 
         # The user can submit the datapoint created
         submit_button = st.button(label="Submit", key="submit_adding_new_datapoint",
@@ -82,79 +106,51 @@ with logger:
         # If the user has submitted the datapoint created, a new datapoint with the same data will be created at the end of the datapoints list. The message container is needed to generate the next id in the st.session_state.datapoints list and because it is needed. Can be rewritten but not for know.
         if submit_button:
             add_datapoint_data_editor_to_ui(
-                datapoints_ui_container, message_container=MessagesContainer(messages=[]), is_new_datapoint=True)
+                datapoints_ui_container, new_simple_datapoint_dto, is_new_datapoint=True)
 
-    def add_datapoint_data_editor_to_ui(datapoints_ui_container: st.container, message_container: MessagesContainer | None = None, id: int | None = None, is_new_datapoint: bool | None = False) -> None:
-
-        # The keys used to create the streamlit data_editor.
-        new_datapoint_editor_key = None
-        new_datapoint_df_key = None
+    def add_datapoint_data_editor_to_ui(datapoints_ui_container: st.container, simple_datapoint_dto: DataPointDTOWithDataFrameWrapper | None = None, is_new_datapoint: bool | None = False) -> None:
 
         # Checks if it is a "new" datapoint added via the UI.
         if is_new_datapoint:
             # Saves the an arbitrary "message_container" to create a new "real" (for datapoints in the actual datapoint list) id and add it to st.session_state.datapoints. This is needed since only datapoints within this list od datapoint id, message tuples are rendered during page rerun.
-            saved_ids = add_all_datapoints([message_container])
-            # Fetches the saved id.
-            id = saved_ids[0]
+            simple_datapoint_dto = add_all_datapoints()[0]
             # Retrieve saved random uuid / id used for dialog data editor key, df_key generation
-            temp_data_editor_id = st.session_state.temp_new_datapoint_id
-            # Generate access data for in dialog edited data editor and dataframe based on random id - only df_key is needed
-            _, df_key = generate_datapoint_data_editor_ids(
-                temp_data_editor_id)
-            # Get in dialog modified dataframe to then copy it into the "real" datapoints session state (copy df data for new datapoint)
-            stored_df = st.session_state[df_key]
-            # Generate access keys for the "real" datapoint id which will be added to the datapoint list with the copied data of the modified dataframe
-            new_datapoint_editor_key, new_datapoint_df_key = generate_datapoint_data_editor_ids(
-                id)
-            # Set modified temp id dataframe for new "real" datapoint so it will not be overwritten on creation. New df session entries are only created if a df for a specific key does not already exist in the session state. And since we created the session key (df_key, editor_key) the data editor creation function will use, a df entry will already exist and the df data set here will be used. Otherwise a new df would be created.
-            st.session_state[new_datapoint_df_key] = stored_df
-        else:
-            # If it is just a regular already existing datapoint that should be rendered again on reload, this just generated the data editor keys for the given id.
-            new_datapoint_editor_key, new_datapoint_df_key = generate_datapoint_data_editor_ids(
-                id)
+            simple_datapoint_dto.messages = st.session_state.temp_simple_datapoint_dto.messages
+            # Clear session state
+            st.session_state.temp_simple_datapoint_dto.messages = None
 
         # Places the datapoints inside the UI container element defined prior.
         with datapoints_ui_container:
 
             # Creates the "delete" key for the delete button of each datapoint.
-            delete_key = f'{editor_delete_key_base}{id}'
+            delete_key = f'{"delete_"}{simple_datapoint_dto.datapoint_number}'
 
             # Creates a new data editor with the given df_key (and its data) and editor_key. In case it is a new datapoint, the message_container is always passed, and the id is optional, because it is used to generate the UI markdown heading for the respective datapoint which is not needed for the temp datapoint.
-            create_new_data_editor(
-                message_container, new_datapoint_df_key, new_datapoint_editor_key, id=id)
+            create_new_data_editor(simple_datapoint_dto)
 
             st.button(label="Delete", key=delete_key,
-                      help="Delete the whole datapoint", type="secondary", on_click=lambda datapoint_id=id: delete_datapoint(datapoint_id))
+                      help="Delete the whole datapoint", type="secondary", on_click=lambda: delete_datapoint(simple_datapoint_dto.datapoint_number))
 
         # If a new (via the UI) datapoint has been created, this cleans up all the states and remaining data and reruns the program once for full rerender (just in case).
         if is_new_datapoint:
-            # Delete old dataframe
-            del st.session_state[df_key]
-            # Reset temo datapoint id
-            st.session_state.temp_new_datapoint_id = 0
+            st.session_state.temp_simple_datapoint_dto = None
             # Rerun the program for everything to take effect (might not even be necessary)
             st.rerun()
 
-    def create_new_data_editor(message_container: MessagesContainer, df_key: str, editor_key: str, id: int | None = None) -> None:
+    def create_new_data_editor(simple_datapoint_dto: DataPointDTOWithDataFrameWrapper) -> None:
         """INFO 1: Cannot check if "key not in" because it implicitly tries to convert the possibly resulting dataframe to a boolean but you cannot check for a dataframe with true or false "if exists" because that is ambiguous because it could mean the dataframe is empty or it is None.
         # INFO 2: We have to check for the updated and persisted dataframe via "df_key" which is stored in the session state, because when switching pages, the "editor_key" is None because the widget has not been reinstantiated or something changed and streamlit could not retrieve the same session state (bit unclear as of now but also makes sense)
         # 
         # To this function a "message_container" is passed which can can be empty, a df_key which is used to access the saved dataframe from the session state, an editor_key which is used for the streamlit data_editor widget and since they follow a fixed schema based on the id, it can always be retrieved, and an optional id in case the datapoint needs a markdown heading (only necessary if it is really added to the UI list of datapoints)."""
 
-        # If dataframe already exists, jus repopulate new editor with existing data.
-        # Creates a editable dataframe for each datapoint
-        if st.session_state.get(df_key) is None:
-            # TODO: offer multiple different datapoint edit tables / formats based on the AI model chosen.
-            st.session_state[df_key] = FileUploader.messages_to_df(
-                message_container['messages'])
-
         # Add a heading for datapoints that should populate the UI list.
-        if id:
-            st.markdown(f"###### Datapoint {id}")
+        if isinstance(simple_datapoint_dto.datapoint_number, int):
+            st.markdown(f"""###### Datapoint {
+                        simple_datapoint_dto.datapoint_number}""")
 
         # Create a streamlit data editor with the currently passed dataframe data, the current config roles as role options, the current default role based on the config roles / company schema chosen. The data editor updated the underlying dataframe object in all cases (add, edit delete) as soon as something changes -> dataframe_editor.py
         st.data_editor(
-            st.session_state[df_key],
+            simple_datapoint_dto.messages,
             column_config={
                 "role": st.column_config.SelectboxColumn(
                     "Role",
@@ -169,51 +165,20 @@ with logger:
             hide_index=True,
             use_container_width=True,
             num_rows="dynamic",
-            key=editor_key,
+            key=simple_datapoint_dto.data_editor_key,
             on_change=DataFrameEditor.update_df,
-            args=(editor_key, df_key)
+            args=(simple_datapoint_dto,)
         )
-
-    def generate_datapoint_data_editor_ids(id: int | None = None):
-        """_summary_ This function takes in an optional id and generates the standardized datapoint data editor keys for it. If no id is provided, a "temp" unstandardized set of keys is generated where the id (generated through a uuid) is saved in st.session_state.temp_new_datapoint_id to retrieve and regenerate the corresponding keys later on. (Used for dialog datapoint data editor)
-
-        Args:
-            id (int | None, optional): _description_. Defaults to None.
-
-        Returns:
-            _type_: _description_
-        """
-        uuid = None
-        editor_key = None
-        df_key = None
-
-        if not id:
-            uuid = uuid4()
-            editor_key = f"{editor_key_base}{uuid}"
-            df_key = f'{df_key_base}{uuid}'
-            st.session_state.temp_new_datapoint_id = uuid
-        else:
-            editor_key = f"{editor_key_base}{id}"
-            df_key = f'{df_key_base}{id}'
-
-        return editor_key, df_key
 
     def delete_datapoint(datapoint_id: int) -> None:
         """
         Removes a datapoint from the session state and deletes its associated session keys.
         """
-        # Find the tuple in the list where the first element (the ID) matches datapoint_id
+        # Find the DataPointDTOWithDataFrameWrapper in the list where the first element (the ID) matches datapoint_id
         print("DELETING:", datapoint_id)
         tuple_to_remove = find_datapoint_by_id(datapoint_id)
         if tuple_to_remove:
             st.session_state.datapoints.remove(tuple_to_remove)
-            editor_key = f"{editor_key_base}{datapoint_id}"
-            df_key = f"{df_key_base}{datapoint_id}"
-            # Deleting the session keys related to this datapoint
-            if editor_key in st.session_state:
-                del st.session_state[editor_key]
-            if df_key in st.session_state:
-                del st.session_state[df_key]
         else:
             st.error("Datapoint not found or already removed.")
 
@@ -222,8 +187,8 @@ with logger:
         Clears all current datapoints and resets counters.
         """
         # Iterate over a copy of the list to avoid modifying the list while iterating
-        for datapoint_id, _ in st.session_state.datapoints[:]:
-            delete_datapoint(datapoint_id)
+        for simple_datapoint_dto in st.session_state.datapoints[:]:
+            delete_datapoint(simple_datapoint_dto.datapoint_number)
         reset_datapoints_counter()
 
     def reset_datapoints_counter():
@@ -270,7 +235,7 @@ with logger:
                                   i*9999999}""", on_click=lambda i=i: update_page_number(i))
 
     # Define a function to display paginated datapoints
-    def display_paginated_datapoints(datapoints_container: st.container):
+    def display_paginated_datapoints(datapoints_container: st.container) -> None:
         """_summary_ This method receives a streamlit UI container to contain the datapoints rendered in a specific place.
 
         Args:
@@ -279,11 +244,11 @@ with logger:
         start_index, end_index = calculate_pagination_indices()
         # Access the sliced part of datapoints for the current page
         # Display only the slice of datapoint ids for the current pagination page (Add a streamlit data editor for each datapoint id with its underlying dataframe data).
-        for id, message_container in st.session_state.datapoints[start_index:end_index]:
+        for simple_datapoint_dto in st.session_state.datapoints[start_index:end_index]:
             add_datapoint_data_editor_to_ui(
-                datapoints_container, message_container=message_container, id=id)
+                datapoints_container, simple_datapoint_dto)
 
-    def find_datapoint_by_id(datapoint_id: int) -> Optional[tuple[int, MessagesContainer]]:
+    def find_datapoint_by_id(datapoint_id: int) -> DataPointDTOWithDataFrameWrapper | None:
         """
         Searches for a datapoint by ID within the provided list of datapoints.
 
@@ -292,9 +257,8 @@ with logger:
         datapoints (List[Tuple[int, MessagesContainer]]): The list of datapoints to search through.
 
         Returns:
-        Optional[Tuple[int, MessagesContainer]]: The found datapoint tuple if present, None otherwise.
         """
-        return next((item for item in st.session_state.datapoints if item[0] == datapoint_id), None)
+        return next((item for item in st.session_state.datapoints if item.datapoint_number == datapoint_id), None)
 
     def handle_new_file_upload(training_dataset_file: BytesIO, datapoints_container: st.container) -> None:
         """
@@ -339,18 +303,19 @@ with logger:
         display_paginated_datapoints(datapoints_container)
 
     # Encapsulates logic to only rerun this fragment on change - similar to a form but without a submit button or limitations
+
     @st.experimental_fragment
     def load_dataset_input_form():
         st.markdown("###### Set the dataset info")
         st.text_input(label="The datasets name", value=None, max_chars=255, key="dataset_name_input",
-                      help="Input the name of your dataset", placeholder="The datasets name...", disabled=True, label_visibility="collapsed")
+                      help="Input the name of your dataset", placeholder="The datasets name...", label_visibility="collapsed")
         cols = st.columns(2)
         with cols[0]:
             st.selectbox(label="Select the dataset category",
-                         options=[dataset_category for dataset_category in DatasetCategory], index=None, format_func=lambda x: x.value, key="dataset_category_selectbox", help="Select the category the dataset falls into", placeholder="Choose a dataset category", disabled=True, label_visibility="collapsed")
+                         options=[dataset_category for dataset_category in DatasetCategory], index=None, format_func=lambda x: x.value, key="dataset_category_selectbox", help="Select the category the dataset falls into", placeholder="Choose a dataset category", label_visibility="collapsed")
         with cols[1]:
             st.checkbox(label="Make the dataset globally available", value=False, key="globalize_dataset_checkbox",
-                        help="Globalized datasets can be selected in the list of available datasets when creating a new project", disabled=False, label_visibility="visible")
+                        help="Globalized datasets can be selected in the list of available datasets when creating a new project", label_visibility="visible")
 
     def load_choose_file_format_form(uploaded_dataset_file: BytesIO) -> None:
         # TODO: Make this dynamic (adapt to Enums etc.)
@@ -418,6 +383,47 @@ with logger:
         create_pagination_buttons(
             pagination_buttons_container_above, pagination_buttons_container_below)
 
+    def process_and_create_dataset():
+        # Fetch session state values
+
+        dataset_name = st.session_state.dataset_name_input
+
+        if not dataset_name:
+            uf.show_toast("Dataset name is required.", "info")
+            return
+
+        dataset_category = st.session_state.dataset_category_selectbox
+
+        if not dataset_category:
+            uf.show_toast("Dataset category is required.", "info")
+            return
+
+        simple_datapoint_dtos = st.session_state.datapoints
+        chosen_file_format = st.session_state.chosen_file_format
+        is_global = st.session_state.globalize_dataset_checkbox
+        dataset_name = st.session_state.dataset_name_input
+        project_id = st.session_state.current_project.id
+
+        # Construct the CreateDatasetDTO
+        dataset_dto = CreateDatasetDTO(
+            dataset_name=dataset_name,
+            category=DatasetCategory(
+                dataset_category) if dataset_category else None,
+            augmented=False,
+            fine_tuning_formatting=chosen_file_format,
+            project_ids=[project_id],
+            is_global=is_global
+        )
+
+        # Assuming you have a function to handle these DTOs
+        submit_dataset_and_datapoints(dataset_dto, simple_datapoint_dtos)
+
+    def submit_dataset_and_datapoints(dataset_dto: CreateDatasetDTO, datapoint_dtos: list[CreateDataPointDTO]):
+        print(dataset_dto, datapoint_dtos, sep="\n", end="\n")
+        """Dummy function to simulate submission of dataset and datapoints."""
+        print("Submitting Dataset and Datapoints...")
+        # Implement actual submission logic here
+
     def load_page():
         # Checks whether datapoints and next datapoint id already exist and if not initializes them.
         # Current tuples of (dattapoint_id: id, datapoint_message_container: MessageContainer) -> The messagecontainer saved here is only relevant for the first render without an underlying dataframe and could be deleted afterwards theoretically (I guess).
@@ -443,8 +449,8 @@ with logger:
             # Number of datapoints per page. Less means faster reload speed.
             st.session_state.datapoints_per_page = 50
         # Current temporary (dialog datapoint) datapoint uuid.
-        if not st.session_state.get("temp_new_datapoint_id"):
-            st.session_state.temp_new_datapoint_id = 0
+        if not st.session_state.get("temp_simple_datapoint_dto"):
+            st.session_state.temp_simple_datapoint_dto = None
         if not st.session_state.get("chosen_file_format"):
             st.session_state.chosen_file_format = None
         if not st.session_state.get("chosen_company"):
@@ -473,7 +479,8 @@ with logger:
         manage_datapoints_flow(
             uploaded_dataset_file, datapoints_container, pagination_buttons_container_above, pagination_buttons_container_below)
 
-        print("DATAPOINT IDS", [x[0] for x in st.session_state.datapoints])
+        print("DATAPOINT IDS", [
+              x.datapoint_number for x in st.session_state.datapoints])
 
         cols = st.columns((1, 5, 1))
 
@@ -489,7 +496,11 @@ with logger:
 
         with cols[2]:
             # Submit all datapoint dataframes, convert them to datapoint objects and save them in the database as dataset. TODO: Implement the functionality.
-            st.button(label="Submit", key="submit_dataset",
-                      help="Submit the dataset with all its datapoints", type="primary", disabled=not st.session_state.get('datapoints'))
+            submit_button = st.button(label="Submit", key="submit_dataset",
+                                      help="Submit the dataset with all its datapoints", type="primary", disabled=not st.session_state.get('datapoints'))
+            if submit_button:
+                process_and_create_dataset()
+                # uf.show_toast(
+                #     "Dataset has been successfully created.", "success")
 
     load_page()
