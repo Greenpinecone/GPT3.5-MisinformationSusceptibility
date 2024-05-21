@@ -1,9 +1,12 @@
 from io import BytesIO
 import json
 from typing import Any, Iterator
-from backend.custom_types.typedicts import *
-from backend.util.utility_functions import show_toast
+from app.frontend.dataclasses.dataclasses import ToastMessage
+from app.backend.database.schema import FineTuningCompany
+from ...backend.custom_types.typedicts import *
+from ...backend.util.utility_functions import show_toast
 import pandas as pd
+from ...backend.util.global_states import global_toasts
 
 # TODO: Implement different data validators and handlers for different data formats so that user can upload and edit their data for different AI models that do not support the same format (jsonl) and structure as google.
 
@@ -41,19 +44,21 @@ class FileUploader:
         return containers
 
     @staticmethod
-    def process_uploads(uploaded_files: list[BytesIO]) -> list[MessagesContainer]:
+    def process_uploads(uploaded_files: list[BytesIO], chosen_company: FineTuningCompany, chosen_file_format: str, chosen_model: str) -> list[MessagesContainer]:
         """ Processes an uploaded file. """
         validated_message_containers = []
-        for file_buffer in uploaded_files:
-            # file_buffer = file
-            file_text = file_buffer.decode(
-                "utf-8").splitlines()  # Decode and split lines
-            if FileUploader.validate_jsonl(file_text):
-                message_container: MessagesContainer = FileUploader.convert_to_messages_container(
-                    file_text)
-                validated_message_containers.extend(message_container)
+        # TODO: Make the following code dynamic
+        if chosen_company.value == "openai" and (chosen_model == "gpt-3.5-turbo" or chosen_model == "gpt-4") and chosen_file_format == "jsonl":
+            for file_buffer in uploaded_files:
+                # file_buffer = file
+                file_text = file_buffer.decode(
+                    "utf-8").splitlines()  # Decode and split lines
+                if FileUploader.validate_jsonl(file_text):
+                    message_container: MessagesContainer = FileUploader.convert_to_messages_container(
+                        file_text)
+                    validated_message_containers.extend(message_container)
 
-        return validated_message_containers
+            return validated_message_containers
 
     @staticmethod
     def messages_to_df(messages: MessagesContainer | None = None, default_role: str | None = None) -> pd.DataFrame:
