@@ -16,7 +16,7 @@ class GetModelsDTO:
     version: int | None = None
     project_id: int | None = None
     is_global: bool | None = None
-    underlying_fine_tuned_model: str | None = None
+    fine_tuning_model: str | None = None
 
 
 @dataclass
@@ -34,7 +34,7 @@ class GetModelsByProjectIdDTO:
     project_id: int
     name: str | None = None
     version: int | None = None
-    underlying_fine_tuned_model: str | None = None
+    fine_tuning_model: str | None = None
 
 
 @dataclass

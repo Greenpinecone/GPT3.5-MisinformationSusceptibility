@@ -25,6 +25,27 @@ class AugmentationType(enum.Enum):
     EDA = "easy_data_augmentation"
 
 
+class FineTuningCompany(enum.Enum):
+    google = "google"
+    openai = "openai"
+
+
+class FineTuningModelVersions(enum.Enum):
+    openai = ["gpt-3.5-turbo", "gpt-4"]
+    google = ["non existent google models"]
+
+
+# The first role is the default role
+class MessageKeys(enum.Enum):
+    openai = [("system", "assistant", "user")]
+    google = [("nonexistent roles")]
+
+
+class UploadFormats(enum.Enum):
+    openai = {"gpt-3.5-turbo": ["jsonl"], "gpt-4": ["jsonl"]}
+    google = {"non existent google models": ["nonexistent google format"]}
+
+
 Base = declarative_base()
 
 model_dataset_link = Table(
@@ -83,6 +104,9 @@ class Dataset(Base):
     category = Column(Enum(DatasetCategory), nullable=False)
     created_at = Column(DateTime, default=func.now())
     is_global = Column(Boolean, nullable=False)
+    # The company the formatting belongs to
+    fine_tuning_company = Column(Enum(FineTuningCompany), nullable=False)
+    fine_tuning_model = Column(String, nullable=False)
     # What formatting was used for the dataset datapoints - are the datapoints formatted for openai, google etc. (roles, content)
     fine_tuning_formatting = Column(String, nullable=False)
     # Foreign key for the initial dataset (self-referencing)
@@ -159,7 +183,7 @@ class Model(Base):
     # if the model is set global to choose
     is_global = Column(Boolean, nullable=False)
     # what is the model version that was used for fine tuning
-    underlying_fine_tuned_model = Column(String)
+    fine_tuning_model = Column(String)
     # Is the model one of the checkpoint models, openai creates after each epoch training
     is_checkpoint_model = Column(Boolean)
     # At which checkpoint step was the checkpoint model created

@@ -1,6 +1,6 @@
-from typing import Optional, Dict, TypedDict
+from typing import Optional, Dict, TypedDict, TYPE_CHECKING
 from dataclasses import dataclass, field
-from ..database.schema import DatasetCategory, AugmentationType, EvaluationType
+from ..database.schema import DatasetCategory, AugmentationType, FineTuningModelVersions, EvaluationType, FineTuningCompany
 from ..custom_types.typedicts import MessagesContainer
 
 
@@ -17,6 +17,9 @@ class CreateDatasetDTO:
     dataset_name: str
     category: DatasetCategory
     augmented: bool
+    fine_tuning_company: FineTuningCompany
+    # The fine tuning model this data is formatted for
+    fine_tuning_model: str
     # The formatting of the underlying fine tuning data based on the company you want to fine tune with. Neeed for conversionbetween fien tuning schematas if the same dataset uploaded for openai is used for google. TODO: Implement typedicts and mappers at some point if needed.
     fine_tuning_formatting: str
     project_ids: list[int] | None = None
@@ -44,6 +47,7 @@ class CreateModelDTO:
     model_name: str
     project_ids: list[int]
     dataset_ids: list[int]
+    fine_tuning_model: str | None = None
     full_fine_tuned_model_id: str | None = None
     parent_model_id: int | None = None
     training_run_id: int | None = None
