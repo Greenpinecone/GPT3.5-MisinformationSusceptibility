@@ -1,7 +1,7 @@
 from __future__ import annotations
 from datetime import datetime
 from dataclasses import dataclass, field
-from ..database.schema import DatasetCategory, EvaluationType, AugmentationType
+from ..database.schema import DatasetCategory, EvaluationType, AugmentationType, FineTuningCompany, FineTuningModelVersions
 from ..dtos.create_request import MessagesContainer
 
 
@@ -23,8 +23,11 @@ class DatasetDTO:
     dataset_name: str
     augmented: bool
     category: DatasetCategory
+    fine_tuning_model: str
+    fine_tuning_company: FineTuningCompany
     # The formatting of the underlying fine tuning data based on the company you want to fine tune with.
     fine_tuning_formatting: str
+    is_global: bool = False
     created_at: datetime = datetime.now(
     ).astimezone()
     initial_dataset_id: int | None = None
@@ -55,8 +58,9 @@ class ModelDTO:
     model_name: str
     version: int
     project_ids: list[int]
+    is_global: bool = False
+    fine_tuning_model: str | None = None
     full_fine_tuned_model_id: str | None = None
-    underlying_fine_tuned_model: str | None = None
     created_at: datetime = datetime.now(
     ).astimezone()
     dataset_ids: list[int] = field(default_factory=list)
