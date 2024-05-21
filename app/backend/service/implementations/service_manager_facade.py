@@ -2,6 +2,7 @@
 """
 
 
+from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
 from ...dtos.get_request import *
 from ...dtos.response import *
 from ...dtos.create_request import *
@@ -50,38 +51,59 @@ class ServiceManagerFacade(IServiceManager):
         if fine_tuner is None:
             fine_tuner = FineTuner()
         if validator is None:
-            validator = ValidatorFacade(data_manager=data_manager)
+            validator = ValidatorFacade()
 
-        self.data_manager = data_manager
-        self.google_translate_service = google_translate_service
-        self.openai_service = openai_service
-        self.data_augmenter = data_augmenter
-        self.data_sampler = data_sampler
-        self.model_evaluator = model_evaluator
-        self.fine_tuner = fine_tuner
-        self.validator = validator
-        self.mapper = mapper
+        self._data_manager = data_manager
+        self._google_translate_service = google_translate_service
+        self._openai_service = openai_service
+        self._data_augmenter = data_augmenter
+        self._data_sampler = data_sampler
+        self._model_evaluator = model_evaluator
+        self._fine_tuner = fine_tuner
+        self._validator = validator
+        self._mapper = mapper
     # TODO: Implement service layer functions with request validation / convertion to DTOs through marshmallow and add them to interface
 
     def filter_projects(self, projects_data: GetProjectsDTO) -> list[ProjectDTO]:
-        self.validator.validate_get_all_projects(projects_data)
-        return self.data_manager.get_all_projects(projects_data)
+        with self._data_manager.get_session() as session:
+            self._validator.validate_get_all_projects(
+                session, self._data_manager, projects_data)
+            return self._data_manager.get_all_projects(session, projects_data)
 
     def filter_models(self, model_data: GetModelsDTO) -> list[ModelDTO]:
-        self.validator.validate_get_all_models(model_data)
-        return self.data_manager.get_all_models(model_data)
+        with self._data_manager.get_session() as session:
+            self._validator.validate_get_all_models(
+                session, self._data_manager, model_data)
+            return self._data_manager.get_all_models(session, model_data)
 
     def filter_datasets(self, dataset_data: GetDatasetsDTO) -> list[DatasetDTO]:
-        self.validator.validate_get_all_datasets(dataset_data)
-        return self.data_manager.get_all_datasets(dataset_data)
+        with self._data_manager.get_session() as session:
+            self._validator.validate_get_all_datasets(
+                session, self._data_manager, dataset_data)
+            return self._data_manager.get_all_datasets(session, dataset_data)
 
     def create_projects(self, projects_data: list[CreateProjectDTO]) -> list[ProjectDTO]:
-        self.validator.validate_create_projects(projects_data)
-        return self.data_manager.create_projects(projects_data)
+        with self._data_manager.get_session() as session:
+            self._validator.validate_create_projects(
+                session, self._data_manager, projects_data)
+            return self._data_manager.create_projects(session, projects_data)
 
     def udpate_projects(self, projects_data: list[UpdateProjectDTO]) -> list[ProjectDTO]:
-        self.validator.validate_update_projects(projects_data)
-        return self.data_manager.update_projects(projects_data)
+        with self._data_manager.get_session() as session:
+            self._validator.validate_update_projects(
+                session, self._data_manager, projects_data)
+            return self._data_manager.update_projects(session, projects_data)
 
-    def create_dataset(self, dataset_dto: CreateDatasetDTO, datapoint_dtos: list[CreateDataPointDTO]) -> DatasetDTO:
-        pass
+    def create_dataset_with_datapoints(self, dataset_dto: CreateDatasetDTO, datapoint_dtos: list[CreateDataPointDTO]) -> list[DatasetDTO, list[DataPointDTO]]:
+        with self._data_manager.get_session() as session:
+            self._validator.validate_create_datasets(
+                session, self._data_manager, [dataset_dto])
+            dataset_dto: DatasetDTO = self._data_manager.create_datasets(session, [dataset_dto])[
+                0]
+            for datapoint_dto in datapoint_dtos:
+                datapoint_dto.dataset_id = dataset_dto.id
+            self._validator.validate_create_datapoints(
+                session, self._data_manager, datapoint_dtos)
+            datapoint_dtos = self._data_manager.create_datapoints(
+                session, datapoint_dtos)
+            return [dataset_dto, datapoint_dtos]

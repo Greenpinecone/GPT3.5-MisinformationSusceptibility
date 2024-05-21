@@ -6,122 +6,94 @@ from ....dtos.get_request import *
 from ....dtos.update_request import *
 from ....custom_types.exceptions import CustomValidationError
 from marshmallow import Schema
+from sqlalchemy.orm import Session
 
 
 class ValidatorFacade:
-    def __init__(self, data_manager: IDataManager):
-        self.data_manager: IDataManager = data_manager
-        # Initialize each validator with the data_manager
-        self.create_project_validator: CreateProjectSchema = CreateProjectSchema(
-            data_manager=self.data_manager)
-        self.create_dataset_validator: CreateDatasetSchema = CreateDatasetSchema(
-            data_manager=self.data_manager)
-        self.create_datapoint_validator: CreateDataPointSchema = CreateDataPointSchema(
-            data_manager=self.data_manager)
-        self.create_model_validator: CreateModelSchema = CreateModelSchema(
-            data_manager=self.data_manager)
-        self.create_model_evaluation_validator: CreateModelEvaluationSchema = CreateModelEvaluationSchema(
-            data_manager=self.data_manager)
-        self.create_training_run_validator: CreateTrainingRunSchema = CreateTrainingRunSchema(
-            data_manager=self.data_manager)
-        self.get_projects_validator: GetProjectsSchema = GetProjectsSchema(
-            data_manager=self.data_manager)
-        self.get_models_validator: GetModelsSchema = GetModelsSchema(
-            data_manager=self.data_manager)
-        self.get_datasets_validator: GetDatasetsSchema = GetDatasetsSchema(
-            data_manager=self.data_manager)
-        self.get_models_by_project_id_validator: GetModelsByProjectIdSchema = GetModelsByProjectIdSchema(
-            data_manager=self.data_manager)
-        self.get_datasets_by_model_id_validator: GetDatasetsByModelIdSchema = GetDatasetsByModelIdSchema(
-            data_manager=self.data_manager)
-        self.get_datapoints_by_dataset_id_validator: GetDatapointsByDatasetIdSchema = GetDatapointsByDatasetIdSchema(
-            data_manager=self.data_manager)
-        self.update_project_validator: UpdateProjectSchema = UpdateProjectSchema(
-            data_manager=self.data_manager)
-        self.update_dataset_validator: UpdateDatasetSchema = UpdateDatasetSchema(
-            data_manager=self.data_manager)
-        self.update_datapoint_validator: UpdateDataPointSchema = UpdateDataPointSchema(
-            data_manager=self.data_manager)
-        self.update_model_validator: UpdateModelSchema = UpdateModelSchema(
-            data_manager=self.data_manager)
-        self.update_model_evaluation_validator: UpdateModelEvaluationSchema = UpdateModelEvaluationSchema(
-            data_manager=self.data_manager)
+    def __init__(self):
+        pass
 
-    def validate_data(self, data: list | object, validator: Schema, operation_type: str) -> None:
+    def validate_data(self, data: list | object, validator: Schema, session: Session, data_manager: IDataManager, operation_type: str) -> None:
         if isinstance(data, list):
             for item in data:
-                self._validate_single(item, validator, operation_type)
+                self._validate_single(
+                    item, validator, session, data_manager, operation_type)
         else:
-            self._validate_single(data, validator, operation_type)
+            self._validate_single(data, validator, session,
+                                  data_manager, operation_type)
 
-    def _validate_single(self, item, validator: Schema, operation_type: str) -> None:
-        errors = validator.validate(asdict(item))
+    def _validate_single(self, item, validator: Schema, session: Session, data_manager: IDataManager, operation_type: str) -> None:
+        validator_instance = validator(
+            session=session, data_manager=data_manager)
+        errors = validator_instance.validate(asdict(item))
         if errors:
             raise CustomValidationError(
                 operation_type=operation_type, errors=errors)
 
-    def validate_create_projects(self, data: list[CreateProjectDTO]) -> None:
+    def validate_create_projects(self, session: Session, data_manager: IDataManager, data: list[CreateProjectDTO]) -> None:
         self.validate_data(
-            data, self.create_project_validator, "create projects")
+            data, CreateProjectSchema, session, data_manager, "create projects")
 
-    def validate_create_datasets(self, data: list[CreateDatasetDTO]) -> None:
+    def validate_create_datasets(self, session: Session, data_manager: IDataManager, data: list[CreateDatasetDTO]) -> None:
         self.validate_data(
-            data, self.create_dataset_validator, "create datasets")
+            data, CreateDatasetSchema, session, data_manager, "create datasets")
 
-    def validate_create_datapoints(self, data: list[CreateDataPointDTO]) -> None:
+    def validate_create_datapoints(self, session: Session, data_manager: IDataManager, data: list[CreateDataPointDTO]) -> None:
         self.validate_data(
-            data, self.create_datapoint_validator, "create datapoints")
+            data, CreateDataPointSchema, session, data_manager, "create datapoints")
 
-    def validate_create_models(self, data: list[CreateModelDTO]) -> None:
-        self.validate_data(data, self.create_model_validator, "create models")
+    def validate_create_models(self, session: Session, data_manager: IDataManager, data: list[CreateModelDTO]) -> None:
+        self.validate_data(data, CreateModelSchema, session,
+                           data_manager, "create models")
 
-    def validate_create_model_evaluations(self, data: list[CreateModelEvaluationDTO]) -> None:
+    def validate_create_model_evaluations(self, session: Session, data_manager: IDataManager, data: list[CreateModelEvaluationDTO]) -> None:
         self.validate_data(
-            data, self.create_model_evaluation_validator, "create model evaluations")
+            data, CreateModelEvaluationSchema, session, data_manager, "create model evaluations")
 
-    def validate_create_training_runs(self, data: list[CreateTrainingRunDTO]) -> None:
+    def validate_create_training_runs(self, session: Session, data_manager: IDataManager, data: list[CreateTrainingRunDTO]) -> None:
         self.validate_data(
-            data, self.create_training_run_validator, "create training runs")
+            data, CreateTrainingRunSchema, session, data_manager, "create training runs")
 
-    # Update validations for getting DTOs (single DTO cases)
-    def validate_get_all_projects(self, data: GetProjectsDTO) -> None:
+    def validate_get_all_projects(self, session: Session, data_manager: IDataManager, data: GetProjectsDTO) -> None:
         self.validate_data(
-            data, self.get_projects_validator, "get all projects")
+            data, GetProjectsSchema, session, data_manager, "get all projects")
 
-    def validate_get_all_models(self, data: GetModelsDTO) -> None:
-        self.validate_data(data, self.get_models_validator, "get all models")
+    def validate_get_all_models(self, session: Session, data_manager: IDataManager, data: GetModelsDTO) -> None:
+        self.validate_data(data, GetModelsSchema, session,
+                           data_manager, "get all models")
 
-    def validate_get_all_datasets(self, data: GetDatasetsDTO) -> None:
+    def validate_get_all_datasets(self, session: Session, data_manager: IDataManager, data: GetDatasetsDTO) -> None:
         self.validate_data(
-            data, self.get_datasets_validator, "get all datasets")
+            data, GetDatasetsSchema, session, data_manager, "get all datasets")
 
-    def validate_get_models_by_project_id(self, data: GetModelsByProjectIdDTO) -> None:
+    def validate_get_models_by_project_id(self, session: Session, data_manager: IDataManager, data: GetModelsByProjectIdDTO) -> None:
         self.validate_data(
-            data, self.get_models_by_project_id_validator, "get models by project ID")
+            data, GetModelsByProjectIdSchema, session, data_manager, "get models by project ID")
 
-    def validate_get_datasets_by_model_id(self, data: GetDatasetsByModelIdDTO) -> None:
+    def validate_get_datasets_by_model_id(self, session: Session, data_manager: IDataManager, data: GetDatasetsByModelIdDTO) -> None:
         self.validate_data(
-            data, self.get_datasets_by_model_id_validator, "get datasets by model ID")
+            data, GetDatasetsByModelIdSchema, session, data_manager, "get datasets by model ID")
 
-    def validate_get_datapoints_by_dataset_id(self, data: GetDatapointsByDatasetIdDTO) -> None:
+    def validate_get_datapoints_by_dataset_id(self, session: Session, data_manager: IDataManager, data: GetDatapointsByDatasetIdDTO) -> None:
         self.validate_data(
-            data, self.get_datapoints_by_dataset_id_validator, "get datapoints by dataset ID")
+            data, GetDatapointsByDatasetIdSchema, session, data_manager, "get datapoints by dataset ID")
 
-    def validate_update_projects(self, data: list[UpdateProjectDTO]) -> None:
+    def validate_update_projects(self, session: Session, data_manager: IDataManager, data: list[UpdateProjectDTO]) -> None:
         self.validate_data(
-            data, self.update_project_validator, "update projects")
+            data, UpdateProjectSchema, session, data_manager, "update projects")
 
-    def validate_update_datasets(self, data: list[UpdateDatasetDTO]) -> None:
+    def validate_update_datasets(self, session: Session, data_manager: IDataManager, data: list[UpdateDatasetDTO]) -> None:
         self.validate_data(
-            data, self.update_dataset_validator, "update datasets")
+            data, UpdateDatasetSchema, session, data_manager, "update datasets")
 
-    def validate_update_datapoints(self, data: list[UpdateDataPointDTO]) -> None:
-        self.validate_data(data, self.update_datapoint_validator,
-                           "update datapoints")
+    def validate_update_datapoints(self, session: Session, data_manager: IDataManager, data: list[UpdateDataPointDTO]) -> None:
+        self.validate_data(data, UpdateDataPointSchema,
+                           session, data_manager, "update datapoints")
 
-    def validate_update_models(self, data: list[UpdateModelDTO]) -> None:
-        self.validate_data(data, self.update_model_validator, "update models")
+    def validate_update_models(self, session: Session, data_manager: IDataManager, data: list[UpdateModelDTO]) -> None:
+        self.validate_data(data, UpdateModelSchema, session,
+                           data_manager, "update models")
 
-    def validate_update_model_evaluations(self, data: list[UpdateModelEvaluationDTO]) -> None:
+    def validate_update_model_evaluations(self, session: Session, data_manager: IDataManager, data: list[UpdateModelEvaluationDTO]) -> None:
         self.validate_data(
-            data, self.update_model_evaluation_validator, "update model evaluations")
+            data, UpdateModelEvaluationSchema, session, data_manager, "update model evaluations")
