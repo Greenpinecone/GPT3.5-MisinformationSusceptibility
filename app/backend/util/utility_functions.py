@@ -9,6 +9,8 @@ import streamlit as st
 from datetime import datetime
 import streamlit as st
 from pathlib import Path
+
+from app.frontend.dataclasses.dataclasses import ToastMessage
 from .config import Config
 from ..service.implementations.service_manager_facade import ServiceManagerFacade
 from ..custom_types.exceptions import CustomValidationError
@@ -78,6 +80,13 @@ def initialize_global_states(serviceInstance: ServiceManagerFacade, configInstan
         config = st.session_state.get("config")
 
     return service, config
+
+
+# Shows all stored toast messages once. Useful for occasions where you need to reload the page which would swollow the toast message if shown immediately.
+def show_one_time_toast_messages(toast_messages: list[ToastMessage]):
+    for toast_message in toast_messages:
+        show_toast(toast_message.message, toast_message.type)
+    toast_messages.clear()
 
 
 def cleanup_and_navigate(page: str, keys: list[str]):
