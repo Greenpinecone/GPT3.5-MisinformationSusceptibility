@@ -76,12 +76,34 @@ class DataFrameEditor:
             df = DataFrameEditor.delete_rows(df, data_editor['deleted_rows'])
 
         simple_datapoint_dto.messages = df
-        print(simple_datapoint_dto.messages, df, sep="\n")
-        # st.session_state[df_key] = df
 
     @staticmethod
-    def convert_df_to_messages_container(df: pd.DataFrame) -> MessagesContainer:
-        """Convert a DataFrame to MessagesContainer."""
-        messages = [Message(role=row['role'], content=row['content'])
-                    for index, row in df.iterrows()]
-        return MessagesContainer(messages=messages)
+    def convert_df_to_messages_container(df: pd.DataFrame) -> tuple[MessagesContainer, str]:
+        """
+        Convert a list of DataFrames to a list of tuples of MessagesContainer and category string.
+
+        Args:
+            dfs (List[pd.DataFrame]): List of DataFrames to convert.
+
+        Returns:
+            List[Tuple[MessagesContainer, str]]: List of tuples, each containing a MessagesContainer and a category string.
+        """
+
+        messages = []
+        category = "general"  # Default category
+
+        for index, row in df.iterrows():
+            # Create a Message object for each row
+            message = Message(role=row['role'], content=row['content'])
+            messages.append(message)
+
+            # Extract the category, defaulting to "general" if not present or empty
+            row_category = row.get('category', None)
+            if row_category:
+                category = row_category
+
+        # Create a MessagesContainer with the list of messages
+        messages_container = MessagesContainer(messages=messages)
+
+        # Append the tuple (MessagesContainer, category) to the result list
+        return (messages_container, category)
