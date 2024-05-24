@@ -94,16 +94,33 @@ class ServiceManagerFacade(IServiceManager):
                 session, self._data_manager, projects_data)
             return self._data_manager.update_projects(session, projects_data)
 
-    def create_dataset_with_datapoints(self, dataset_dto: CreateDatasetDTO, datapoint_dtos: list[CreateDataPointDTO]) -> list[DatasetDTO, list[DataPointDTO]]:
+    def create_dataset_with_datapoints(self, trainings_dataset_dto: CreateDatasetDTO, trainings_datapoint_dtos: list[CreateDataPointDTO], test_dataset_dto: CreateDatasetDTO, test_datapoint_dtos: list[CreateDataPointDTO]) -> list[DatasetDTO, list[DataPointDTO]]:
         with self._data_manager.get_session() as session:
+            # Save test dataset first to generate id
             self._validator.validate_create_datasets(
-                session, self._data_manager, [dataset_dto])
-            dataset_dto: DatasetDTO = self._data_manager.create_datasets(session, [dataset_dto])[
+                session, self._data_manager, [test_dataset_dto])
+            test_dataset_response_dto: DatasetDTO = self._data_manager.create_datasets(session, [test_dataset_dto])[
                 0]
-            for datapoint_dto in datapoint_dtos:
-                datapoint_dto.dataset_id = dataset_dto.id
+            for datapoint_dto in test_datapoint_dtos:
+                datapoint_dto.dataset_id = test_dataset_response_dto.id
             self._validator.validate_create_datapoints(
-                session, self._data_manager, datapoint_dtos)
-            datapoint_dtos = self._data_manager.create_datapoints(
-                session, datapoint_dtos)
-            return [dataset_dto, datapoint_dtos]
+                session, self._data_manager, test_datapoint_dtos)
+            test_datapoint_response_dtos = self._data_manager.create_datapoints(
+                session, test_datapoint_dtos)
+
+            # Set test dataset id for trainings dataset
+            trainings_dataset_dto.test_dataset_id = test_dataset_response_dto.id
+
+            # Save trainings dataset with test dataset id set
+            self._validator.validate_create_datasets(
+                session, self._data_manager, [trainings_dataset_dto])
+            trainings_dataset_response_dto: DatasetDTO = self._data_manager.create_datasets(session, [trainings_dataset_dto])[
+                0]
+            for datapoint_dto in trainings_datapoint_dtos:
+                datapoint_dto.dataset_id = trainings_dataset_response_dto.id
+            self._validator.validate_create_datapoints(
+                session, self._data_manager, trainings_datapoint_dtos)
+            trainings_datapoint_response_dtos = self._data_manager.create_datapoints(
+                session, trainings_datapoint_dtos)
+
+            return [trainings_dataset_response_dto, trainings_datapoint_response_dtos, test_dataset_response_dto, test_datapoint_response_dtos]
