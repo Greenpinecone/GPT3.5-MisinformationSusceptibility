@@ -26,8 +26,8 @@ class AugmentationType(enum.Enum):
 
 
 class FineTuningCompany(enum.Enum):
-    google = "google"
     openai = "openai"
+    google = "google"
 
 
 class FineTuningModelVersions(enum.Enum):
@@ -38,7 +38,7 @@ class FineTuningModelVersions(enum.Enum):
 # The first role is the default role
 class MessageKeys(enum.Enum):
     openai = [("system", "assistant", "user")]
-    google = [("nonexistent roles")]
+    google = [("nonexistent roles",)]
 
 
 class UploadFormats(enum.Enum):
