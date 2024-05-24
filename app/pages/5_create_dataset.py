@@ -29,53 +29,65 @@ errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 
 
-def load_choose_file_format_form(dataset_editor: DatasetEditor, uploaded_dataset_file: BytesIO, session_state_keys_prefix: str) -> None:
+# All widgets are the same for all datasets to avoid any compatibility issues. If one dataset is uploaded in a specific format, all must be uploaded in this format.
+def load_choose_file_format_form(dataset_editor: DatasetEditor, uploaded_dataset_file: BytesIO, all_dataset_editors: list[DatasetEditor]) -> None:
     """Loads the form to choose file format for the uploaded dataset."""
 
     # Creates tabs for each company and upload format with a code preview how to format the file
     create_formatting_examples_tabs()
 
-    # Reset temp dto saved and opened when adding new datapoint when company or data format change to avoid half filled / wrongly filled data editor when adding data point again after not submitting
-    if st.session_state.get(f"{session_state_keys_prefix}_current_chosen_company"):
-        if st.session_state.get(f"{session_state_keys_prefix}_current_chosen_company") != dataset_editor.chosen_company or st.session_state.get(f"{session_state_keys_prefix}_current_chosen_file_format") != dataset_editor.chosen_file_format:
-            dataset_editor.temp_simple_datapoint_dto = None
-
-    st.session_state[f"""{
-        session_state_keys_prefix}_current_chosen_company"""] = dataset_editor.chosen_company
-    st.session_state[[f"{session_state_keys_prefix}_current_chosen_file_format"]
-                     ] = dataset_editor.chosen_file_format
-
     rerun = False
+    options = [company for company in FineTuningCompany]
+    index = uf.find_index_in_list(options, dataset_editor.chosen_company) or 0
 
     formatting_cols = st.columns(3)
 
     with formatting_cols[0]:
         chosen_company: FineTuningCompany = st.selectbox(label="Choose a company formatting style",
-                                                         options=[company for company in FineTuningCompany], index=None, format_func=lambda company: company.value, placeholder="Choose a companies formatting style", key=f"{session_state_keys_prefix}_chosen_company_selectbox", help="Chose the formatting style for the file to upload based on company.", label_visibility="collapsed", disabled=len(dataset_editor.datapoints) or uploaded_dataset_file is not None)
+                                                         options=options, index=index, format_func=lambda company: company.value, placeholder="Choose a companies formatting style", key="chosen_company_selectbox", help="Chose the formatting style for the file to upload based on company.", label_visibility="collapsed", disabled=check_if_dataset_editor_has_datapoints(all_dataset_editors) or uploaded_dataset_file is not None)
 
-        dataset_editor.chosen_company = chosen_company
+        if dataset_editor.chosen_company != chosen_company:
+            dataset_editor.chosen_company = chosen_company
+            # Reset stored temp editor dto in case underlying formatting changes
+            dataset_editor.temp_simple_datapoint_dto = None
+            # Set the default role based on the currently chosen company. TODO: Update this in case different sets of roles are available.
+            print(MessageKeys[dataset_editor.chosen_company.value], MessageKeys[dataset_editor.chosen_company.value].value, MessageKeys[dataset_editor.chosen_company.value].value[
+                0], MessageKeys[dataset_editor.chosen_company.value].value[
+                0][0])
+            dataset_editor.default_role = MessageKeys[dataset_editor.chosen_company.value].value[
+                0][0] if dataset_editor.chosen_company else None
+
+    options = FineTuningModelVersions[chosen_company.value].value if chosen_company else [
+    ]
+    index = uf.find_index_in_list(options, dataset_editor.chosen_model) or 0
 
     with formatting_cols[1]:
         chosen_model: str = st.selectbox(label="Choose a company model",
-                                         options=FineTuningModelVersions[chosen_company.value].value if chosen_company else [], index=None, placeholder="Choose a model", key=f"{session_state_keys_prefix}_chosen_model_selectbox", help="Chose a model from the selected company you want to upload data for.", label_visibility="collapsed", disabled=not chosen_company or len(dataset_editor.datapoints) or uploaded_dataset_file is not None)
+                                         options=options, index=index, placeholder="Choose a model", key="chosen_model_selectbox", help="Chose a model from the selected company you want to upload data for.", label_visibility="collapsed", disabled=check_if_dataset_editor_has_datapoints(all_dataset_editors) or uploaded_dataset_file is not None)
 
-        dataset_editor.chosen_model = chosen_model
+        if dataset_editor.chosen_model != chosen_model:
+            dataset_editor.chosen_model = chosen_model
+            # Reset stored temp editor dto in case underlying formatting changes
+            dataset_editor.temp_simple_datapoint_dto = None
+
+    options = UploadFormats[chosen_company.value].value[chosen_model] if chosen_model else [
+    ]
+    index = uf.find_index_in_list(
+        options, dataset_editor.chosen_file_format) or 0
 
     with formatting_cols[2]:
         chosen_file_format: str = st.selectbox(label="Choose an upload file format",
-                                               options=UploadFormats[chosen_company.value].value[chosen_model] if chosen_model else [], index=None, placeholder="Choose file format", key=f"{session_state_keys_prefix}_chosen_file_format_selectbox", help="Choose the format of the file you want to upload and the datapoints you want to create", label_visibility="collapsed", disabled=not chosen_model or len(dataset_editor.datapoints) or uploaded_dataset_file is not None)
+                                               options=options, index=index, placeholder="Choose file format", key="chosen_file_format_selectbox", help="Choose the format of the file you want to upload and the datapoints you want to create", label_visibility="collapsed", disabled=check_if_dataset_editor_has_datapoints(all_dataset_editors) or uploaded_dataset_file is not None)
 
         if dataset_editor.chosen_file_format != chosen_file_format:
+            dataset_editor.chosen_file_format = chosen_file_format
+            # Reset stored temp editor dto in case underlying formatting changes
+            dataset_editor.temp_simple_datapoint_dto = None
             rerun = True
-        dataset_editor.chosen_file_format = chosen_file_format
-
-        dataset_editor.default_role = MessageKeys[dataset_editor.chosen_company.value].value[
-            0][0] if dataset_editor.chosen_company else None
 
     selected_dataset: DatasetCategory = st.selectbox(label=" ",
-                                                     options=[dataset_category for dataset_category in DatasetCategory], index=0, format_func=lambda x: x.value, key=f"{session_state_keys_prefix}_dataset_category_selectbox", help="Select the dataset category the dataset falls into. You always have to upload both a test and a trainings dataset.", placeholder="Choose the dataset type", label_visibility="visible", disabled=not chosen_file_format)
+                                                     options=[dataset_category for dataset_category in DatasetCategory], index=0, format_func=lambda x: x.value, key="dataset_category_selectbox", help="Select the dataset category the dataset falls into. You always have to upload both a test and a trainings dataset.", placeholder="Choose the dataset type", label_visibility="visible")
 
-    st.session_state.session_state_keys_prefix = selected_dataset
     if rerun:
         # Rerun the page to update the file uploader based on if a  file format has been chosen
         # Reload the page very early so there is only little overhead
@@ -111,54 +123,75 @@ def load_dataset_input_form():
         st.checkbox(label="Make the dataset globally available", value=False, key="globalize_dataset_checkbox",
                     help="Globalized datasets can be selected in the list of available datasets when creating a new project", label_visibility="visible")
 
+# TODO: Implement dataset format converter to convert uploaded datasets to a single coherent format - e.g. dictionaries instead of CSV, Dictionaries, Text, jsonl etc. This is then converted back for the specific model on demand.
 
-def process_and_create_dataset(dataset_editor: DatasetEditor) -> None:
+
+def process_and_create_dataset(all_dataset_editors: list[DatasetEditor]) -> None:
+    # Check if the dataset name is provided
     dataset_name = st.session_state.dataset_name_input
     if not dataset_name:
         uf.show_toast("Dataset name is required.", "info")
         return
 
-    dataset_category = st.session_state.dataset_category_selectbox
-    if not dataset_category:
-        uf.show_toast("Dataset category is required.", "info")
-        return
-
-    chosen_company = dataset_editor.chosen_company
-    if not chosen_company:
-        uf.show_toast("A chosen company is required.", "info")
-        return
-
-    convert_wrapper_dto_to_datapoint_dto_schema = ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO(
-        many=True)
-    datapoint_dtos: list[DataPointDTOWithDataFrameWrapper] = convert_wrapper_dto_to_datapoint_dto_schema.dump(
-        dataset_editor.datapoints)
-    chosen_file_format = dataset_editor.chosen_file_format
-    chosen_model = dataset_editor.chosen_model
+    # Common values for all dataset editors
     is_global = st.session_state.globalize_dataset_checkbox
     project_id = 1  # st.session_state.current_project.id TODO: COMMENT IN
 
-    dataset_dto = CreateDatasetDTO(
-        dataset_name=dataset_name,
-        category=DatasetCategory(
-            dataset_category) if dataset_category else None,
-        augmented=False,
-        fine_tuning_company=chosen_company,
-        fine_tuning_formatting=chosen_file_format,
-        fine_tuning_model=chosen_model,
-        project_ids=[project_id],
-        is_global=is_global
-    )
+    # Lists to store the resulting dataset DTOs and datapoint DTOs
+    all_dataset_dtos = []
+    all_datapoint_dtos = []
 
-    submit_dataset_and_datapoints(dataset_dto, datapoint_dtos)
+    # Loop through each dataset editor
+    for dataset_editor in all_dataset_editors:
+        # If the dataset editor is of type "test dataset", update the categories in each of its datapoints pandas dataframe, because the uer could have submitted without loading the test dataset again which would cause stale categories still be set on some dtapoints.
+        if dataset_editor.dataset_category == DatasetCategory.test:
+            for datapoint in dataset_editor.datapoints:
+                dataset_editor.dataframe_editor.set_default_category_if_not_in_list(
+                    datapoint.messages, dataset_editor.shared_category_tracker)
+
+        chosen_company = dataset_editor.chosen_company
+        chosen_model = dataset_editor.chosen_model
+        chosen_file_format = dataset_editor.chosen_file_format
+
+        # Convert the wrapper DTO to datapoint DTOs
+        convert_wrapper_dto_to_datapoint_dto_schema = ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO(
+            many=True)
+        datapoint_dtos: list[CreateDataPointDTO] = convert_wrapper_dto_to_datapoint_dto_schema.dump(
+            dataset_editor.datapoints)
+
+        # Create the dataset DTO
+        dataset_dto = CreateDatasetDTO(
+            dataset_name=dataset_name,
+            category=DatasetCategory(
+                dataset_editor.dataset_category) if dataset_editor.dataset_category else None,
+            augmented=False,
+            fine_tuning_company=chosen_company,
+            fine_tuning_formatting=chosen_file_format,
+            fine_tuning_model=chosen_model,
+            project_ids=[project_id],
+            is_global=is_global
+        )
+
+        # Add to the lists
+        all_dataset_dtos.append(dataset_dto)
+        all_datapoint_dtos.append(datapoint_dtos)
+
+    # Pass the lists to the next function
+    submit_all_datasets_and_datapoints(all_dataset_dtos, all_datapoint_dtos)
 
 
-def submit_dataset_and_datapoints(dataset_dto: CreateDatasetDTO, datapoint_dtos: list[CreateDataPointDTO]):
-    print(dataset_dto, datapoint_dtos, sep="\n", end="\n")
-    """Dummy function to simulate submission of dataset and datapoints."""
-    print("Submitting Dataset and Datapoints...")
+def submit_all_datasets_and_datapoints(dataset_dtos: list[CreateDatasetDTO], datapoint_dtos: list[list[CreateDataPointDTO]]):
     service.create_dataset_with_datapoints(
-        dataset_dto, datapoint_dtos)
-    # Implement actual submission logic here
+        dataset_dtos[0], datapoint_dtos[0], dataset_dtos[1], datapoint_dtos[1])
+    uf.show_toast(
+        "Dataset has been successfully created.", "success")
+
+
+def check_if_dataset_editor_has_datapoints(all_dataset_editors: list[DatasetEditor]):
+    for dataset_editor in all_dataset_editors:
+        if len(dataset_editor.datapoints) > 0:
+            return True
+    return False
 
 
 with logger:
@@ -172,42 +205,55 @@ with logger:
     # uf.set_query_params_from_session(
     #     {"projectId": ["current_project", "id"]}, config)
     # Initialize the DatasetEditor object
-    training_dataset_editor = uf.get_or_create_session_state(
-        "training_dataset_editor", DatasetCategory.training, default_value=DatasetEditor)
-    test_dataset_editor = uf.get_or_create_session_state(
-        "test_dataset_editor", DatasetCategory.test, default_value=DatasetEditor)
+
+    shared_category_tracker = []
+    training_dataset_editor: DatasetEditor = uf.get_or_create_session_state(
+        "training_dataset_editor", DatasetCategory.training, DataFrameEditor(), shared_category_tracker, default_value=DatasetEditor)
+    test_dataset_editor: DatasetEditor = uf.get_or_create_session_state(
+        "test_dataset_editor", DatasetCategory.test, DataFrameEditor(), shared_category_tracker, default_value=DatasetEditor)
 
     # Set the current dataset editor based on the chosen upload dataset type
     dataset_editor = None
-    st.session_state.session_state_keys_prefix = "training"
     if st.session_state.get("dataset_category_selectbox"):
         if st.session_state.dataset_category_selectbox == DatasetCategory.training:
             dataset_editor = training_dataset_editor
-            session_state_keys_prefix = "training"
         else:
             dataset_editor = test_dataset_editor
-            session_state_keys_prefix = "test"
     else:
         dataset_editor = training_dataset_editor
-        session_state_keys_prefix = "training"
+        st.session_state.dataset_category_selectbox = DatasetCategory.training
 
-    def load_page(dataset_editor: DatasetEditor, session_state_keys_prefix: str):
+    all_dataset_editors = [training_dataset_editor, test_dataset_editor]
+
+    def load_page(dataset_editor: DatasetEditor, all_dataset_editors: list[DatasetEditor]):
         chosen_file_format_container = st.container()
 
+        # Each dataset_editor has its own file_uploader widget defined by an individual key
         uploaded_dataset_file: BytesIO = st.file_uploader(
             label="Upload a new dataset", type=dataset_editor.chosen_file_format, key=dataset_editor.file_uploader_key, accept_multiple_files=False, help="Upload a file formatted in the format chosen. Uploaded datasets will be directly available to select within your project after submitting.", disabled=False if dataset_editor.chosen_file_format else True, on_change=dataset_editor.clear_current_datapoints)
 
-        # if not uploaded_dataset_file.size:
-        #         global_toasts.append(ToastMessage(
-        #             "Uploaded file cannot be empty.", "info"))
-        #         file_uploader_key += 1
-        #         st.rerun()
-
         with chosen_file_format_container:
             load_choose_file_format_form(
-                dataset_editor, uploaded_dataset_file, session_state_keys_prefix)
+                dataset_editor, uploaded_dataset_file, all_dataset_editors)
 
         load_dataset_input_form()
+
+        # Show dataset name since the "uploaded file marker" is removed from the st.file_uploader on key change
+        label = None
+        if dataset_editor.currently_uploaded_file:
+            label = dataset_editor.currently_uploaded_file.name
+        elif uploaded_dataset_file:
+            label = uploaded_dataset_file.name
+
+        if label:
+            # Remove all datapoints
+            delete_dataset_button = st.button(
+                label=label + "✖️", help="Remove the uploaded dataset with all datapoints", type="secondary")
+
+            if delete_dataset_button:
+                global_toasts.append(ToastMessage(
+                    "Successfully removed dataset.", "success"))
+                dataset_editor.reset_editor_states()
 
         pagination_buttons_container_above = st.container(border=False)
         datapoints_container = st.container(border=False)
@@ -219,22 +265,18 @@ with logger:
         print("DATAPOINT IDS", [
               x.datapoint_number for x in dataset_editor.datapoints])
 
-        cols = st.columns((1, 5, 1))
+        cols = st.columns((2, 5, 1))
 
-        with cols[1]:
+        with cols[0]:
             add_new_datapoint_button = st.button(label="Add New Datapoint", key="add_new_datapoint_button",
                                                  help="Add a new datapoint to the current dataset", type="secondary", disabled=not dataset_editor.chosen_file_format)
             if add_new_datapoint_button:
                 dataset_editor.open_add_datapoint_dialog(datapoints_container)
 
-            print("hallo")
-
         with cols[2]:
             submit_button = st.button(label="Submit", key="submit_dataset",
-                                      help="Submit the dataset with all its datapoints", type="primary", disabled=not dataset_editor.datapoints)
+                                      help="Submit both datasets with all their datapoints", type="primary", disabled=not all_dataset_editors[0].datapoints)
             if submit_button:
-                process_and_create_dataset(dataset_editor)
-                uf.show_toast(
-                    "Dataset has been successfully created.", "success")
+                process_and_create_dataset(all_dataset_editors)
 
-    load_page(dataset_editor, session_state_keys_prefix)
+    load_page(dataset_editor, all_dataset_editors)

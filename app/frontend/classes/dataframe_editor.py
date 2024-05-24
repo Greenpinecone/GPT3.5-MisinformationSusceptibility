@@ -2,15 +2,14 @@ from typing import Any
 import pandas as pd
 import streamlit as st
 from frontend.dtos.frontend_dtos import *
-from app.backend.custom_types.typedicts import *
+from backend.custom_types.typedicts import *
 
 
 class DataFrameEditor:
     def __init__(self):
         pass
 
-    @staticmethod
-    def apply_edits(df: pd.DataFrame, edits: dict[int, dict[str, Any]]) -> None:
+    def apply_edits(self, df: pd.DataFrame, edits: dict[int, dict[str, Any]]) -> None:
         """Apply edits to the DataFrame using the changes dictionary."""
         for idx, changes in edits.items():
             for key, value in changes.items():
@@ -18,15 +17,14 @@ class DataFrameEditor:
                     value = ', '.join(map(str, value))
                 df.at[int(idx), key] = value
 
-    @staticmethod
-    def apply_category_changes(df: pd.DataFrame, edits: dict[int, dict[str, Any]]) -> None:
+    def apply_category_changes(self, df: pd.DataFrame, edits: dict[int, dict[str, Any]]) -> None:
         key = list(edits.keys())[0]
         if "category" in edits[key]:
             updated_category = edits[key]["category"]
+            old_category = df.at[int(key), "category"]
             df['category'] = updated_category
 
-    @staticmethod
-    def add_new_rows(df: pd.DataFrame, new_rows: list[dict[str, Any]]) -> pd.DataFrame:
+    def add_new_rows(self, df: pd.DataFrame, new_rows: list[dict[str, Any]]) -> pd.DataFrame:
         """Add new rows to the DataFrame, inheriting category if present."""
         # Check if there's an existing non-empty category
         existing_categories = df['category'].unique()
@@ -47,33 +45,36 @@ class DataFrameEditor:
         new_df = pd.DataFrame(new_rows)
         return pd.concat([df, new_df], ignore_index=True)
 
-    @staticmethod
-    def delete_rows(df: pd.DataFrame, indices: list[int]) -> pd.DataFrame:
+    def delete_rows(self, df: pd.DataFrame, indices: list[int]) -> pd.DataFrame:
         """Remove rows by indices and reset index."""
-        return df.drop(indices, errors='ignore').reset_index(drop=True)
 
-    @staticmethod
-    def update_df(simple_datapoint_dto: DataPointDTOWithDataFrameWrapper) -> None:
+        # Drop the rows
+        df = df.drop(indices, errors='ignore').reset_index(drop=True)
+
+        return df
+
+    def update_df(self, simple_datapoint_dto: DataPointDTOWithDataFrameWrapper) -> None:
         """Main method to update DataFrame based on editor changes."""
-
-        data_editor = st.session_state[simple_datapoint_dto.data_editor_key]
-        df = simple_datapoint_dto.messages
+        print("DATAFRAME EDITOR - HALLO 1 !!!")
+        data_editor: dict = st.session_state[simple_datapoint_dto.data_editor_key]
+        df: pd.DataFrame = simple_datapoint_dto.messages
 
         # Apply edits if there are edited rows
-        if 'edited_rows' in data_editor:
-            DataFrameEditor.apply_edits(df, data_editor['edited_rows'])
-            # If actual edits have taken place
-            if data_editor['edited_rows']:
-                DataFrameEditor.apply_category_changes(
-                    df, data_editor['edited_rows'])
+        if data_editor.get('edited_rows'):
+            # Update the whole category column if one category field has been changed
+            self.apply_category_changes(
+                df, data_editor['edited_rows'])
+            # Apply all other edits if any have taken place
+            self.apply_edits(df, data_editor['edited_rows'])
 
         # Add new rows if they exist
-        if 'added_rows' in data_editor:
-            df = DataFrameEditor.add_new_rows(df, data_editor['added_rows'])
+        if data_editor.get("added_rows"):
+            df = self.add_new_rows(df, data_editor['added_rows'])
 
         # Handle deletions
-        if 'deleted_rows' in data_editor:
-            df = DataFrameEditor.delete_rows(df, data_editor['deleted_rows'])
+        if data_editor.get("deleted_rows"):
+            df = self.delete_rows(
+                df, data_editor['deleted_rows'])
 
         simple_datapoint_dto.messages = df
 
@@ -107,3 +108,20 @@ class DataFrameEditor:
 
         # Append the tuple (MessagesContainer, category) to the result list
         return (messages_container, category)
+
+    def set_default_category_if_not_in_list(self, df: pd.DataFrame, categories: list[str], default_value: str | None = None) -> None:
+        """
+        Check the first row's category and set the default value for the entire column if the category is not in the list.
+
+        Args:
+            df (pd.DataFrame): DataFrame to check and update.
+            categories (List[str]): List of valid categories.
+            default_value (str): Default value to set if the category is not in the list.
+        """
+        if df.shape[0] > 0:  # Ensure there are rows in the DataFrame
+            first_category: str | pd.NA = df['category'].iloc[0]
+            print("TYPE", type(first_category))
+            if first_category and isinstance(first_category, str):  # could be nan
+                first_category = first_category.strip()
+            if first_category not in categories:
+                df['category'] = default_value
