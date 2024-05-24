@@ -2,6 +2,7 @@
 """
 from ...mapper.classes.entities_to_response_dtos import *
 from ...database.schema import *
+from sqlalchemy.orm import Session
 
 
 class MapperFacade:
@@ -10,32 +11,32 @@ class MapperFacade:
         # Initialize any necessary attributes or services here
         pass
 
-    def map_project_to_dto(self, project_entity: Project) -> ProjectDTO:
+    def map_project_to_dto(self, session: Session, project_entity: Project) -> ProjectDTO:
         # Convert a Project entity to ProjectDTO
-        schema = ProjectSchema()
+        schema = ProjectSchema(session=session)
         return schema.dump(project_entity)
 
-    def map_dataset_to_dto(self, dataset_entity: Dataset) -> DatasetDTO:
+    def map_dataset_to_dto(self, session: Session, dataset_entity: Dataset) -> DatasetDTO:
         # Convert a Dataset entity to DatasetDTO
-        schema = DatasetSchema()
+        schema = DatasetSchema(session=session)
         return schema.dump(dataset_entity)
 
-    def map_datapoint_to_dto(self, datapoint_entity: DataPoint) -> DataPointDTO:
+    def map_datapoint_to_dto(self, session: Session, datapoint_entity: DataPoint) -> DataPointDTO:
         # Convert a DataPoint entity to DataPointDTO
-        schema = DataPointSchema()
+        schema = DataPointSchema(session=session)
         return schema.dump(datapoint_entity)
 
-    def map_model_to_dto(self, model_entity: Model) -> ModelDTO:
+    def map_model_to_dto(self, session: Session, model_entity: Model) -> ModelDTO:
         # Convert a Model entity to ModelDTO
-        schema = ModelSchema()
+        schema = ModelSchema(session=session)
         return schema.dump(model_entity)
 
-    def map_model_evaluation_to_dto(self, model_evaluation_entity: ModelEvaluation) -> ModelEvaluationDTO:
+    def map_model_evaluation_to_dto(self, session: Session, model_evaluation_entity: ModelEvaluation) -> ModelEvaluationDTO:
         # Convert a ModelEvaluation entity to ModelEvaluationDTO
-        schema = ModelEvaluationSchema()
+        schema = ModelEvaluationSchema(session=session)
         return schema.dump(model_evaluation_entity)
 
-    def map_training_run_to_dto(self, training_run_entity: TrainingRun) -> TrainingRunDTO:
+    def map_training_run_to_dto(self, session: Session, training_run_entity: TrainingRun) -> TrainingRunDTO:
         # Convert a TrainingRun entity to TrainingRunDTO
-        schema = TrainingRunSchema()
+        schema = TrainingRunSchema(session=session)
         return schema.dump(training_run_entity)

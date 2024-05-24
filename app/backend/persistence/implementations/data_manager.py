@@ -25,8 +25,7 @@ logger = Logger(__name__)
 
 class DataManager(IDataManager):
 
-    def __init__(self,  mapper: MapperFacade, dest_directory: str = 'database', db_filename: str = 'streamlit_app.db'):
-        self.mapper = mapper
+    def __init__(self, dest_directory: str = 'database', db_filename: str = 'streamlit_app.db'):
        # Move up one directory from the current file's directory
         parent_dir: Path = Path(__file__).parent.parent.parent
         # Go into the /database directory and specify the database file
@@ -54,7 +53,7 @@ class DataManager(IDataManager):
 
     # CREATE / UPDATE
 
-    def update_projects(self, session: Session, projects_data: list[UpdateProjectDTO]) -> list[ProjectDTO]:
+    def update_projects(self, session: Session, projects_data: list[UpdateProjectDTO]) -> list[Project]:
         saved_projects: list[Project] = []
         try:
             for project_dto in projects_data:
@@ -85,7 +84,7 @@ class DataManager(IDataManager):
 
             # Must be flushed to create primary key / datetime etc.
             session.flush()
-            return [self.mapper.map_project_to_dto(project) for project in saved_projects]
+            return saved_projects
         except Exception as e:
             logger.exception(
                 f"Failed to save or update projects due to error: {e}")
@@ -94,7 +93,7 @@ class DataManager(IDataManager):
                 "Failed to save or update projects due to error.") from e
 
     # For creating a project
-    def create_projects(self, session: Session, projects_data: list[CreateProjectDTO]) -> list[ProjectDTO]:
+    def create_projects(self, session: Session, projects_data: list[CreateProjectDTO]) -> list[Project]:
         saved_projects: list[Project] = []
         try:
             for project_dto in projects_data:
@@ -119,7 +118,7 @@ class DataManager(IDataManager):
 
             # Must be flushed to create primary key / datetime etc.
             session.flush()
-            return [self.mapper.map_project_to_dto(project) for project in saved_projects]
+            return saved_projects
         except Exception as e:
             logger.exception(
                 f"Failed to save or update projects due to error: {e}")
@@ -127,7 +126,7 @@ class DataManager(IDataManager):
             raise Exception(
                 "Failed to save or update projects due to error.") from e
 
-    def update_datasets(self, session: Session, datasets_data: list[UpdateDatasetDTO]) -> list[DatasetDTO]:
+    def update_datasets(self, session: Session, datasets_data: list[UpdateDatasetDTO]) -> list[Dataset]:
         saved_datasets: list[Dataset] = []
         try:
             for dataset_dto in datasets_data:
@@ -152,8 +151,7 @@ class DataManager(IDataManager):
 
             # Must be flushed to create primary key / datetime etc.
             session.flush()
-            return [self.mapper.map_dataset_to_dto(dataset) for dataset in saved_datasets]
-
+            return saved_datasets
         except Exception as e:
             logger.error(
                 f"Failed to save or update datasets due to error: {e}")
@@ -162,7 +160,7 @@ class DataManager(IDataManager):
                 "Failed to save or update datasets due to error.") from e
 
     # For creating or updating a dataset
-    def create_datasets(self, session: Session, datasets_data: list[CreateDatasetDTO]) -> list[DatasetDTO]:
+    def create_datasets(self, session: Session, datasets_data: list[CreateDatasetDTO]) -> list[Dataset]:
         saved_datasets: list[Dataset] = []
         try:
             for dataset_dto in datasets_data:
@@ -205,7 +203,7 @@ class DataManager(IDataManager):
 
             # Must be flushed to create primary key / datetime etc.
             session.flush()
-            return [self.mapper.map_dataset_to_dto(dataset) for dataset in saved_datasets]
+            return saved_datasets
 
         except Exception as e:
             logger.error(
@@ -215,7 +213,7 @@ class DataManager(IDataManager):
                 "Failed to save or update datasets due to error.") from e
 
     def update_datapoints(self, session: Session, datapoints_data: list[UpdateDataPointDTO]) -> list[DataPointDTO]:
-        updated_datapoints: list[DataPointDTO] = []
+        updated_datapoints: list[DataPoint] = []
         try:
             for update_dto in datapoints_data:
                 datapoint: DataPoint = session.get(
@@ -244,14 +242,13 @@ class DataManager(IDataManager):
 
             # Must be flushed to create primary key / datetime etc.
             session.flush()
-            return [self.mapper.map_datapoint_to_dto(
-                    datapoint) for datapoint in updated_datapoints]
+            return updated_datapoints
         except Exception as e:
             logger.exception("Failed to update datapoints.")
             raise SQLAlchemyError("Failed to update datapoints.") from e
 
     # For creating datapoints
-    def create_datapoints(self, session: Session, datapoints_data: list[CreateDataPointDTO]) -> list[DataPointDTO]:
+    def create_datapoints(self, session: Session, datapoints_data: list[CreateDataPointDTO]) -> list[DataPoint]:
         """Creates a new datapoint with all its dataset relations and datapoint dataset specific relations."""
         saved_datapoints: list[DataPoint] = []
         try:
@@ -282,14 +279,13 @@ class DataManager(IDataManager):
                 saved_datapoints.append(datapoint)
             # Must be flushed to create primary key / datetime etc.
             session.flush()
-            return [self.mapper.map_datapoint_to_dto(
-                    datapoint) for datapoint in saved_datapoints]
+            return saved_datapoints
         except Exception as e:
             logger.exception("Failed to create datapoints.")
             raise SQLAlchemyError("Failed to create datapoints.") from e
 
     # For creating a model
-    def create_models(self, session: Session, models_data: list[CreateModelDTO]) -> list[ModelDTO]:
+    def create_models(self, session: Session, models_data: list[CreateModelDTO]) -> list[Model]:
         saved_models: list[Model] = []
         try:
             for model_dto in models_data:
@@ -339,8 +335,7 @@ class DataManager(IDataManager):
 
             # Must be flushed to create primary key / datetime etc.
             session.flush()
-            return [self.mapper.map_model_to_dto(model) for model in saved_models]
-
+            return saved_models
         except Exception as e:
             logger.exception(
                 f"Failed to save or update models due to error: {e}")
@@ -348,7 +343,7 @@ class DataManager(IDataManager):
                 "Failed to save or update models due to error.") from e
 
     # For updating a model
-    def update_models(self, session: Session, models_data: list[UpdateModelDTO]) -> list[ModelDTO]:
+    def update_models(self, session: Session, models_data: list[UpdateModelDTO]) -> list[Model]:
         saved_models: list[Model] = []
         try:
             for model_dto in models_data:
@@ -378,7 +373,7 @@ class DataManager(IDataManager):
 
             # Must be flushed to create primary key / datetime etc.
             session.flush()
-            return [self.mapper.map_model_to_dto(model) for model in saved_models]
+            return saved_models
 
         except Exception as e:
             logger.exception(
@@ -387,7 +382,7 @@ class DataManager(IDataManager):
                 "Failed to save or update models due to error.") from e
 
     # For creating model evaluations
-    def create_model_evaluations(self, session: Session, evaluations_data: list[CreateModelEvaluationDTO]) -> list[ModelEvaluationDTO]:
+    def create_model_evaluations(self, session: Session, evaluations_data: list[CreateModelEvaluationDTO]) -> list[ModelEvaluation]:
         saved_evaluations: list[ModelEvaluation] = []
         try:
             for eval_dto in evaluations_data:
@@ -416,7 +411,7 @@ class DataManager(IDataManager):
 
             # Must be flushed to create primary key / datetime etc.
             session.flush()
-            return [self.mapper.map_model_evaluation_to_dto(evaluation) for evaluation in saved_evaluations]
+            return saved_evaluations
 
         except Exception as e:
             logger.error(
@@ -425,7 +420,7 @@ class DataManager(IDataManager):
                 "Failed to save or update model evaluations due to error.") from e
 
      # For updating model evaluations
-    def update_model_evaluations(self, session: Session, evaluations_data: list[UpdateModelEvaluationDTO]) -> list[ModelEvaluationDTO]:
+    def update_model_evaluations(self, session: Session, evaluations_data: list[UpdateModelEvaluationDTO]) -> list[ModelEvaluation]:
         saved_evaluations: list[ModelEvaluation] = []
         try:
             for eval_dto in evaluations_data:
@@ -448,7 +443,7 @@ class DataManager(IDataManager):
 
             # Must be flushed to create primary key / datetime etc.
             session.flush()
-            return [self.mapper.map_model_evaluation_to_dto(evaluation) for evaluation in saved_evaluations]
+            return saved_evaluations
 
         except Exception as e:
             logger.error(
@@ -457,7 +452,7 @@ class DataManager(IDataManager):
                 "Failed to save or update model evaluations due to error.") from e
 
     # For creating a training run
-    def create_training_runs(self, session: Session, runs_data: list[CreateTrainingRunDTO]) -> list[TrainingRunDTO]:
+    def create_training_runs(self, session: Session, runs_data: list[CreateTrainingRunDTO]) -> list[TrainingRun]:
         saved_runs: list[TrainingRun] = []
         try:
             for run_dto in runs_data:
@@ -480,8 +475,7 @@ class DataManager(IDataManager):
 
             # Must be flushed to create primary key / datetime etc.
             session.flush()
-            return [self.mapper.map_training_run_to_dto(run) for run in saved_runs]
-
+            return saved_runs
         except Exception as e:
             logger.error("Failed to save or update training runs.")
             raise Exception(
@@ -489,7 +483,7 @@ class DataManager(IDataManager):
 
     # GET
     # For retrieveing all projects filterable by name and creation date
-    def get_all_projects(self, session: Session, project_data: GetProjectsDTO) -> list[ProjectDTO]:
+    def get_all_projects(self, session: Session, project_data: GetProjectsDTO) -> list[Project]:
         logger.debug(f"Project data: {project_data}")
         try:
             query = session.query(Project)
@@ -505,13 +499,13 @@ class DataManager(IDataManager):
                     Project.created_at >= created_at)
 
             projects: list[Project] = query.all()
-            return [self.mapper.map_project_to_dto(project) for project in projects]
+            return projects
         except SQLAlchemyError as e:
             logger.exception("Failed to retrieve projects")
             raise SQLAlchemyError("Failed to retrieve projects") from e
 
     # NOT YET TESTED!
-    def get_all_models(self, session: Session, model_data: GetModelsDTO) -> list[ModelDTO]:
+    def get_all_models(self, session: Session, model_data: GetModelsDTO) -> list[Model]:
         logger.debug(f"Model data: {model_data}")
         try:
             query = session.query(Model)
@@ -546,13 +540,13 @@ class DataManager(IDataManager):
                     Model.fine_tuning_model == fine_tuning_model)
 
             models: list[Model] = query.all()
-            return [self.mapper.map_model_to_dto(model) for model in models]
+            return models
         except SQLAlchemyError as e:
             logger.exception("Failed to retrieve models")
             raise SQLAlchemyError("Failed to retrieve models") from e
 
     # NOT YET TESTED!
-    def get_all_datasets(self, session: Session, dataset_data: GetDatasetsDTO) -> list[DatasetDTO]:
+    def get_all_datasets(self, session: Session, dataset_data: GetDatasetsDTO) -> list[Dataset]:
         logger.debug(f"Dataset data: {dataset_data}")
         try:
             query = session.query(Dataset)
@@ -569,7 +563,7 @@ class DataManager(IDataManager):
             if augmented:
                 query = query.filter(
                     Dataset.augmented == augmented)
-            if category or category is None:
+            if category:
                 query = query.filter(
                     Dataset.category == category)
             if initial_dataset_id or initial_dataset_id is None:
@@ -584,14 +578,14 @@ class DataManager(IDataManager):
                     Dataset.is_global == is_global)
 
             datasets: list[Dataset] = query.all()
-            return [self.mapper.map_dataset_to_dto(dataset) for dataset in datasets]
+            return datasets
         except SQLAlchemyError as e:
             logger.exception("Failed to retrieve datasets")
             raise SQLAlchemyError("Failed to retrieve datasets") from e
 
     # For retrieving all models associated with a project filterable by name and version
 
-    def get_models_by_project_id(self, session: Session, model_project_data: GetModelsByProjectIdDTO) -> list[ModelDTO]:
+    def get_models_by_project_id(self, session: Session, model_project_data: GetModelsByProjectIdDTO) -> list[Model]:
         logger.debug(f"Model_project_data: {model_project_data}")
         try:
             # Start building the query
@@ -611,7 +605,7 @@ class DataManager(IDataManager):
                     Model.fine_tuning_model == model_project_data.fine_tuning_model)
 
             models: list[Model] = query.all()
-            return [self.mapper.map_model_to_dto(model) for model in models]
+            return models
         except SQLAlchemyError as e:
             logger.exception(
                 "Failed to retrieve models for project")
@@ -619,7 +613,7 @@ class DataManager(IDataManager):
                 "Failed to retrieve models for project") from e
 
     # Retrieve all datasets associated with a model filterable by dataset name, augmented and dataset category
-    def get_datasets_by_model_id(self, session: Session, dataset_model_data: GetDatasetsByModelIdDTO) -> list[DatasetDTO]:
+    def get_datasets_by_model_id(self, session: Session, dataset_model_data: GetDatasetsByModelIdDTO) -> list[Dataset]:
         logger.debug(f"Dataset_model_data: {dataset_model_data}")
         try:
             # Directly filtering datasets associated with the model_id
@@ -641,7 +635,7 @@ class DataManager(IDataManager):
                     Dataset.category == dataset_model_data.category)
 
             datasets: list[Dataset] = query.all()
-            return [self.mapper.map_dataset_to_dto(dataset) for dataset in datasets]
+            return datasets
         except SQLAlchemyError as e:
             logger.exception(
                 "Failed to retrieve datasets for model.")
@@ -673,8 +667,7 @@ class DataManager(IDataManager):
                     DataPoint.category == dataset_datapoints_data.category)
 
             datapoints: list[DataPoint] = query.all()
-
-            return [self.mapper.map_datapoint_to_dto(datapoint) for datapoint in datapoints]
+            return datapoints
         except SQLAlchemyError as e:
             logger.exception(
                 "Failed to retrieve datapoints from dataset.")
@@ -682,12 +675,12 @@ class DataManager(IDataManager):
                 "A database error occurred while retrieving datapoints.") from e
 
     # The function to retrieve all model evaluations remains as is, correctly fetching all evaluations for a given model
-    def get_model_evaluations_by_model_id(self, session: Session, model_id: int) -> list[ModelEvaluationDTO]:
+    def get_model_evaluations_by_model_id(self, session: Session, model_id: int) -> list[ModelEvaluation]:
         logger.debug(f"Model id: {model_id}")
         try:
             evaluations: list[ModelEvaluation] = session.query(
                 ModelEvaluation).filter(ModelEvaluation.model_id == model_id).all()
-            return [self.mapper.map_model_evaluation_to_dto(evaluation) for evaluation in evaluations]
+            return evaluations
         except SQLAlchemyError as e:
             logger.exception(
                 "Failed to retrieve evaluations for model.")
@@ -695,33 +688,34 @@ class DataManager(IDataManager):
                 "A database error occurred while retrieving model evaluations.") from e
 
     # Retrieve the training run of a model
-    def get_training_run_by_model_id(self, session: Session, model_id: int) -> list[TrainingRunDTO]:
+    def get_training_run_by_model_id(self, session: Session, model_id: int) -> list[TrainingRun]:
         logger.debug(f"Model id: {model_id}")
         try:
-            model: Model = session.query(
-                Model).filter_by(id=model_id).one()
-            return [self.mapper.map_training_run_to_dto(model.training_run)] if model.training_run is not None else []
+            training_run: TrainingRun = session.query(
+                TrainingRun).filter_by(model_id=model_id).one()
+            return [training_run]
         except MultipleResultsFound as e:
             logger.exception(
-                "Too many models found when trying to get model by id.")
+                "Too many training runs found when trying to get training run by model id.")
             raise MultipleResultsFound(
-                "Too many models found. Expected only one.") from e
+                "Too many training runs found. Expected only one.") from e
         except NoResultFound as e:
             logger.exception(
-                "No models found when trying to get model by id.")
-            raise NoResultFound("No model found for the given ID.") from e
+                "No training runs found when trying to get training run by model id.")
+            raise NoResultFound(
+                "No training run found for the given model ID.") from e
         except SQLAlchemyError as e:
-            logger.exception("Failed to retrieve model by id.")
+            logger.exception("Failed to retrieve training run by model id.")
             raise SQLAlchemyError(
-                "A database error occurred while retrieving the model.") from e
+                "A database error occurred while retrieving the training run by model id.") from e
 
-    def get_model_by_id(self, session: Session, model_id: int) -> list[ModelDTO]:
+    def get_model_by_id(self, session: Session, model_id: int) -> list[Model]:
         logger.debug(f"Model id: {model_id}")
         """Retrieve a model by its ID."""
         try:
             model: Model = session.query(
                 Model).filter_by(id=model_id).one()
-            return [self.mapper.map_model_to_dto(model)]
+            return [model]
         except MultipleResultsFound as e:
             logger.exception(
                 "Too many models found when trying to get model by id.")
@@ -736,13 +730,13 @@ class DataManager(IDataManager):
             raise SQLAlchemyError(
                 "A database error occurred while retrieving model by id.") from e
 
-    def get_dataset_by_id(self, session: Session, dataset_id: int) -> list[DatasetDTO]:
+    def get_dataset_by_id(self, session: Session, dataset_id: int) -> list[Dataset]:
         logger.debug(f"Dataset id: {dataset_id}")
         """Retrieve a dataset by its ID."""
         try:
             dataset: Dataset = session.query(
                 Dataset).filter_by(id=dataset_id).one()
-            return [self.mapper.map_dataset_to_dto(dataset)]
+            return [dataset]
         except MultipleResultsFound as e:
             logger.exception(
                 "Too many datasets found when trying to get dataset by id.")
@@ -759,13 +753,13 @@ class DataManager(IDataManager):
             raise SQLAlchemyError(
                 "A database error occurred while retrieving dataset by id.") from e
 
-    def get_project_by_id(self, session: Session, project_id: int) -> list[ProjectDTO]:
+    def get_project_by_id(self, session: Session, project_id: int) -> list[Project]:
         logger.debug(f"Project id: {project_id}")
         """Retrieve a project by its ID."""
         try:
             project: Project = session.query(
                 Project).filter_by(id=project_id).one()
-            return [self.mapper.map_project_to_dto(project)]
+            return [project]
         except MultipleResultsFound as e:
             logger.exception(
                 "Too many projects found when trying to get project by id.")
@@ -782,13 +776,13 @@ class DataManager(IDataManager):
             raise SQLAlchemyError(
                 "A database error occured while trying to retrieve project by ID.") from e
 
-    def get_training_run_by_id(self, session: Session, training_run_id: int) -> list[TrainingRunDTO]:
+    def get_training_run_by_id(self, session: Session, training_run_id: int) -> list[TrainingRun]:
         logger.debug(f"Training run id: {training_run_id}")
         """Retrieve a training run by its ID."""
         try:
             training_run: TrainingRun = session.query(TrainingRun).filter_by(
                 id=training_run_id).one()
-            return [self.mapper.map_training_run_to_dto(training_run)]
+            return [training_run]
         except MultipleResultsFound as e:
             logger.exception(
                 "Too many training runs found when trying to get training run by id.")
@@ -805,13 +799,13 @@ class DataManager(IDataManager):
             raise SQLAlchemyError(
                 "A database error occured while trying to retrieve training run by ID.") from e
 
-    def get_datapoint_by_id(self, session: Session, datapoint_id: int) -> list[DataPointDTO]:
+    def get_datapoint_by_id(self, session: Session, datapoint_id: int) -> list[DataPoint]:
         logger.debug(f"Datapoint id: {datapoint_id}")
         """Retrieve a datapoint by its ID."""
         try:
             datapoint: DataPoint = session.query(DataPoint).filter_by(
                 id=datapoint_id).one()
-            return [self.mapper.map_datapoint_to_dto(datapoint)]
+            return [datapoint]
         except MultipleResultsFound as e:
             logger.exception(
                 "Too many datapoints found when trying to get datapoint by id.")
@@ -828,13 +822,13 @@ class DataManager(IDataManager):
             raise SQLAlchemyError(
                 "A database orccured while trying to retrieve datapoint by ID.") from e
 
-    def get_model_evaluation_by_id(self, session: Session, model_evlauation_id: int) -> list[ModelEvaluationDTO]:
+    def get_model_evaluation_by_id(self, session: Session, model_evlauation_id: int) -> list[ModelEvaluation]:
         logger.debug(f"Model evaluation id: {model_evlauation_id}")
         """Retrieve a model evaluation by its ID."""
         try:
             model_evaluation: ModelEvaluation = session.query(ModelEvaluation).filter_by(
                 id=model_evlauation_id).one()
-            return [self.mapper.map_model_evaluation_to_dto(model_evaluation)]
+            return [model_evaluation]
         except MultipleResultsFound as e:
             logger.exception(
                 "Too many datapoints found when trying to get model evaluation by id.")
