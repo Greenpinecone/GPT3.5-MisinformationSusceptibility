@@ -50,7 +50,7 @@ class DataFrameWidgetProvider:
                 "category": st.column_config.SelectboxColumn(
                     "Category",
                     help="The category the test datapoint belongs to from the trainings dataset",
-                    options=set(used_categories),
+                    options=set(sorted(used_categories)),
                     default=None,
                 ),
             },
