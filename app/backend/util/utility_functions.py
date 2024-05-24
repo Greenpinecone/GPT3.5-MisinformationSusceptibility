@@ -293,3 +293,20 @@ def show_toast(message, message_type='info'):
         icon = "ℹ️"
 
     st.toast(body=message, icon=icon)
+
+
+def find_index_in_list(values_list: list[Any], specific_value: Any) -> Any:
+    """
+    Returns the index of the specific_value in values_list, or None if not found.
+
+    Args:
+        values_list (list): The list of values to search.
+        specific_value: The specific value to find in the list.
+
+    Returns:
+        int or None: The index of the specific value in the list, or None if not found.
+    """
+    try:
+        return values_list.index(specific_value)
+    except ValueError:
+        return None
