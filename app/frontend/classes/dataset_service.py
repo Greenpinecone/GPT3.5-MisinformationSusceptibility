@@ -1,6 +1,7 @@
 from typing import Any
 import streamlit as st
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
+from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
 from frontend.classes.dataset_editor import DatasetEditor
 from backend.dtos.create_request import CreateDatasetDTO, CreateDataPointDTO
 from frontend.mappers.frontend_mappers import ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO
@@ -19,9 +20,13 @@ class DatasetService:
         all_datapoint_dtos = []
 
         for dataset_editor in all_dataset_editors:
-            # Update categories column if not a training dataset, since the user couldhave submitted before reloading the test datset after changes in the training dataset.
+            # Remove all datapoints without rows
+            DatasetService.remove_empty_datapoints(
+                dataset_editor.datapoints)
+            # Update categories column if not a training dataset, since the user could have submitted before reloading the test datset after changes in the training dataset.
             if dataset_editor.dataset_category == DatasetCategory.test:
-                DatasetService.update_test_dataset_categories(dataset_editor)
+                DatasetService.update_test_dataset_categories(
+                    dataset_editor)
 
             datapoint_dtos = ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO(
                 many=True).dump(dataset_editor.datapoints)
@@ -77,3 +82,15 @@ class DatasetService:
     def check_if_dataset_editor_has_datapoints(all_dataset_editors: list[DatasetEditor]) -> bool:
         """Checks if any dataset editor has datapoints."""
         return any(len(dataset_editor.datapoints) > 0 for dataset_editor in all_dataset_editors)
+
+    @staticmethod
+    def remove_empty_datapoints(datapoints: list[DataPointDTOWithDataFrameWrapper]) -> None:
+        """Remove datapoint wrappers with empty messages DataFrame from the list.
+
+        Args:
+            datapoint_wrappers (list[DataPointDTOWithDataFrameWrapper]): List of datapoint wrappers.
+        """
+        # Iterate over the list in reverse order to safely remove items
+        for i in reversed(range(len(datapoints))):
+            if datapoints[i].messages.shape[0] == 0:
+                del datapoints[i]
