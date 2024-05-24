@@ -174,10 +174,12 @@ class DatasetEditor:
     def handle_empty_datapoints(self, uploaded_dataset_file: BytesIO, datapoints_container: DeltaGenerator) -> None:
         """Handles the case where there are no datapoints."""
         if uploaded_dataset_file and not uploaded_dataset_file.size:
-            ToastManager.add_toast("Uploaded file cannot be empty.", "info")
+            ToastManager.add_toast(
+                "Uploaded file cannot be empty.", "info")
             self.reset_editor_states()
         elif not uploaded_dataset_file:
-            ToastManager.add_toast("Successfully removed dataset.", "success")
+            ToastManager.add_toast(
+                "Successfully removed dataset.", "success")
             self.reset_editor_states()
         elif uploaded_dataset_file:
             self.handle_new_file_upload(

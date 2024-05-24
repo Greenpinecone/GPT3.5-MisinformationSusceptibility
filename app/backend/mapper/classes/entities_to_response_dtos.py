@@ -31,13 +31,20 @@ class FlexibleDateTimeField(fields.DateTime):
 
 
 class BaseSchema(SQLAlchemyAutoSchema):
-    class Meta:
-        sqla_session = None
-        # äload_instance = True
-        datetimeformat = 'iso'
+    def __init__(self, session, *args, **kwargs):
+        # Dynamically creates a Meta class with the session for each created object to avoid setting the session as class attribute and causing issues with session sharing
+        class Meta:
+            datetimeformat = 'iso'
+            sqla_session = session
+
+        self.Meta = Meta
+        super().__init__(*args, **kwargs)
 
 
 class ProjectSchema(BaseSchema):
+    def __init__(self, session, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
     id = auto_field()
     project_name = auto_field()
     description = auto_field()
@@ -57,6 +64,9 @@ class ProjectSchema(BaseSchema):
 
 
 class DatasetSchema(BaseSchema):
+    def __init__(self, session, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
     id = auto_field()
     dataset_name = auto_field()
     augmented = auto_field()
@@ -82,6 +92,9 @@ class DatasetSchema(BaseSchema):
 
 
 class DataPointSchema(BaseSchema):
+    def __init__(self, session, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
     id = auto_field()
     dataset_id = auto_field()
     coherence_score = auto_field()
@@ -106,6 +119,9 @@ class DataPointSchema(BaseSchema):
 
 
 class ModelSchema(BaseSchema):
+    def __init__(self, session, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
     id = auto_field()
     model_name = auto_field()
     parent_model_id = auto_field()
@@ -134,6 +150,9 @@ class ModelSchema(BaseSchema):
 
 
 class ModelEvaluationSchema(BaseSchema):
+    def __init__(self, session, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
     id = auto_field()
     model_id = auto_field()
     datapoint_id = auto_field()
@@ -152,6 +171,9 @@ class ModelEvaluationSchema(BaseSchema):
 
 
 class TrainingRunSchema(BaseSchema):
+    def __init__(self, session, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
     id = auto_field()
     model_id = auto_field()
     epochs = auto_field()

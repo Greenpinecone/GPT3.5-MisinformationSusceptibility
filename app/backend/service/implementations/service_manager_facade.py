@@ -2,6 +2,7 @@
 """
 
 
+from app.backend.database.schema import *
 from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
 from ...dtos.get_request import *
 from ...dtos.response import *
@@ -36,7 +37,7 @@ class ServiceManagerFacade(IServiceManager):
         if mapper is None:
             mapper = MapperFacade()
         if data_manager is None:
-            data_manager = DataManager(mapper=mapper)
+            data_manager = DataManager()
         if google_translate_service is None:
             google_translate_service = GoogleTranslateService(
                 api_key=config.google_translate_api_key)
@@ -68,59 +69,74 @@ class ServiceManagerFacade(IServiceManager):
         with self._data_manager.get_session() as session:
             self._validator.validate_get_all_projects(
                 session, self._data_manager, projects_data)
-            return self._data_manager.get_all_projects(session, projects_data)
+            projects: list[Project] = self._data_manager.get_all_projects(
+                session, projects_data)
+            return [self._mapper.map_project_to_dto(session, project) for project in projects]
 
     def filter_models(self, model_data: GetModelsDTO) -> list[ModelDTO]:
         with self._data_manager.get_session() as session:
             self._validator.validate_get_all_models(
                 session, self._data_manager, model_data)
-            return self._data_manager.get_all_models(session, model_data)
+            models: list[Model] = self._data_manager.get_all_models(
+                session, model_data)
+            return [self._mapper.map_model_to_dto(session, model) for model in models]
 
     def filter_datasets(self, dataset_data: GetDatasetsDTO) -> list[DatasetDTO]:
         with self._data_manager.get_session() as session:
             self._validator.validate_get_all_datasets(
                 session, self._data_manager, dataset_data)
-            return self._data_manager.get_all_datasets(session, dataset_data)
+            datasets: list[Dataset] = self._data_manager.get_all_datasets(
+                session, dataset_data)
+            return [self._mapper.map_dataset_to_dto(session, dataset) for dataset in datasets]
 
     def create_projects(self, projects_data: list[CreateProjectDTO]) -> list[ProjectDTO]:
         with self._data_manager.get_session() as session:
             self._validator.validate_create_projects(
                 session, self._data_manager, projects_data)
-            return self._data_manager.create_projects(session, projects_data)
+            projects: list[Project] = self._data_manager.create_projects(
+                session, projects_data)
+            return [self._mapper.map_project_to_dto(session, project) for project in projects]
 
     def udpate_projects(self, projects_data: list[UpdateProjectDTO]) -> list[ProjectDTO]:
         with self._data_manager.get_session() as session:
             self._validator.validate_update_projects(
                 session, self._data_manager, projects_data)
-            return self._data_manager.update_projects(session, projects_data)
+            projects: list[Project] = self._data_manager.update_projects(
+                session, projects_data)
+            return [self._mapper.map_project_to_dto(session, project) for project in projects]
 
-    def create_dataset_with_datapoints(self, trainings_dataset_dto: CreateDatasetDTO, trainings_datapoint_dtos: list[CreateDataPointDTO], test_dataset_dto: CreateDatasetDTO, test_datapoint_dtos: list[CreateDataPointDTO]) -> list[DatasetDTO, list[DataPointDTO]]:
+    def create_dataset_with_datapoints(self, trainings_dataset_dto: CreateDatasetDTO, trainings_datapoint_dtos: list[CreateDataPointDTO], test_dataset_dto: CreateDatasetDTO, test_datapoint_dtos: list[CreateDataPointDTO]) -> list[DatasetDTO]:
         with self._data_manager.get_session() as session:
-            # Save test dataset first to generate id
+            # Save test dataset first to then add it to the training dataset
             self._validator.validate_create_datasets(
                 session, self._data_manager, [test_dataset_dto])
-            test_dataset_response_dto: DatasetDTO = self._data_manager.create_datasets(session, [test_dataset_dto])[
+            test_dataset: list[Dataset] = self._data_manager.create_datasets(session, [test_dataset_dto])[
                 0]
+
+            # Save test dataset datapoints (are directly accessibly by the test dataset through ORM)
             for datapoint_dto in test_datapoint_dtos:
-                datapoint_dto.dataset_id = test_dataset_response_dto.id
+                datapoint_dto.dataset_id = test_dataset.id
             self._validator.validate_create_datapoints(
                 session, self._data_manager, test_datapoint_dtos)
-            test_datapoint_response_dtos = self._data_manager.create_datapoints(
+            test_datapoints: list[DataPoint] = self._data_manager.create_datapoints(
                 session, test_datapoint_dtos)
-
-            # Set test dataset id for trainings dataset
-            trainings_dataset_dto.test_dataset_id = test_dataset_response_dto.id
 
             # Save trainings dataset with test dataset id set
             self._validator.validate_create_datasets(
                 session, self._data_manager, [trainings_dataset_dto])
-            trainings_dataset_response_dto: DatasetDTO = self._data_manager.create_datasets(session, [trainings_dataset_dto])[
+            trainings_dataset: Dataset = self._data_manager.create_datasets(session, [trainings_dataset_dto])[
                 0]
+
+            # Set test dataset for trainings dataset
+            trainings_dataset.test_dataset = test_dataset
+
+            # Save training datapoints
             for datapoint_dto in trainings_datapoint_dtos:
-                datapoint_dto.dataset_id = trainings_dataset_response_dto.id
+                datapoint_dto.dataset_id = trainings_dataset.id
             self._validator.validate_create_datapoints(
                 session, self._data_manager, trainings_datapoint_dtos)
-            trainings_datapoint_response_dtos = self._data_manager.create_datapoints(
+            trainings_datapoints: list[DataPoint] = self._data_manager.create_datapoints(
                 session, trainings_datapoint_dtos)
 
-            return [trainings_dataset_response_dto, trainings_datapoint_response_dtos, test_dataset_response_dto, test_datapoint_response_dtos]
+            x = self._mapper.map_dataset_to_dto(session, trainings_dataset)
+            return [self._mapper.map_dataset_to_dto(session, trainings_dataset)]
