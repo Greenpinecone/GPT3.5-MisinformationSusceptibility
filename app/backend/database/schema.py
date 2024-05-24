@@ -99,7 +99,7 @@ class Project(Base):
 class Dataset(Base):
     __tablename__ = 'datasets'
     id = Column(Integer, primary_key=True)
-    dataset_name = Column(String, nullable=False, unique=True)
+    dataset_name = Column(String, nullable=False)
     augmented = Column(Boolean, nullable=False)
     category = Column(Enum(DatasetCategory), nullable=False)
     created_at = Column(DateTime, default=func.now())
@@ -130,6 +130,11 @@ class Dataset(Base):
 
     datapoints = relationship(
         "DataPoint", order_by="DataPoint.id", back_populates="dataset")
+
+    __table_args__ = (
+        UniqueConstraint('dataset_name', 'category',
+                         name='_dataset_name_category_uc'),
+    )
 
 
 # Each Datapoint belongs to exactly one Dataset. Each datapoint has a coherence score (comapring to the initial datapoint), a relevancy score (comparing to the initial datapoint), a semantic similarity score (comapring to the initial datapoint), and augmentation type (backtranslation, EDA or nothing if it is an initial datapoint) and the datapoint id of its initial datapoint from which it has been augmented from if it is augmented, else null. And each datapoint holds a JSON array (messages) consisting of an array of conversational dicts in openai format. And a category string that should match the category in the test dataset for easy matching of training datapoints with corresponding test datapoints.
