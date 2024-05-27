@@ -43,8 +43,8 @@ class FileUploader:
                 # raise ValueError("JSON does not conform to expected 'messages' format")
         return containers
 
-    @staticmethod
-    def process_uploads(uploaded_files: list[BytesIO], chosen_company: FineTuningCompany, chosen_file_format: str, chosen_model: str) -> list[MessagesContainer]:
+    @classmethod
+    def process_uploads(cls, uploaded_files: list[BytesIO], chosen_company: FineTuningCompany, chosen_file_format: str, chosen_model: str) -> list[MessagesContainer]:
         """ Processes an uploaded file. """
         validated_message_containers = []
         # TODO: Make the following code dynamic
@@ -53,8 +53,8 @@ class FileUploader:
                 # file_buffer = file
                 file_text = file_buffer.decode(
                     "utf-8").splitlines()  # Decode and split lines
-                if FileUploader.validate_jsonl(file_text):
-                    message_container: MessagesContainer = FileUploader.convert_to_messages_container(
+                if cls.validate_jsonl(file_text):
+                    message_container: MessagesContainer = cls.convert_to_messages_container(
                         file_text)
                     validated_message_containers.extend(message_container)
 

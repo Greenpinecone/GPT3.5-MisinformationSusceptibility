@@ -10,8 +10,8 @@ from backend.util import utility_functions as uf
 
 
 class DatasetService:
-    @staticmethod
-    def process_and_create_dataset(all_dataset_editors: list[DatasetEditor], is_global: bool, dataset_name: str, project_id: int, service: ServiceManagerFacade) -> None:
+    @classmethod
+    def process_and_create_dataset(cls, all_dataset_editors: list[DatasetEditor], is_global: bool, dataset_name: str, project_id: int, service: ServiceManagerFacade) -> None:
         if not dataset_name:
             uf.show_toast("Dataset name is required.", "info")
             return
@@ -21,22 +21,22 @@ class DatasetService:
 
         for dataset_editor in all_dataset_editors:
             # Remove all datapoints without rows
-            DatasetService.remove_empty_datapoints(
+            cls.remove_empty_datapoints(
                 dataset_editor.datapoints)
             # Update categories column if not a training dataset, since the user could have submitted before reloading the test datset after changes in the training dataset.
             if dataset_editor.dataset_category == DatasetCategory.test:
-                DatasetService.update_test_dataset_categories(
+                cls.update_test_dataset_categories(
                     dataset_editor)
 
             datapoint_dtos = ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO(
                 many=True).dump(dataset_editor.datapoints)
-            dataset_dto = DatasetService.create_dataset_dto(
+            dataset_dto = cls.create_dataset_dto(
                 dataset_name, dataset_editor, project_id, is_global)
 
             all_dataset_dtos.append(dataset_dto)
             all_datapoint_dtos.append(datapoint_dtos)
 
-        DatasetService.submit_all_datasets_and_datapoints(
+        cls.submit_all_datasets_and_datapoints(
             all_dataset_dtos, all_datapoint_dtos, service)
 
     @staticmethod

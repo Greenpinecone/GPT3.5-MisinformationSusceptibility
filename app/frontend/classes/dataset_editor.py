@@ -119,10 +119,10 @@ class DatasetEditor:
             datapoint_id)
         if datapoint_dto:
             self.datapoints.remove(datapoint_dto)
-            ToastManager.add_toast(f"""Successfully deleted datapoint {
-                                   datapoint_dto.datapoint_number}.""", "success")
+            ToastManager.add_global_toasts(f"""Successfully deleted datapoint {
+                datapoint_dto.datapoint_number}.""", "success")
         else:
-            ToastManager.add_toast(
+            ToastManager.add_global_toasts(
                 "Datapoint has already been deleted.", "error")
 
     def find_datapoint_by_id(self, datapoint_id: int) -> DataPointDTOWithDataFrameWrapper | None:
@@ -165,7 +165,7 @@ class DatasetEditor:
                 uploaded_dataset_file, datapoints_container)
         elif not self.datapoints and self.currently_uploaded_file == uploaded_dataset_file:
             if self.currently_uploaded_file is not None:
-                ToastManager.add_toast(
+                ToastManager.add_global_toasts(
                     "Successfully removed dataset.", "success")
                 self.reset_editor_states()
         else:
@@ -174,11 +174,11 @@ class DatasetEditor:
     def handle_empty_datapoints(self, uploaded_dataset_file: BytesIO, datapoints_container: DeltaGenerator) -> None:
         """Handles the case where there are no datapoints."""
         if uploaded_dataset_file and not uploaded_dataset_file.size:
-            ToastManager.add_toast(
+            ToastManager.add_global_toasts(
                 "Uploaded file cannot be empty.", "info")
             self.reset_editor_states()
         elif not uploaded_dataset_file:
-            ToastManager.add_toast(
+            ToastManager.add_global_toasts(
                 "Successfully removed dataset.", "success")
             self.reset_editor_states()
         elif uploaded_dataset_file:
