@@ -504,7 +504,6 @@ class DataManager(IDataManager):
             logger.exception("Failed to retrieve projects")
             raise SQLAlchemyError("Failed to retrieve projects") from e
 
-    # NOT YET TESTED!
     def get_all_models(self, session: Session, model_data: GetModelsDTO) -> list[Model]:
         logger.debug(f"Model data: {model_data}")
         try:
@@ -545,7 +544,6 @@ class DataManager(IDataManager):
             logger.exception("Failed to retrieve models")
             raise SQLAlchemyError("Failed to retrieve models") from e
 
-    # NOT YET TESTED!
     def get_all_datasets(self, session: Session, dataset_data: GetDatasetsDTO) -> list[Dataset]:
         logger.debug(f"Dataset data: {dataset_data}")
         try:
