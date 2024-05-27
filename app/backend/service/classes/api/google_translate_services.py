@@ -18,5 +18,5 @@ class GoogleTranslateService:
         api_key (str): API access key for Google's API.
     """
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str = ""):
         self.api_key = api_key
