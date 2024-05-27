@@ -5,9 +5,9 @@ from backend.util.global_states import global_toasts
 
 class ToastManager:
     @classmethod
-    def add_global_toasts(message: str, message_type: str = 'info'):
+    def add_global_toasts(cls, message: str, message_type: str = 'info'):
         """Add a toast message to the global toasts."""
-        icon = ToastManager.get_icon_for_message_type(message_type)
+        icon = cls.get_icon_for_message_type(message_type)
         global_toasts.append(ToastMessage(message, icon))
 
     @staticmethod
@@ -20,9 +20,9 @@ class ToastManager:
             global_toasts.clear()
 
     @classmethod
-    def show_toast(message: str, message_type: str = 'info'):
+    def show_toast(cls, message: str, message_type: str = 'info'):
         """Show a toast."""
-        icon = ToastManager.get_icon_for_message_type(message_type)
+        icon = cls.get_icon_for_message_type(message_type)
         st.toast(message, icon)
 
     @staticmethod
