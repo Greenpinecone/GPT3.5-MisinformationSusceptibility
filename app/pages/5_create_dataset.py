@@ -7,7 +7,7 @@ import pandas as pd
 import plotly as pl
 from backend.util.logger import StreamlitLogger
 from backend.util import utility_functions as uf
-from backend.util.config import Config
+from backend.util.config import UPLOAD_FORMAT_FORMATTINGS
 from backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from backend.dtos.get_request import *
 from backend.dtos.response import *
@@ -98,12 +98,12 @@ def load_choose_file_format_form(dataset_editor: DatasetEditor, uploaded_dataset
 
 def create_formatting_examples_tabs():
     """Creates tabs for formatting examples."""
-    companies = list(vars(config.upload_format_formattings).keys())
+    companies = list(UPLOAD_FORMAT_FORMATTINGS.keys())
     company_tabs = st.tabs(companies)
 
     for tab, company in zip(company_tabs, companies):
         with tab:
-            format_dict = getattr(config.upload_format_formattings, company)
+            format_dict = UPLOAD_FORMAT_FORMATTINGS.get(company)
             with st.expander(label=f"{company.capitalize()} formatting examples", expanded=False):
                 format_tabs = st.tabs(list(format_dict.keys()))
                 for format_key, format_tab in zip(format_dict.keys(), format_tabs):
