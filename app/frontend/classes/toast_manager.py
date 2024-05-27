@@ -4,20 +4,26 @@ from backend.util.global_states import global_toasts
 
 
 class ToastManager:
-    @staticmethod
-    def add_toast(message: str, message_type: str = 'info'):
+    @classmethod
+    def add_global_toasts(message: str, message_type: str = 'info'):
         """Add a toast message to the global toasts."""
         icon = ToastManager.get_icon_for_message_type(message_type)
         global_toasts.append(ToastMessage(message, icon))
 
     @staticmethod
-    def show_toasts():
+    def show_global_toasts():
         """Show all toasts from the global state."""
         if global_toasts:
             for toast in global_toasts:
                 st.toast(body=toast.message, icon=toast.icon)
             # Clear toasts after showing
             global_toasts.clear()
+
+    @classmethod
+    def show_toast(message: str, message_type: str = 'info'):
+        """Show a toast."""
+        icon = ToastManager.get_icon_for_message_type(message_type)
+        st.toast(message, icon)
 
     @staticmethod
     def get_icon_for_message_type(message_type: str) -> str:
