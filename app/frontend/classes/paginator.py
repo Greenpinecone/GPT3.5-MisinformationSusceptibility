@@ -23,7 +23,7 @@ class Paginator:
         for row_start in range(1, total_pages + 1, buttons_per_row):
             row_end = min(row_start + buttons_per_row, total_pages + 1)
             with pagination_buttons_container:
-                cols = st.columns(min(buttons_per_row, row_end - row_start))
+                cols = st.columns(buttons_per_row)
                 for page_num, col in zip(range(row_start, row_end), cols):
                     with col:
                         if st.button(label=str(page_num), key=f"page_{page_num}_{uuid4()}"):
