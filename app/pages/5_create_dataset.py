@@ -133,7 +133,7 @@ with logger:
     service, config = uf.get_or_create_session_state("service", default_value=ServiceManagerFacade(
     )), uf.get_or_create_session_state("config", default_value=Config())
 
-    ToastManager.show_toasts()
+    ToastManager.show_global_toasts()
 
     # TODO: Add back in
     # uf.set_query_params_from_session(
@@ -146,13 +146,13 @@ with logger:
         "trainings_dataset_paginator", default_value=Paginator
     )
     training_dataset_editor: DatasetEditor = uf.get_or_create_session_state(
-        "training_dataset_editor", DatasetCategory.training, DataFrameEditor(), trainings_dataset_paginator, shared_category_tracker, default_value=DatasetEditor
+        "training_dataset_editor", DatasetCategory.training, DataFrameEditor, trainings_dataset_paginator, shared_category_tracker, default_value=DatasetEditor
     )
     test_dataset_paginator = uf.get_or_create_session_state(
         "trainings_dataset_paginator", default_value=Paginator
     )
     test_dataset_editor: DatasetEditor = uf.get_or_create_session_state(
-        "test_dataset_editor", DatasetCategory.test, DataFrameEditor(), test_dataset_paginator, shared_category_tracker, default_value=DatasetEditor
+        "test_dataset_editor", DatasetCategory.test, DataFrameEditor, test_dataset_paginator, shared_category_tracker, default_value=DatasetEditor
     )
 
     # Determine the current dataset editor based on the chosen upload dataset type
@@ -189,7 +189,7 @@ with logger:
                 type="secondary"
             )
             if delete_dataset_button:
-                ToastManager.add_toast(
+                ToastManager.add_global_toasts(
                     "Successfully removed dataset.", "success")
                 dataset_editor.reset_editor_states()
 
