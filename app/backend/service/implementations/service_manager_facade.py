@@ -39,10 +39,9 @@ class ServiceManagerFacade(IServiceManager):
         if data_manager is None:
             data_manager = DataManager()
         if google_translate_service is None:
-            google_translate_service = GoogleTranslateService(
-                api_key=config.google_translate_api_key)
+            google_translate_service = GoogleTranslateService()
         if openai_service is None:
-            openai_service = OpenAIService(api_key=config.openai_api_key)
+            openai_service = OpenAIService()
         if data_augmenter is None:
             data_augmenter = DataAugmenter()
         if data_sampler is None:
@@ -138,5 +137,4 @@ class ServiceManagerFacade(IServiceManager):
             trainings_datapoints: list[DataPoint] = self._data_manager.create_datapoints(
                 session, trainings_datapoint_dtos)
 
-            x = self._mapper.map_dataset_to_dto(session, trainings_dataset)
             return [self._mapper.map_dataset_to_dto(session, trainings_dataset)]

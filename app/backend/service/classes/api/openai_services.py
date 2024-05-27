@@ -17,5 +17,5 @@ class OpenAIService:
         api_key (str): API access key for openAI's API.
     """
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str = ""):
         self.api_key = api_key
