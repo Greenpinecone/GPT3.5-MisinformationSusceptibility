@@ -7,6 +7,7 @@ from ....dtos.update_request import *
 from ....custom_types.exceptions import CustomValidationError
 from marshmallow import Schema
 from sqlalchemy.orm import Session
+from backend.database.schema import DatasetCategory
 
 
 class ValidatorFacade:
@@ -22,7 +23,7 @@ class ValidatorFacade:
             self._validate_single(data, validator, session,
                                   data_manager, operation_type)
 
-    def _validate_single(self, item, validator: Schema, session: Session, data_manager: IDataManager, operation_type: str) -> None:
+    def _validate_single(self, item: list | object, validator: Schema, session: Session, data_manager: IDataManager, operation_type: str) -> None:
         validator_instance = validator(
             session=session, data_manager=data_manager)
         errors = validator_instance.validate(asdict(item))
