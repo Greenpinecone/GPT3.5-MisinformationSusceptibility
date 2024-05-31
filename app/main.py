@@ -9,25 +9,27 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly as pl
+from app.frontend.classes.toast_manager import ToastManager
 from backend.util.logger import StreamlitLogger
-from backend.util import utility_functions as uf
-from backend.util.config import Config
-from backend.service.implementations.service_manager_facade import ServiceManagerFacade
+from frontend.util import utility_functions as uf_frontend
 from backend.dtos.get_request import *
 from backend.dtos.response import *
+from frontend.custom_styles.global_styles import apply_global_style
+from frontend.classes.global_app_state_manager import GlobalAppStateManager
+from frontend.classes.query_params_manager import QueryParamsManager
+from app.frontend.classes.page_navigator import PageNavigator
 
-
+apply_global_style()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 
 with logger:
 
-    uf.apply_global_style()
-    # Can be easily adapted in case of multiple users at the same time
-    service, config = uf.initialize_global_states(ServiceManagerFacade, Config)
+    ToastManager.show_global_toasts()
+    service = GlobalAppStateManager.get_service()
 
     def load_page():
-        uf.clear_query_params()
+        QueryParamsManager.clear_query_params()
 
         update_button_base_key = "update_project_button_"
         delete_button_base_key = "delete_project_button_"
@@ -42,7 +44,7 @@ with logger:
         projects: list[ProjectDTO] = service.filter_projects(GetProjectsDTO(
             project_name=search_name, created_at=search_date))
 
-        sorted_projects: list[ProjectDTO] = uf.sort_dicts(
+        sorted_projects: list[ProjectDTO] = uf_frontend.sort_dicts(
             projects, "created_at",  "project_name")
 
         st.title("Project Overview")
@@ -53,8 +55,8 @@ with logger:
                 "Create Project +", help="Click me to create a new project", type="primary", key="create_project_button")
 
             if create_project_button:
-                uf.cleanup_and_navigate(
-                    "pages/1_create_project.py", config.global_states)
+                GlobalAppStateManager.clear_session_state_except()
+                PageNavigator.navigate_to_page('create_project')
         switch_to_create_project()
 
         search_cols = st.columns((2, 1))
@@ -95,8 +97,9 @@ with logger:
                             if st.session_state.get(project_update_state_key):
                                 set_clicked_project_data(
                                     sorted_projects, update_button_base_key)
-                                uf.cleanup_and_navigate(config.pages.update_project,
-                                                        config.global_states + ['current_project'])
+                                GlobalAppStateManager.clear_session_state_except()
+                                PageNavigator.navigate_to_page(
+                                    'update_project')
 
                             st.button(
                                 "Update Project", help="Click me to update this project", type="secondary", key=update_button_key, on_click=lambda: setattr(st.session_state, project_update_state_key, True))
@@ -107,8 +110,9 @@ with logger:
                             if st.session_state.get(project_choose_state_key):
                                 set_clicked_project_data(
                                     sorted_projects, choose_button_base_key)
-                                uf.cleanup_and_navigate(config.pages.fine_tune_model,
-                                                        config.global_states + ['current_project'])
+                                GlobalAppStateManager.clear_session_state_except()
+                                PageNavigator.navigate_to_page(
+                                    'fine_tune_model')
 
                             st.button(
                                 "Choose Project", help="Click me to choose this project", type="primary", key=choose_button_key, on_click=lambda: setattr(st.session_state, project_choose_state_key, True))
@@ -131,6 +135,7 @@ with logger:
         for i, project in enumerate(sorted_projects):
             key = base_key + str(i)
             if st.session_state.get(key):
-                st.session_state.current_project = project
+                GlobalAppStateManager.set_current_project(project)
+                print(GlobalAppStateManager.get_global_states())
 
     load_page()

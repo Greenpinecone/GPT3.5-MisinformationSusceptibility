@@ -4,23 +4,28 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly as pl
+from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
+from app.frontend.classes.toast_manager import ToastManager
 from backend.util.logger import StreamlitLogger
-from backend.util import utility_functions as uf
-from backend.util.config import Config
-from backend.service.implementations.service_manager_facade import ServiceManagerFacade
+from frontend.util import utility_functions as frontend_uf
 from backend.dtos.get_request import *
 from backend.dtos.response import *
+from frontend.custom_styles.global_styles import apply_global_style
+from frontend.classes.query_params_manager import QueryParamsManager
+from frontend.classes.page_navigator import PageNavigator
+from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
 
-
+apply_global_style()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 
 with logger:
-    uf.apply_global_style()
-    # Can be easily adapted in case of multiple users at the same time
-    service, config = uf.initialize_global_states(ServiceManagerFacade, Config)
-    uf.set_query_params_from_session(
-        {"projectId": ["current_project", "id"]}, config)
+    ToastManager.show_global_toasts()
+    PageNavigator.set_navbar(
+        "Go back", "home", "Return to the previous page")
+    QueryParamsManager.set_query_params_from_page("fine_tune_model")
+    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
+    current_project: ProjectDTO = GlobalAppStateManager.get_current_project()
 
     def load():
 
@@ -28,12 +33,12 @@ with logger:
 
         # Fetch models using the potentially None `current_project_id`
         models: list[ModelDTO] = service.filter_models(
-            GetModelsDTO(project_id=st.session_state.current_project.id))
+            GetModelsDTO(project_id=current_project.id))
 
         selected_model = st.selectbox("Select one of the existing models assigned to this project",
                                       key="model_seelctor", options=models, index=None, placeholder="Choose a base model to train" if models else "No options available", label_visibility="hidden" if models else "visible")
 
-        uf.create_text_divider("or")
+        frontend_uf.create_text_divider("or")
 
         @st.experimental_fragment
         def switch_to_create_model_interface():
@@ -41,9 +46,8 @@ with logger:
                 "Create Model +", type="primary", key="create_model_button", )
 
             if create_model_button:
-
-                uf.cleanup_and_navigate(
-                    config.pages.create_model, config.global_states + ["current_project"])
+                GlobalAppStateManager.clear_session_state_except()
+                PageNavigator.navigate_to_page('create_model')
 
         switch_to_create_model_interface()
 
