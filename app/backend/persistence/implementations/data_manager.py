@@ -1,20 +1,17 @@
 from contextlib import contextmanager
-import datetime
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import sessionmaker, Session, scoped_session, joinedload
 from sqlalchemy.orm.query import Query
 from pathlib import Path
-from typing import Dict, Any, Optional, Generator
+from typing import Generator
 from sqlalchemy.exc import SQLAlchemyError, MultipleResultsFound, NoResultFound
-
-from ...database.schema import *
+from backend.database.schema import Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun, Base
 from ...util.logger import Logger
 from ..interfaces.i_data_manager import IDataManager
 from datetime import datetime
 from ...dtos.create_request import *
 from ...dtos.get_request import *
 from ...dtos.update_request import *
-from ...mapper.implementations.mappers_facade import MapperFacade
 from ...dtos.response import *
 
 
