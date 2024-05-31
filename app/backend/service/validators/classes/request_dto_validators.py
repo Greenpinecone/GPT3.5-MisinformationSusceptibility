@@ -1,7 +1,6 @@
 from datetime import date, timezone
 from typing import Any, Optional
 from marshmallow import Schema, fields, validates, validates_schema, ValidationError, validate, post_load
-from ....database.schema import DatasetCategory, EvaluationType, AugmentationType, FineTuningCompany, FineTuningModelVersions, MessageKeys, UploadFormats
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 from ....persistence.interfaces.i_data_manager import IDataManager
 from ....dtos.create_request import *
@@ -9,6 +8,7 @@ from ....dtos.get_request import *
 from ....dtos.update_request import *
 from ....dtos.response import DatasetDTO, ModelDTO
 from sqlalchemy.orm import Session
+from backend.database.schema import DatasetCategory, MessageKeys, UploadFormats, EvaluationType, AugmentationType, FineTuningCompany, FineTuningModelVersions, MessageKeys, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun
 
 
 class BaseUpdateSchema(Schema):
@@ -32,8 +32,6 @@ class CustomEnumValidationField(fields.Enum):
             if not self.allow_none:
                 raise ValidationError("Field may not be None.")
 
-        # Check that the value is an instance of the enum class
-        # Check if the value is a member of the enum
         if not isinstance(value, self.enum):
             raise ValidationError(f"""Expected {self.enum.__name__} instance, got {
                 type(value).__name__}.""")
@@ -459,7 +457,7 @@ class CreateDataPointSchema(Schema):
         if not dataset_id:
             raise ValidationError("dataset_id is required")
 
-        dataset: DatasetDTO = self.data_manager.get_dataset_by_id(self.session, dataset_id)[
+        dataset: Dataset = self.data_manager.get_dataset_by_id(self.session, dataset_id)[
             0]
 
         # Get the allowed roles for the chosen fine_tuning_company
@@ -1261,7 +1259,7 @@ class UpdateModelSchema(BaseUpdateSchema):
         if not model_id:
             raise ValidationError('Model ID is required.')
 
-        model: ModelDTO = self.data_manager.get_model_by_id(
+        model: Model = self.data_manager.get_model_by_id(
             self.session, model_id)[0]
         if not model:
             raise ValidationError('Model not found.')
@@ -1284,7 +1282,7 @@ class UpdateModelSchema(BaseUpdateSchema):
         if not model_id:
             raise ValidationError('Model ID is required.')
 
-        model: ModelDTO = self.data_manager.get_model_by_id(
+        model: Model = self.data_manager.get_model_by_id(
             self.session, model_id)[0]
 
         if model.full_fine_tuned_model_id and data.get("full_fine_tuned_model_id"):

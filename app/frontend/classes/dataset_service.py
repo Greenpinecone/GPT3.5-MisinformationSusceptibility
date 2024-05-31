@@ -6,14 +6,14 @@ from frontend.classes.dataset_editor import DatasetEditor
 from backend.dtos.create_request import CreateDatasetDTO, CreateDataPointDTO
 from frontend.mappers.frontend_mappers import ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO
 from backend.database.schema import DatasetCategory, MessageKeys
-from backend.util import utility_functions as uf
+from frontend.classes.toast_manager import ToastManager
 
 
 class DatasetService:
     @classmethod
     def process_and_create_dataset(cls, all_dataset_editors: list[DatasetEditor], is_global: bool, dataset_name: str, project_id: int, service: ServiceManagerFacade) -> None:
         if not dataset_name:
-            uf.show_toast("Dataset name is required.", "info")
+            ToastManager.show_toast("Dataset name is required.", "info")
             return
 
         all_dataset_dtos = []
@@ -57,7 +57,6 @@ class DatasetService:
     def submit_all_datasets_and_datapoints(dataset_dtos: list[CreateDatasetDTO], datapoint_dtos: list[list[CreateDataPointDTO]], service: ServiceManagerFacade):
         service.create_dataset_with_datapoints(
             dataset_dtos[0], datapoint_dtos[0], dataset_dtos[1], datapoint_dtos[1])
-        uf.show_toast("Dataset has been successfully created.", "success")
 
     @staticmethod
     def update_test_dataset_categories(dataset_editor: DatasetEditor):

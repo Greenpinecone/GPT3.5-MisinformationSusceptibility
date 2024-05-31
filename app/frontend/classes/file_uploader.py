@@ -1,12 +1,11 @@
 from io import BytesIO
 import json
 from typing import Any, Iterator
-from app.frontend.dataclasses.dataclasses import ToastMessage
 from app.backend.database.schema import FineTuningCompany
 from ...backend.custom_types.typedicts import *
-from ...backend.util.utility_functions import show_toast
 import pandas as pd
-from ...backend.util.global_states import global_toasts
+from frontend.classes.toast_manager import ToastManager
+
 
 # TODO: Implement different data validators and handlers for different data formats so that user can upload and edit their data for different AI models that do not support the same format (jsonl) and structure as google.
 
@@ -23,8 +22,8 @@ class FileUploader:
             try:
                 json.loads(line)  # Try parsing each line as JSON
             except json.JSONDecodeError as e:
-                show_toast(message=f"""Invalid JSON on line {
-                           line_number}: {e}", message_type="error""")
+                ToastManager.show_toast(message=f"""Invalid JSON on line {
+                    line_number}: {e}", message_type="error""")
                 # raise ValueError(f"Invalid JSON on line {line_number}: {e}")
         return True
 
@@ -38,7 +37,7 @@ class FileUploader:
                 container = MessagesContainer(messages=record["messages"])
                 containers.append(container)
             else:
-                show_toast(
+                ToastManager.show_toast(
                     message="JSONL does not conform to expected 'messages' format", message_type="error")
                 # raise ValueError("JSON does not conform to expected 'messages' format")
         return containers

@@ -3,10 +3,12 @@ This module centralizes configuration settings for the application, including
 any constants and global settings required across different modules that are not sensitive information.
 """
 
+
 GLOBAL_SESSION_STATE_KEYS = {
     'GLOBAL_STATES_KEY': 'global_states',
     'SERVICE_KEY': 'service',
-    'CURRENT_PROJECT_KEY': 'current_project'
+    'CURRENT_PROJECT_KEY': 'current_project',
+    'GLOBAL_TOASTS_KEY': 'global_toasts'
 }
 
 # Unified page configuration

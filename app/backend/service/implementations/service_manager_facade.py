@@ -3,7 +3,6 @@
 
 
 from app.backend.database.schema import *
-from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
 from ...dtos.get_request import *
 from ...dtos.response import *
 from ...dtos.create_request import *
@@ -21,6 +20,7 @@ from ...util.config import Config
 from ...util.logger import Logger
 from ...mapper.implementations.mappers_facade import MapperFacade
 from ..validators.implementations.validators_facade import ValidatorFacade
+from backend.database.schema import DatasetCategory
 
 logger = Logger(__name__)
 
