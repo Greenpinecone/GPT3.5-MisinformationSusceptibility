@@ -2,32 +2,36 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly as pl
+from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
+from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
+from app.frontend.classes.page_navigator import PageNavigator
+from app.frontend.classes.toast_manager import ToastManager
 from backend.util.logger import StreamlitLogger
-from backend.util import utility_functions as uf
-from backend.util.config import Config
-from backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from backend.dtos.get_request import *
 from backend.dtos.response import *
 from backend.database.schema import DatasetCategory
 from backend.dtos.create_request import *
+from frontend.custom_styles.global_styles import apply_global_style
 
-
+apply_global_style()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 
 with logger:
+    ToastManager.show_global_toasts()
+    PageNavigator.set_navbar(
+        "Go back", "home", "Return to the previous page")
 
-    uf.apply_global_style()
-    service, config = uf.initialize_global_states(ServiceManagerFacade, Config)
+    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
 
     def load_page():
         st.title("Create Project")
 
-        models: list[ModelDTO] = service.filter_models(GetModelsDTO(
-            model_name=None, created_at=None, version=None, project_id=None, is_global=True))
+        models: list[ModelDTO] = service.filter_models(
+            GetModelsDTO(is_global=True))
 
-        datasets: list[DatasetDTO] = service.filter_datasets(GetDatasetsDTO(
-            dataset_name=None, augmented=None, category=None, initial_dataset_id=None, project_id=None, is_global=True))
+        datasets: list[DatasetDTO] = service.filter_datasets(
+            GetDatasetsDTO(category=DatasetCategory.training, is_global=True))
 
         project_form = st.form(
             key="create_project_form", clear_on_submit=True)
@@ -54,7 +58,7 @@ with logger:
                     project_name=project_name, description=project_description, model_ids=chosen_model_ids, dataset_ids=chosen_dataset_ids)
 
                 service.create_projects([project_to_save])
-                uf.cleanup_and_navigate(
-                    config.pages.home, config.global_states)
+                GlobalAppStateManager.clear_session_state_except()
+                PageNavigator.navigate_to_page('home')
 
     load_page()

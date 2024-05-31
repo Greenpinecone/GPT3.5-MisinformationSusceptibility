@@ -1,14 +1,13 @@
 # Import necessary modules and packages
-from datetime import timedelta
 from io import BytesIO
 import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly as pl
+from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from backend.util.logger import StreamlitLogger
-from backend.util import utility_functions as uf
+from backend.util import utility_functions as backend_uf
 from backend.util.config import UPLOAD_FORMAT_FORMATTINGS
-from backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from backend.dtos.get_request import *
 from backend.dtos.response import *
 from backend.dtos.create_request import *
@@ -18,8 +17,12 @@ from frontend.classes.dataset_editor import DatasetEditor
 from frontend.classes.dataset_service import DatasetService
 from frontend.classes.paginator import Paginator
 from frontend.classes.toast_manager import ToastManager
+from frontend.custom_styles.global_styles import apply_global_style
+from frontend.classes.query_params_manager import QueryParamsManager
+from frontend.classes.page_navigator import PageNavigator
+from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
 
-# Initialize the logger
+apply_global_style()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 
@@ -28,7 +31,8 @@ def load_choose_file_format_form(dataset_editor: DatasetEditor, uploaded_dataset
     """Loads the form to choose file format for the uploaded dataset."""
     create_formatting_examples_tabs()
     options = [company for company in FineTuningCompany]
-    index = uf.find_index_in_list(options, dataset_editor.chosen_company) or 0
+    index = backend_uf.find_index_in_list(
+        options, dataset_editor.chosen_company) or 0
 
     formatting_cols = st.columns(3)
 
@@ -48,7 +52,8 @@ def load_choose_file_format_form(dataset_editor: DatasetEditor, uploaded_dataset
 
     options = FineTuningModelVersions[chosen_company.value].value if chosen_company else [
     ]
-    index = uf.find_index_in_list(options, dataset_editor.chosen_model) or 0
+    index = backend_uf.find_index_in_list(
+        options, dataset_editor.chosen_model) or 0
 
     # Select box for choosing company model
     with formatting_cols[1]:
@@ -66,7 +71,7 @@ def load_choose_file_format_form(dataset_editor: DatasetEditor, uploaded_dataset
 
     options = UploadFormats[chosen_company.value].value[chosen_model] if chosen_model else [
     ]
-    index = uf.find_index_in_list(
+    index = backend_uf.find_index_in_list(
         options, dataset_editor.chosen_file_format) or 0
 
     # Select box for choosing upload file format
@@ -84,10 +89,12 @@ def load_choose_file_format_form(dataset_editor: DatasetEditor, uploaded_dataset
             "chosen_file_format", chosen_file_format, all_dataset_editors)
 
     # Select box for choosing dataset category
+    options = [dataset_category for dataset_category in DatasetCategory]
+    index = 0
     selected_dataset: DatasetCategory = st.selectbox(
         label=" ",
-        options=[dataset_category for dataset_category in DatasetCategory],
-        index=0, format_func=lambda x: x.value,
+        options=options,
+        index=index, format_func=lambda x: x.value,
         key="dataset_category_selectbox", help="Select the dataset category the dataset falls into.",
         placeholder="Choose the dataset type", label_visibility="visible"
     )
@@ -127,37 +134,34 @@ def load_dataset_input_form():
 
 
 with logger:
-    # Apply global style
-    uf.apply_global_style()
-    # Initialize global states for the service and config
-    service, config = uf.get_or_create_session_state("service", default_value=ServiceManagerFacade(
-    )), uf.get_or_create_session_state("config", default_value=Config())
 
     ToastManager.show_global_toasts()
-
-    # TODO: Add back in
-    # uf.set_query_params_from_session(
-    #     {"projectId": ["current_project", "id"]}, config)
+    PageNavigator.set_navbar(
+        "Go back", "create_model", "Return to the previous page")
+    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
+    current_project: ProjectDTO = GlobalAppStateManager.get_current_project()
+    QueryParamsManager.set_query_params_from_page(
+        "create_dataset")  # TODO: Comment in!
 
     # Shares used categories among all used datasets
     shared_category_tracker = []
     # Initialize DatasetEditor for training and test datasets with corresponding paginator
-    trainings_dataset_paginator = uf.get_or_create_session_state(
+    trainings_dataset_paginator = GlobalAppStateManager.get_or_create_session_state(
         "trainings_dataset_paginator", default_value=Paginator
     )
-    training_dataset_editor: DatasetEditor = uf.get_or_create_session_state(
+    training_dataset_editor: DatasetEditor = GlobalAppStateManager.get_or_create_session_state(
         "training_dataset_editor", DatasetCategory.training, DataFrameEditor, trainings_dataset_paginator, shared_category_tracker, default_value=DatasetEditor
     )
-    test_dataset_paginator = uf.get_or_create_session_state(
+    test_dataset_paginator = GlobalAppStateManager.get_or_create_session_state(
         "trainings_dataset_paginator", default_value=Paginator
     )
-    test_dataset_editor: DatasetEditor = uf.get_or_create_session_state(
+    test_dataset_editor: DatasetEditor = GlobalAppStateManager.get_or_create_session_state(
         "test_dataset_editor", DatasetCategory.test, DataFrameEditor, test_dataset_paginator, shared_category_tracker, default_value=DatasetEditor
     )
 
     # Determine the current dataset editor based on the chosen upload dataset type
-    dataset_editor = training_dataset_editor if st.session_state.get(
-        "dataset_category_selectbox") == DatasetCategory.training else test_dataset_editor
+    dataset_editor = training_dataset_editor if GlobalAppStateManager.get_or_create_session_state(
+        "dataset_category_selectbox", default_value=DatasetCategory.training) == DatasetCategory.training else test_dataset_editor
     all_dataset_editors = [training_dataset_editor, test_dataset_editor]
 
     def load_page(dataset_editor: DatasetEditor, all_dataset_editors: list[DatasetEditor]):
@@ -230,6 +234,9 @@ with logger:
             )
             if submit_button:  # TODO: Set project id to session states current project.id
                 DatasetService.process_and_create_dataset(
-                    all_dataset_editors, st.session_state.globalize_dataset_checkbox, st.session_state.dataset_name_input, 1, service)
+                    all_dataset_editors, GlobalAppStateManager.get_or_create_session_state("globalize_dataset_checkbox", None), GlobalAppStateManager.get_or_create_session_state("dataset_name_input", None), current_project.id, service)
+                ToastManager.add_global_toasts(
+                    "Dataset has been successfully created.", "success")
+                PageNavigator.navigate_to_page("create_model")
 
     load_page(dataset_editor, all_dataset_editors)
