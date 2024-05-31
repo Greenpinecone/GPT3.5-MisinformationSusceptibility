@@ -6,7 +6,7 @@ from uuid import uuid4
 
 
 class Paginator:
-    def __init__(self, items_per_page: int = 50):
+    def __init__(self, items_per_page: int = 50) -> None:
         self.items_per_page = items_per_page
         self.current_page = 1
 
@@ -15,7 +15,7 @@ class Paginator:
         end_index = start_index + self.items_per_page
         return items[start_index:end_index]
 
-    def create_pagination_buttons(self, pagination_buttons_container: DeltaGenerator, items: list[Any]):
+    def create_pagination_buttons(self, pagination_buttons_container: DeltaGenerator, items: list[Any]) -> None:
         num_items = len(items)
         total_pages = math.ceil(num_items / self.items_per_page)
         buttons_per_row = 10
@@ -26,6 +26,10 @@ class Paginator:
                 cols = st.columns(buttons_per_row)
                 for page_num, col in zip(range(row_start, row_end), cols):
                     with col:
-                        if st.button(label=str(page_num), key=f"page_{page_num}_{uuid4()}"):
-                            self.current_page = page_num
-                            st.experimental_rerun()
+                        st.button(label=str(page_num), key=f"""page_{page_num}_{
+                                  uuid4()}""", on_click=lambda page=page_num: self.set_page_num(page))
+
+    def set_page_num(self, page_num: int):
+        self.current_page = page_num
+        print(self.current_page)
+        print("HALLO")
