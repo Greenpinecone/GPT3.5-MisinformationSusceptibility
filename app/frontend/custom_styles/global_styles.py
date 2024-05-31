@@ -1,7 +1,7 @@
 import streamlit as st
 
 
-def apply_global_style():
+def apply_global_style() -> None:
     st.markdown("""
     <style>
     /* General styles for all widgets inside #root */
