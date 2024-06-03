@@ -138,3 +138,17 @@ class ServiceManagerFacade(IServiceManager):
                 session, trainings_datapoint_dtos)
 
             return [self._mapper.map_dataset_to_dto(session, trainings_dataset)]
+
+    def get_dataset_by_id(self, id: int) -> list[DatasetDTO]:
+        with self._data_manager.get_session() as session:
+            dataset: Dataset = self._data_manager.get_dataset_by_id(
+                session, id)[0]
+            return [self._mapper.map_dataset_to_dto(session, dataset)]
+
+    def create_model(self, create_model_dto: CreateModelDTO) -> ModelDTO:
+        with self._data_manager.get_session() as session:
+            self._validator.validate_create_models(
+                session, self._data_manager, [create_model_dto])
+            model: Model = self._data_manager.create_models(
+                session, [create_model_dto])[0]
+            return [self._mapper.map_model_to_dto(session, model)]
