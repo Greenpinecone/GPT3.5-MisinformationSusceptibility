@@ -49,7 +49,6 @@ class FileUploader:
         # TODO: Make the following code dynamic
         if chosen_company.value == "openai" and (chosen_model == "gpt-3.5-turbo" or chosen_model == "gpt-4") and chosen_file_format == "jsonl":
             for file_buffer in uploaded_files:
-                # file_buffer = file
                 file_text = file_buffer.decode(
                     "utf-8").splitlines()  # Decode and split lines
                 if cls.validate_jsonl(file_text):
@@ -64,12 +63,11 @@ class FileUploader:
         if messages:
             return pd.DataFrame([
                 {"role": msg["role"],
-                 "content": msg["content"], "category": ""}
+                 "content": msg["content"]}
                 for msg in messages
             ])
         else:  # default for creating a new datapoint
             return pd.DataFrame({
                 "role": [default_role or ""],
-                "content": [""],
-                "category": [""]
+                "content": [""]
             })

@@ -55,4 +55,3 @@ class GetDatapointsByDatasetIdDTO:
     relevance_score: int | None = None
     semantic_similarity: float | None = None
     augmentation_type: AugmentationType | None = None
-    category: str | None = None

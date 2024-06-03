@@ -41,7 +41,6 @@ class DatasetDTO:
 class DataPointDTO:
     id: int
     messages: MessagesContainer
-    category: str
     dataset_id: int
     related_datapoints: list['DataPointDTO']
     created_at: datetime = datetime.now(

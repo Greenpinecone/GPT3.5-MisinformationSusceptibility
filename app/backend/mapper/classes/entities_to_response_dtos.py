@@ -104,7 +104,6 @@ class DataPointSchema(BaseSchema):
     augmentation_type = CustomEnumConversionSchema(AugmentationType)
     created_at = FlexibleDateTimeField()
     messages = auto_field()
-    category = auto_field()
     initial_datapoint_id = auto_field()
 
     # Use a lambda to defer self-referencing

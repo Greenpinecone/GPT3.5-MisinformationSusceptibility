@@ -24,10 +24,6 @@ class DatasetService:
             # Remove all datapoints without rows
             cls.remove_empty_datapoints(
                 dataset_editor.datapoints)
-            # Update categories column if not a training dataset, since the user could have submitted before reloading the test datset after changes in the training dataset.
-            if dataset_editor.dataset_category == DatasetCategory.test:
-                cls.update_test_dataset_categories(
-                    dataset_editor)
 
             datapoint_dtos = ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO(
                 many=True).dump(dataset_editor.datapoints)
@@ -58,12 +54,6 @@ class DatasetService:
     def submit_all_datasets_and_datapoints(dataset_dtos: list[CreateDatasetDTO], datapoint_dtos: list[list[CreateDataPointDTO]], service: ServiceManagerFacade) -> DatasetDTO:
         return service.create_dataset_with_datapoints(
             dataset_dtos[0], datapoint_dtos[0], dataset_dtos[1], datapoint_dtos[1])
-
-    @staticmethod
-    def update_test_dataset_categories(dataset_editor: DatasetEditor) -> None:
-        for datapoint in dataset_editor.datapoints:
-            dataset_editor.dataframe_editor.set_default_category_if_not_in_list(
-                datapoint.messages, dataset_editor.shared_category_tracker)
 
     def update_dataset_editor_if_changed(attr: str, new_value: Any, all_dataset_editors: list[DatasetEditor]) -> bool:
         changed = False

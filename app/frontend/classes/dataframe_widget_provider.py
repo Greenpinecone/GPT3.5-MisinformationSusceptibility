@@ -5,7 +5,7 @@ from app.backend.database.schema import DatasetCategory, FineTuningCompany, Mess
 from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
 
 
-# Retruns different kinds of data_editors and dataframes
+# Returns different kinds of data_editors and dataframes
 class DataFrameWidgetProvider:
 
     @staticmethod
@@ -21,8 +21,7 @@ class DataFrameWidgetProvider:
                     default=default_role,
                     width="small"
                 ),
-                "content": st.column_config.TextColumn("Content", help="Set the content for the current role", default=""),
-                "category": st.column_config.TextColumn("Category", help="You can only set one category per datapoint", default=""),
+                "content": st.column_config.TextColumn("Content", help="Set the content for the current role", default="", width="large"),
             },
             hide_index=True,
             use_container_width=True,
@@ -34,7 +33,7 @@ class DataFrameWidgetProvider:
         )
 
     @staticmethod
-    def create_test_data_editor_widget(simple_datapoint_dto: DataPointDTOWithDataFrameWrapper, chosen_company: FineTuningCompany, default_role: str, dataframe_editor: DataFrameEditor, used_categories: list[str]):
+    def create_test_data_editor_widget(simple_datapoint_dto: DataPointDTOWithDataFrameWrapper, chosen_company: FineTuningCompany, default_role: str, dataframe_editor: DataFrameEditor):
         st.data_editor(
             simple_datapoint_dto.messages,
             column_config={
@@ -46,13 +45,7 @@ class DataFrameWidgetProvider:
                     default=default_role,
                     width="small"
                 ),
-                "content": st.column_config.TextColumn("Content", help="Set the content for the current role", default=""),
-                "category": st.column_config.SelectboxColumn(
-                    "Category",
-                    help="The category the test datapoint belongs to from the trainings dataset",
-                    options=set(sorted(used_categories)),
-                    default=None,
-                ),
+                "content": st.column_config.TextColumn("Content", help="Set the content for the current role", default="", width="large"),
             },
             hide_index=True,
             use_container_width=True,

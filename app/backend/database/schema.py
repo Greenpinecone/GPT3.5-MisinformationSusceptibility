@@ -153,8 +153,6 @@ class DataPoint(Base):
     # Add a column for storing messages in JSON format
     messages = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=func.now())
-    # The category the datapoint belongs to in the dataset
-    category = Column(String, nullable=False)
     # Reference to the initial datapoint
     initial_datapoint_id = Column(
         # The initial dataset
