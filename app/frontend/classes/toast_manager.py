@@ -24,7 +24,7 @@ class ToastManager:
         """Show all toasts from the global state."""
         if GLOBAL_SESSION_STATE_KEYS['GLOBAL_TOASTS_KEY'] in st.session_state and st.session_state[GLOBAL_SESSION_STATE_KEYS['GLOBAL_TOASTS_KEY']]:
             for toast in st.session_state[GLOBAL_SESSION_STATE_KEYS['GLOBAL_TOASTS_KEY']]:
-                st.toast(body=toast.message, icon=toast.icon)
+                st.toast(toast.message, icon=toast.icon)
             # Clear toasts after showing
             st.session_state[GLOBAL_SESSION_STATE_KEYS['GLOBAL_TOASTS_KEY']].clear()
 
@@ -32,7 +32,7 @@ class ToastManager:
     def show_toast(cls, message: str, message_type: str = 'info') -> None:
         """Show a toast."""
         icon = cls.get_icon_for_message_type(message_type)
-        st.toast(message, icon)
+        st.toast(message, icon=icon)
 
     @staticmethod
     def get_icon_for_message_type(message_type: str) -> str:
