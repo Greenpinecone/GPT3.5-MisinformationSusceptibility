@@ -14,6 +14,7 @@ from frontend.custom_styles.global_styles import apply_global_style
 from frontend.classes.query_params_manager import QueryParamsManager
 from frontend.classes.page_navigator import PageNavigator
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
+from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
 
 apply_global_style()
 errors_container = st.container()
@@ -36,7 +37,7 @@ with logger:
             GetModelsDTO(project_id=current_project.id))
 
         selected_model = st.selectbox("Select one of the existing models assigned to this project",
-                                      key="model_seelctor", options=models, index=None, placeholder="Choose a base model to train" if models else "No options available", label_visibility="hidden" if models else "visible")
+                                      key="model_seelctor", options=models, index=None, placeholder="Choose a base model to train" if models else "No options available", label_visibility="hidden" if models else "visible", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["MODELDTO_SIMPLE"]))
 
         frontend_uf.create_text_divider("or")
 

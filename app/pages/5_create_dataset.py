@@ -141,7 +141,7 @@ with logger:
     service: ServiceManagerFacade = GlobalAppStateManager.get_service()
     current_project: ProjectDTO = GlobalAppStateManager.get_current_project()
     QueryParamsManager.set_query_params_from_page(
-        "create_dataset")  # TODO: Comment in!
+        "create_dataset")
 
     # Shares used categories among all used datasets
     shared_category_tracker = []
@@ -233,10 +233,12 @@ with logger:
                 disabled=not all_dataset_editors[0].datapoints
             )
             if submit_button:  # TODO: Set project id to session states current project.id
-                DatasetService.process_and_create_dataset(
+                saved_dataset_dto: DatasetDTO = DatasetService.process_and_create_dataset(
                     all_dataset_editors, GlobalAppStateManager.get_or_create_session_state("globalize_dataset_checkbox", None), GlobalAppStateManager.get_or_create_session_state("dataset_name_input", None), current_project.id, service)
-                ToastManager.add_global_toasts(
-                    "Dataset has been successfully created.", "success")
-                PageNavigator.navigate_to_page("create_model")
+                if saved_dataset_dto:
+                    GlobalAppStateManager.clear_session_state_except()
+                    ToastManager.add_global_toasts(
+                        "Dataset has been successfully created.", "success")
+                    PageNavigator.navigate_to_page("create_model")
 
     load_page(dataset_editor, all_dataset_editors)
