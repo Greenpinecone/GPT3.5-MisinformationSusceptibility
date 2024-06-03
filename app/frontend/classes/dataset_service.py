@@ -1,5 +1,6 @@
 from typing import Any
 import streamlit as st
+from app.backend.dtos.response import DatasetDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
 from frontend.classes.dataset_editor import DatasetEditor
@@ -11,7 +12,7 @@ from frontend.classes.toast_manager import ToastManager
 
 class DatasetService:
     @classmethod
-    def process_and_create_dataset(cls, all_dataset_editors: list[DatasetEditor], is_global: bool, dataset_name: str, project_id: int, service: ServiceManagerFacade) -> None:
+    def process_and_create_dataset(cls, all_dataset_editors: list[DatasetEditor], is_global: bool, dataset_name: str, project_id: int, service: ServiceManagerFacade) -> list[DatasetDTO] | None:
         if not dataset_name:
             ToastManager.show_toast("Dataset name is required.", "info")
             return
@@ -36,7 +37,7 @@ class DatasetService:
             all_dataset_dtos.append(dataset_dto)
             all_datapoint_dtos.append(datapoint_dtos)
 
-        cls.submit_all_datasets_and_datapoints(
+        return cls.submit_all_datasets_and_datapoints(
             all_dataset_dtos, all_datapoint_dtos, service)
 
     @staticmethod
@@ -54,12 +55,12 @@ class DatasetService:
         )
 
     @staticmethod
-    def submit_all_datasets_and_datapoints(dataset_dtos: list[CreateDatasetDTO], datapoint_dtos: list[list[CreateDataPointDTO]], service: ServiceManagerFacade):
-        service.create_dataset_with_datapoints(
+    def submit_all_datasets_and_datapoints(dataset_dtos: list[CreateDatasetDTO], datapoint_dtos: list[list[CreateDataPointDTO]], service: ServiceManagerFacade) -> DatasetDTO:
+        return service.create_dataset_with_datapoints(
             dataset_dtos[0], datapoint_dtos[0], dataset_dtos[1], datapoint_dtos[1])
 
     @staticmethod
-    def update_test_dataset_categories(dataset_editor: DatasetEditor):
+    def update_test_dataset_categories(dataset_editor: DatasetEditor) -> None:
         for datapoint in dataset_editor.datapoints:
             dataset_editor.dataframe_editor.set_default_category_if_not_in_list(
                 datapoint.messages, dataset_editor.shared_category_tracker)
