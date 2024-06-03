@@ -500,11 +500,11 @@ class CreateModelSchema(Schema):
             'invalid': 'Each project ID must exist and be greater than 0.'
         }
     )
-    dataset_ids = fields.List(
-        fields.Int(validate=lambda n: n > 0),
+    training_dataset_id = fields.Int(
+        validate=lambda n: n > 0,
         required=True,
         error_messages={
-            'invalid': 'All dataset IDs must be greater than 0.'
+            'invalid': 'Training dataset ID must be greater than 0.'
         }
     )
     training_run_id = fields.Int(
@@ -528,6 +528,9 @@ class CreateModelSchema(Schema):
                                           error_messages={
                                               'invalid': 'Full fine tuned model name must be of type string'
                                           })
+    fine_tuning_model = fields.Str(allow_none=True, validate=lambda s: len(s) > 0,  error_messages={
+        'invalid': 'Fine tuning model name must be of type string'
+    })
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -560,19 +563,15 @@ class CreateModelSchema(Schema):
             raise ValidationError(f"""Projects with IDs {
                 missing_projects} do not exist.""")
 
-    @validates('dataset_ids')
-    def validate_datasets_exist(self, dataset_ids: list[int]):
+    @validates('training_dataset_id')
+    def validate_datasets_exist(self, dataset_id: int):
 
-        missing_datasets = []
-        for dataset_id in dataset_ids:
-            try:
-                self.data_manager.get_dataset_by_id(
-                    self.session, dataset_id)[0]
-            except NoResultFound:
-                missing_datasets.append(dataset_id)
-        if missing_datasets:
-            raise ValidationError(f"""Datasets with IDs {
-                missing_datasets} do not exist.""")
+        try:
+            self.data_manager.get_dataset_by_id(
+                self.session, dataset_id)[0]
+        except NoResultFound:
+            raise ValidationError(f"""Dataset with ID {
+                dataset_id} does not exist.""")
 
     @validates('training_run_id')
     def validate_training_run_exists(self, training_run_id: int):
@@ -584,6 +583,17 @@ class CreateModelSchema(Schema):
             except NoResultFound:
                 raise ValidationError(f"""Training run with ID {
                     training_run_id} does not exist.""")
+
+    @validates('fine_tuning_model')
+    def validate_fine_tuning_model(self, value: str):
+        if value:
+            valid_models = []
+            for version_list in FineTuningModelVersions:
+                valid_models.extend(version_list.value)
+
+            if value not in valid_models:
+                raise ValidationError(
+                    f"The model version must be one of {valid_models}")
 
     @post_load
     def make_create_model_dto(self, data, **kwargs):
@@ -772,8 +782,12 @@ class GetModelsSchema(Schema):
                                }
                                )
 
-    fine_tuning_model = fields.Str(allow_none=True,  error_messages={
+    fine_tuning_model = fields.Str(allow_none=True, validate=lambda n: len(n) > 0, error_messages={
         'invalid': 'Fine tuning model must be of type string.'
+    })
+
+    exlude_project_id = fields.Int(allow_none=True, validate=lambda n: n > 0, rror_messages={
+        'invalid': 'Excluded project id must be > 0.'
     })
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
@@ -783,7 +797,16 @@ class GetModelsSchema(Schema):
 
     @validates('project_id')
     def validate_project_exists(self, project_id: int):
+        if project_id:
+            try:
+                self.data_manager.get_project_by_id(
+                    self.session, project_id)[0]
+            except NoResultFound:
+                raise ValidationError(
+                    f"Project with ID {project_id} does not exist.")
 
+    @validates('exlude_project_id')
+    def validate_project_exists(self, project_id: int):
         if project_id:
             try:
                 self.data_manager.get_project_by_id(
@@ -840,6 +863,9 @@ class GetDatasetsSchema(Schema):
                                    'invalid': 'Is_global must be either True or False.'
                                }
                                )
+    exlude_project_id = fields.Int(allow_none=True, validate=lambda n: n > 0, rror_messages={
+        'invalid': 'Excluded project id must be > 0.'
+    })
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -848,7 +874,16 @@ class GetDatasetsSchema(Schema):
 
     @validates('project_id')
     def validate_project_exists(self, project_id: int):
+        if project_id:
+            try:
+                self.data_manager.get_project_by_id(
+                    self.session, project_id)[0]
+            except NoResultFound:
+                raise ValidationError(
+                    f"Project with ID {project_id} does not exist.")
 
+    @validates('exlude_project_id')
+    def validate_project_exists(self, project_id: int):
         if project_id:
             try:
                 self.data_manager.get_project_by_id(

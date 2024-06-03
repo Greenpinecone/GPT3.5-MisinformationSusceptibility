@@ -17,6 +17,7 @@ class GetModelsDTO:
     project_id: int | None = None
     is_global: bool | None = None
     fine_tuning_model: str | None = None
+    exlude_project_id: int | None = None
 
 
 @dataclass
@@ -27,6 +28,7 @@ class GetDatasetsDTO:
     initial_dataset_id: int | None = None
     project_id: int | None = None
     is_global: bool | None = None
+    exlude_project_id: int | None = None
 
 
 @dataclass

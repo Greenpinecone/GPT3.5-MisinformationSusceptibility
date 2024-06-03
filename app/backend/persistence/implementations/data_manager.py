@@ -292,16 +292,17 @@ class DataManager(IDataManager):
 
                 model.model_name = model_dto.model_name
                 model.is_global = model_dto.is_global
+                model.training_dataset_id = model_dto.training_dataset_id
+
+                # Associate datasets - must not be explicitly set via orm since the relation is automatically established on flush on a one to one relation. TODO: Check this.
+                # dataset = session.get(
+                #     DataPoint, model_dto.training_dataset_id)
+                # model.training_dataset = dataset
 
                 # Setting related projects
                 projects = session.query(Project).filter(
                     Project.id.in_(model_dto.project_ids)).all()
                 model.projects = projects
-
-                # Associate datasets
-                datasets = session.query(Dataset).filter(
-                    Dataset.id.in_(model_dto.dataset_ids)).all()
-                model.datasets = datasets
 
                 if model_dto.fine_tuning_model:
                     model.fine_tuning_model = model_dto.fine_tuning_model
@@ -511,6 +512,7 @@ class DataManager(IDataManager):
             project_id: int = model_data.project_id
             is_global: bool = model_data.is_global
             fine_tuning_model: str = model_data.fine_tuning_model
+            excluded_project_id: int = model_data.exlude_project_id
 
             if model_name:
                 query = query.filter(
@@ -536,6 +538,15 @@ class DataManager(IDataManager):
                     Model.fine_tuning_model == fine_tuning_model)
 
             models: list[Model] = query.all()
+
+            # Apply additional filtering based on excluded_project_id
+            # Only returns models that do not directly belong to the excluded project id (meaning, the first project in their projects list (the one added when they were created) is not equal to the excluded project)
+            if excluded_project_id is not None:
+                models = [
+                    model for model in models
+                    if model.projects[0].id != excluded_project_id
+                ]
+
             return models
         except SQLAlchemyError as e:
             logger.exception("Failed to retrieve models")
@@ -551,6 +562,7 @@ class DataManager(IDataManager):
             initial_dataset_id: int = dataset_data.initial_dataset_id
             project_id: int = dataset_data.project_id
             is_global: bool = dataset_data.is_global
+            excluded_project_id: int = dataset_data.exlude_project_id
 
             if dataset_name:
                 query = query.filter(
@@ -573,6 +585,15 @@ class DataManager(IDataManager):
                     Dataset.is_global == is_global)
 
             datasets: list[Dataset] = query.all()
+
+            # Apply additional filtering based on excluded_project_id
+            # Only returns models that do not directly belong to the excluded project id (meaning, the first project in their projects list (the one added when they were created) is not equal to the excluded project)
+            if excluded_project_id is not None:
+                datasets = [
+                    dataset for dataset in datasets
+                    if dataset.projects[0].id != excluded_project_id
+                ]
+
             return datasets
         except SQLAlchemyError as e:
             logger.exception("Failed to retrieve datasets")

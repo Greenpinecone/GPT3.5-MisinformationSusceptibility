@@ -59,7 +59,6 @@ class ProjectSchema(BaseSchema):
 
     @post_dump
     def make_project_dto(self, data, **kwargs):
-        print(data)
         return ProjectDTO(**data)
 
 
@@ -78,6 +77,8 @@ class DatasetSchema(BaseSchema):
     fine_tuning_model = auto_field()
     fine_tuning_formatting = auto_field()
     is_global = auto_field()
+    model_id = fields.Function(
+        serialize=lambda obj: obj.model.id if obj.model else None)
     project_ids = fields.Function(
         serialize=lambda obj: [project.id for project in obj.projects])
     datapoint_ids = fields.Function(
@@ -136,8 +137,7 @@ class ModelSchema(BaseSchema):
         serialize=lambda obj: [project.id for project in obj.projects])
     fine_tuning_model = auto_field()
     full_fine_tuned_model_id = auto_field()
-    dataset_ids = fields.Function(
-        serialize=lambda obj: [dataset.id for dataset in obj.datasets])
+    training_dataset_id = auto_field()
     training_run_id = fields.Function(
         serialize=lambda obj: obj.training_run.id if obj.training_run else None)
 

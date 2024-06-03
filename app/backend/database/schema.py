@@ -48,11 +48,6 @@ class UploadFormats(enum.Enum):
 
 Base = declarative_base()
 
-model_dataset_link = Table(
-    'model_dataset_link', Base.metadata,
-    Column('model_id', Integer, ForeignKey('models.id'), primary_key=True),
-    Column('dataset_id', Integer, ForeignKey('datasets.id'), primary_key=True)
-)
 project_dataset_link = Table(
     'project_dataset_link', Base.metadata,
     Column('project_id', Integer, ForeignKey('projects.id'), primary_key=True),
@@ -121,15 +116,19 @@ class Dataset(Base):
     # Relationship to the initial dataset from which this dataset was augmented (if any)
     initial_dataset = relationship("Dataset", remote_side=[id],
                                    foreign_keys=[initial_dataset_id],
-                                   backref="augmented_datasets")
+                                   backref="augmented_datasets", uselist=False)
 
     # Relationship to the test dataset associated with this dataset
     test_dataset = relationship("Dataset", remote_side=[id],
                                 foreign_keys=[test_dataset_id],
-                                backref="training_datasets")  # Assuming each dataset has exactly one test dataset
+                                # Assuming each dataset has exactly one test dataset
+                                backref="training_datasets", uselist=False)
 
     datapoints = relationship(
         "DataPoint", order_by="DataPoint.id", back_populates="dataset")
+
+    model = relationship(
+        "Model", back_populates="training_dataset", uselist=False)
 
     __table_args__ = (
         UniqueConstraint('dataset_name', 'category',
@@ -162,7 +161,7 @@ class DataPoint(Base):
         Integer, ForeignKey('datapoints.id'), nullable=True)
     # Orm relationship for initial_datapoint
     initial_datapoint = relationship("DataPoint", remote_side=[
-                                     id], backref="derived_datapoints")
+                                     id], backref="derived_datapoints", uselist=False)
     # Self-referencing many-to-many relationship for related datapoints
     related_datapoints = relationship(
         "DataPoint",
@@ -172,7 +171,8 @@ class DataPoint(Base):
         backref="related_by"
     )
     # Bidirectional relationship (many DataPoints belong to one Dataset)
-    dataset = relationship("Dataset", back_populates="datapoints")
+    dataset = relationship(
+        "Dataset", back_populates="datapoints", uselist=False)
 
 
 # A model can be trained with multiple different datasets. It has a name. If you save a model with an already existing name, the version is incremented. It has a parent model id - this is relevant if you use an already trained model as base model. Evaluations points to the ModelEvaluations table, holding additional evaluation information of the model. Datasets is a one to many relationship to the datasets the model has been trained with. Training Runs points to additional information regarding the openai training run information.
@@ -193,25 +193,28 @@ class Model(Base):
     is_checkpoint_model = Column(Boolean)
     # At which checkpoint step was the checkpoint model created
     checkpoint_step = Column(Integer)
+
+    # References the training dataset which again references the test dataset
+    training_dataset_id = Column(Integer, ForeignKey('datasets.id'),
+                                 nullable=False, unique=True)  # ForeignKey pointing to Dataset
+    training_dataset = relationship(
+        "Dataset", back_populates="model", uselist=False)
+
     # Many-to-many relationship to projects
     projects = relationship(
         "Project",
         secondary=project_model_link,
         back_populates="models"
     )
-    # References both the current training datasets + the current test dataset. One way Model -> Datasets.
-    datasets = relationship(
-        'Dataset', secondary=model_dataset_link)
     # Correctly setup for multiple training runs per model
     training_run = relationship(
         "TrainingRun", back_populates="model", uselist=False)
     # Orm relationship for initial_datapoint
     parent_model = relationship("Model", remote_side=[
-        id], backref="child_models")
+        id], backref="child_models", uselist=False)
+
 
 # This table holds information regarding the evaluation of a model against its trainingsdataset(s). The model id points to the model this information belongs to. The evaluation type can be one of four values for the confusion matrix. And the helpful_score, honest_score and harmless_score is for saving the HHH criteria related data for each datapoint for later calculating the results and also reevaluating the previous evaluation. The datapoint id saves the reference to the original datapoint that was evaluated.
-
-
 class ModelEvaluation(Base):
     __tablename__ = 'model_evaluations'
     id = Column(Integer, primary_key=True)
@@ -223,9 +226,9 @@ class ModelEvaluation(Base):
     harmless_score = Column(Integer, nullable=False)  # 1-10
     created_at = Column(DateTime, default=func.now())
     # One-to-many relationship from ModelEvaluation to its DataPoint
-    datapoint = relationship("DataPoint")
+    datapoint = relationship("DataPoint", uselist=False)
     # One-to-many relationship from ModelEvaluation to the model the datapoint belongs to
-    model = relationship("Model")
+    model = relationship("Model", uselist=False)
 
     # Apply a table-level constraint
     __table_args__ = (
