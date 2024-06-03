@@ -57,8 +57,7 @@ class GlobalAppStateManager:
 
     @staticmethod
     def get_or_create_session_state(key: str, *args: Any, default_value: Any | Callable[..., Any] = None, **kwargs: Any) -> Any:
-        print(st.session_state.get(key), key)
-        if st.session_state.get(key) is not False and not st.session_state.get(key):
+        if not key in st.session_state:
             if callable(default_value):
                 st.session_state[key] = default_value(*args, **kwargs)
             else:
