@@ -12,6 +12,8 @@ from backend.dtos.response import *
 from backend.database.schema import DatasetCategory
 from backend.dtos.create_request import *
 from frontend.custom_styles.global_styles import apply_global_style
+from frontend.util import utility_functions as frontend_uf
+from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
 
 apply_global_style()
 errors_container = st.container()
@@ -27,38 +29,48 @@ with logger:
     def load_page():
         st.title("Create Project")
 
+        # Get all goobal datasets and models.
         models: list[ModelDTO] = service.filter_models(
             GetModelsDTO(is_global=True))
-
         datasets: list[DatasetDTO] = service.filter_datasets(
             GetDatasetsDTO(category=DatasetCategory.training, is_global=True))
 
-        project_form = st.form(
-            key="create_project_form", clear_on_submit=True)
+        form_container = st.container(border=True)
 
-        with project_form:
-            project_name: str = st.text_input(label="Project Name",
-                                              label_visibility="hidden", key="project_name_input", value=None, placeholder="Your project name...", max_chars=255)
-            project_description: str = st.text_area(label="Project Description",
-                                                    label_visibility="hidden", key="project_description_input",  value=None, placeholder="Your project description...", max_chars=4000)
+        with form_container:
+            @st.experimental_fragment
+            def form_fragment():
+                project_name: str = st.text_input(label="Project Name",
+                                                  label_visibility="hidden", key="project_name_input", value=None, placeholder="Your project name...", max_chars=255)
+                project_description: str = st.text_area(label="Project Description",
+                                                        label_visibility="hidden", key="project_description_input",  value=None, placeholder="Your project description...", max_chars=4000)
 
-            chosen_dataset_ids: list[int] = st.multiselect(
-                label="Select datasets to associate with this project", label_visibility="hidden" if datasets else "visible", key="dataset_multi_selector", placeholder="Choose datasets to associate with this project",
-                options=datasets)
+                chosen_datasets: list[DatasetDTO] = st.multiselect(
+                    label="Select datasets to associate with this project", label_visibility="hidden" if datasets else "visible", key="dataset_multi_selector", placeholder="Choose datasets to associate with this project",
+                    options=datasets, format_func=lambda dto: frontend_uf.display_dto(dto, formattings["DATASETDTO_SIMPLE"]))
 
-            chosen_model_ids: list[int] = st.multiselect(
-                label="Select models to associate with this project", label_visibility="hidden" if models else "visible", key="model_multi_selector", placeholder="Choose models to associate with this project",
-                options=models)
+                chosen_models: list[ModelDTO] = st.multiselect(
+                    label="Select models to associate with this project", label_visibility="hidden" if models else "visible", key="model_multi_selector", placeholder="Choose models to associate with this project",
+                    options=models, format_func=lambda dto: frontend_uf.display_dto(dto, formattings["MODELDTO_SIMPLE"]))
 
-            submitted = st.form_submit_button(
-                "Submit", help="Click me to submit the form", type="primary")
+                submitted = st.button(
+                    "Submit", help="Click me to submit the form", type="primary", disabled=not project_name)
 
-            if submitted:
-                project_to_save = CreateProjectDTO(
-                    project_name=project_name, description=project_description, model_ids=chosen_model_ids, dataset_ids=chosen_dataset_ids)
+                if submitted:
+                    chosen_model_ids = [model.id for model in chosen_models]
+                    chosen_dataset_ids = [
+                        dataset.id for dataset in chosen_datasets]
+                    project_to_save = CreateProjectDTO(
+                        project_name=project_name, description=project_description, model_ids=chosen_model_ids, dataset_ids=chosen_dataset_ids)
 
-                service.create_projects([project_to_save])
-                GlobalAppStateManager.clear_session_state_except()
-                PageNavigator.navigate_to_page('home')
+                    saved_project_dto: ProjectDTO = service.create_projects(
+                        [project_to_save])
+                    if saved_project_dto:
+                        GlobalAppStateManager.clear_session_state_except()
+                        ToastManager.add_global_toasts(
+                            "Successfully created project.", "success")
+                        PageNavigator.navigate_to_page('home')
+
+            form_fragment()
 
     load_page()

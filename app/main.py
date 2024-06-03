@@ -69,6 +69,7 @@ with logger:
             "Search projects created after this date:", value=None,  key="search_date", disabled=False if not sorted_projects else False, min_value=sorted_projects[-1].created_at if sorted_projects else None, max_value=sorted_projects[0].created_at if sorted_projects else None, label_visibility="hidden")
 
         if sorted_projects:
+            st.write(f"{len(projects)} projects found.")
             header_cols = st.columns((1, 2, 1))
             header_cols[0].header("Name")
             header_cols[1].header("Description")

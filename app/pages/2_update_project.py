@@ -14,6 +14,8 @@ from backend.database.schema import DatasetCategory
 from frontend.custom_styles.global_styles import apply_global_style
 from frontend.classes.query_params_manager import QueryParamsManager
 from frontend.classes.page_navigator import PageNavigator
+from frontend.util import utility_functions as frontend_uf
+from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
 
 apply_global_style()
 errors_container = st.container()
@@ -32,38 +34,56 @@ with logger:
 
         current_project: ProjectDTO = GlobalAppStateManager.get_current_project()
 
+        # Get all global datasets and models.
         models: list[ModelDTO] = service.filter_models(GetModelsDTO(
-            is_global=True))
-
+            is_global=True, exlude_project_id=current_project.id))
         datasets: list[DatasetDTO] = service.filter_datasets(
-            GetDatasetsDTO(category=DatasetCategory.training, is_global=True))
+            GetDatasetsDTO(category=DatasetCategory.training, is_global=True, exlude_project_id=current_project.id))
 
-        project_form = st.form(
-            key="create_project_form", clear_on_submit=True)
+        # Filter currently selected datasets and models.
+        currently_selected_datasets = list(
+            filter(lambda dataset: dataset.id in current_project.dataset_ids, datasets))
+        currently_selected_models = list(
+            filter(lambda model: model.id in current_project.model_ids, models))
 
-        with project_form:
-            project_name: str = st.text_input(label="Project Name",
-                                              label_visibility="hidden", key="project_name_input", value=current_project.project_name, placeholder="Your project name...", max_chars=255)
-            project_description: str = st.text_area(label="Project Description",
-                                                    label_visibility="hidden", key="project_description_input",  value=current_project.description, placeholder="Your project description...", max_chars=4000)
+        form_container = st.container(border=True)
 
-            chosen_dataset_ids: list[int] = st.multiselect(
-                label="Select datasets to associate with this project", label_visibility="hidden" if datasets else "visible", key="dataset_multi_selector", placeholder="Choose datasets to associate with this project", default=current_project.dataset_ids,
-                options=datasets)
+        with form_container:
+            @st.experimental_fragment
+            def form_fragment():
+                project_name: str = st.text_input(label="Project Name",
+                                                  label_visibility="hidden", key="project_name_input", value=current_project.project_name, placeholder="Your project name...", max_chars=255)
+                project_description: str = st.text_area(label="Project Description",
+                                                        label_visibility="hidden", key="project_description_input",  value=current_project.description, placeholder="Your project description...", max_chars=4000)
 
-            chosen_model_ids: list[int] = st.multiselect(
-                label="Select models to associate with this project", label_visibility="hidden" if models else "visible", key="model_multi_selector", placeholder="Choose models to associate with this project", default=current_project.model_ids,
-                options=models)
+                # Initially set the current_projects models and datasets if globally available, then use the current selection to not overwrite user selections.
+                chosen_datasets: list[DatasetDTO] = st.multiselect(
+                    label="Select datasets to associate with this project", label_visibility="hidden" if datasets else "visible", key="dataset_multi_selector", placeholder="Choose datasets to associate with this project", default=currently_selected_datasets, options=datasets, format_func=lambda dto: frontend_uf.display_dto(dto, formattings["DATASETDTO_SIMPLE"]))
 
-            submitted = st.form_submit_button(
-                "Submit", help="Click me to submit the form", type="primary")
+                chosen_models: list[ModelDTO] = st.multiselect(
+                    label="Select models to associate with this project", label_visibility="hidden" if models else "visible", key="model_multi_selector", placeholder="Choose models to associate with this project", default=currently_selected_models,
+                    options=models, format_func=lambda dto: frontend_uf.display_dto(dto, formattings["MODELDTO_SIMPLE"]))
 
-            if submitted:
-                updated_project = UpdateProjectDTO(id=current_project.id, project_name=project_name,
-                                                   description=project_description, model_ids=chosen_model_ids, dataset_ids=chosen_dataset_ids)
+                submitted = st.button(
+                    "Submit", help="Click me to submit the form", type="primary", disabled=not project_name)
 
-                service.udpate_projects([updated_project])
-                GlobalAppStateManager.clear_session_state_except()
-                PageNavigator.navigate_to_page('home')
+                if submitted:
+
+                    chosen_model_ids = [
+                        model.id for model in chosen_models]
+                    chosen_dataset_ids = [
+                        dataset.id for dataset in chosen_datasets]
+                    updated_project = UpdateProjectDTO(id=current_project.id, project_name=project_name,
+                                                       description=project_description, model_ids=chosen_model_ids, dataset_ids=chosen_dataset_ids)
+
+                    updated_project_dto: ProjectDTO = service.udpate_projects(
+                        [updated_project])
+                    if updated_project_dto:
+                        GlobalAppStateManager.clear_session_state_except()
+                        ToastManager.add_global_toasts(
+                            "Successfully updated project.", "success")
+                        PageNavigator.navigate_to_page('home')
+
+            form_fragment()
 
     load_page()
