@@ -3,6 +3,12 @@ This module centralizes configuration settings for the application, including
 any constants and global settings required across different modules that are not sensitive information.
 """
 
+DTO_LIST_FORMATTING_PRESETS = {
+    "DATASETDTO_SIMPLE": [
+        ("", "dataset_name"), ("Augmented", "augmented"), ("Global", "is_global")],
+    "MODELDTO_SIMPLE": [("", "model_name"), ("Version", "version"), ("Model", "fine_tuning_model"), ("Checkpoint Model", "is_checkpoint_model"), ("Checkpoint Step", "checkpoint_step"), ("Global", "is_global")]
+}
+
 
 GLOBAL_SESSION_STATE_KEYS = {
     'GLOBAL_STATES_KEY': 'global_states',
