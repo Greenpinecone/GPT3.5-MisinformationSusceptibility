@@ -20,11 +20,10 @@ from frontend.classes.toast_manager import ToastManager
 
 
 class DatasetEditor:
-    def __init__(self, dataset_category: DatasetCategory, dataframe_editor: DataFrameEditor, paginator: Paginator, shared_category_tracker: list[str], default_role: str | None = None, chosen_file_format: str | None = None, chosen_company: FineTuningCompany | None = None):
+    def __init__(self, dataset_category: DatasetCategory, dataframe_editor: DataFrameEditor, paginator: Paginator, default_role: str | None = None, chosen_file_format: str | None = None, chosen_company: FineTuningCompany | None = None):
         self.dataset_category = dataset_category
         self.dataframe_editor = dataframe_editor
         self.paginator = paginator
-        self.shared_category_tracker = shared_category_tracker
         self.default_role = default_role
         self.chosen_file_format = chosen_file_format
         self.chosen_company = chosen_company
@@ -108,10 +107,8 @@ class DatasetEditor:
             DataFrameWidgetProvider.create_training_data_editor_widget(
                 simple_datapoint_dto, self.chosen_company, self.default_role, self.dataframe_editor)
         else:
-            self.dataframe_editor.set_default_category_if_not_in_list(
-                simple_datapoint_dto.messages, self.shared_category_tracker)
             DataFrameWidgetProvider.create_test_data_editor_widget(
-                simple_datapoint_dto, self.chosen_company, self.default_role, self.dataframe_editor, self.shared_category_tracker)
+                simple_datapoint_dto, self.chosen_company, self.default_role, self.dataframe_editor)
 
     def delete_datapoint(self, datapoint_id: int) -> None:
         """Removes a datapoint from the session state and deletes its associated session keys."""
@@ -155,11 +152,9 @@ class DatasetEditor:
             self.paginator.current_page = 1
             self.add_all_datapoints(message_containers)
             self.display_paginated_datapoints(datapoints_container)
-            self.update_shared_category_tracker()
 
     def manage_datapoints_flow(self, uploaded_dataset_file: BytesIO, datapoints_container: DeltaGenerator) -> None:
         """Manages the flow of datapoints based on their current state and file changes."""
-        self.update_shared_category_tracker()
         if not self.datapoints and self.currently_uploaded_file != uploaded_dataset_file:
             self.handle_empty_datapoints(
                 uploaded_dataset_file, datapoints_container)
@@ -194,17 +189,4 @@ class DatasetEditor:
         self.file_uploader_key = uuid4()
         self.currently_uploaded_file = None
         self.clear_current_datapoints()
-        self.update_shared_category_tracker()
         st.rerun()
-
-    def update_shared_category_tracker(self):
-        """Updates the shared category tracker."""
-        if self.dataset_category == DatasetCategory.training:
-            self.shared_category_tracker.clear()
-            for datapoint in self.datapoints:
-                df = datapoint.messages
-                if df.shape[0] > 0:
-                    first_category = df['category'].iloc[0]
-                    if first_category and not first_category.isspace():
-                        self.shared_category_tracker.append(first_category)
-            print(f"Updated used categories: {self.shared_category_tracker}")

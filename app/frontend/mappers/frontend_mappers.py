@@ -6,9 +6,7 @@ from frontend.classes.dataframe_editor import DataFrameEditor
 # Takes a wrapper object and converts it to a datapoint dto
 class ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO(Schema):
     messages = fields.Function(
-        serialize=lambda obj: DataFrameEditor.convert_df_to_messages_container(obj.messages)[0])
-    category = fields.Function(
-        serialize=lambda obj: DataFrameEditor.convert_df_to_messages_container(obj.messages)[1])
+        serialize=lambda obj: DataFrameEditor.convert_df_to_messages_container(obj.messages))
     dataset_id = fields.Function(
         serialize=lambda obj: obj.datapoint_dto.dataset_id if obj.datapoint_dto else None)
     related_datapoint_ids = fields.Function(

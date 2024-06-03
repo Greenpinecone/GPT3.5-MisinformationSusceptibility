@@ -255,7 +255,6 @@ class DataManager(IDataManager):
 
                 # Assign attributes from DTO
                 datapoint.messages = datapoint_dto.messages
-                datapoint.category = datapoint_dto.category
                 datapoint.coherence_score = datapoint_dto.coherence_score
                 datapoint.relevance_score = datapoint_dto.relevance_score
                 datapoint.semantic_similarity_score = datapoint_dto.semantic_similarity_score
@@ -678,9 +677,6 @@ class DataManager(IDataManager):
             if dataset_datapoints_data.augmentation_type:
                 query = query.filter(
                     DataPoint.augmentation_type == dataset_datapoints_data.augmentation_type)
-            if dataset_datapoints_data.category:
-                query = query.filter(
-                    DataPoint.category == dataset_datapoints_data.category)
 
             datapoints: list[DataPoint] = query.all()
             return datapoints

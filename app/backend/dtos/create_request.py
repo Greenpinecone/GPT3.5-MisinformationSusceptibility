@@ -32,7 +32,6 @@ class CreateDatasetDTO:
 @dataclass
 class CreateDataPointDTO:
     messages: MessagesContainer
-    category: str
     dataset_id: int | None = None
     related_datapoint_ids: list[int] | None = None
     coherence_score: int | None = None

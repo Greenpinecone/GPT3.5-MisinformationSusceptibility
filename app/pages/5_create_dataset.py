@@ -143,20 +143,18 @@ with logger:
     QueryParamsManager.set_query_params_from_page(
         "create_dataset")
 
-    # Shares used categories among all used datasets
-    shared_category_tracker = []
     # Initialize DatasetEditor for training and test datasets with corresponding paginator
     trainings_dataset_paginator = GlobalAppStateManager.get_or_create_session_state(
         "trainings_dataset_paginator", default_value=Paginator
     )
     training_dataset_editor: DatasetEditor = GlobalAppStateManager.get_or_create_session_state(
-        "training_dataset_editor", DatasetCategory.training, DataFrameEditor, trainings_dataset_paginator, shared_category_tracker, default_value=DatasetEditor
+        "training_dataset_editor", DatasetCategory.training, DataFrameEditor, trainings_dataset_paginator, default_value=DatasetEditor
     )
     test_dataset_paginator = GlobalAppStateManager.get_or_create_session_state(
         "trainings_dataset_paginator", default_value=Paginator
     )
     test_dataset_editor: DatasetEditor = GlobalAppStateManager.get_or_create_session_state(
-        "test_dataset_editor", DatasetCategory.test, DataFrameEditor, test_dataset_paginator, shared_category_tracker, default_value=DatasetEditor
+        "test_dataset_editor", DatasetCategory.test, DataFrameEditor, test_dataset_paginator, default_value=DatasetEditor
     )
 
     # Determine the current dataset editor based on the chosen upload dataset type
@@ -239,6 +237,6 @@ with logger:
                     GlobalAppStateManager.clear_session_state_except()
                     ToastManager.add_global_toasts(
                         "Dataset has been successfully created.", "success")
-                    PageNavigator.navigate_to_page("create_model")
+                    # PageNavigator.navigate_to_page("create_model") # TODO: Change this to new page
 
     load_page(dataset_editor, all_dataset_editors)

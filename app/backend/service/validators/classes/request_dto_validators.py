@@ -402,12 +402,6 @@ class CreateDataPointSchema(Schema):
         }
     )
 
-    category = fields.Str(required=True,
-                          validate=lambda n: len(n) <= 255,
-                          error_messages={
-                              'invalid': 'Category must be a string and less than 255 characters long.'
-                          })
-
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.session: Session = session
@@ -1050,11 +1044,6 @@ class GetDatapointsByDatasetIdSchema(Schema):
             'invalid': 'Invalid augmentation type. Must be one of: {0}.'.format(", ".join(e.name for e in AugmentationType)),
         }
     )
-    category = fields.Str(allow_none=True,
-                          validate=lambda n: len(n) <= 255,
-                          error_messages={
-                              'invalid': 'Category must be a string and less than 255 characters long.',
-                          })
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
