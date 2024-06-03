@@ -32,6 +32,7 @@ class DatasetDTO:
     ).astimezone()
     initial_dataset_id: int | None = None
     test_dataset_id: int | None = None
+    model_id: int | None = None
     project_ids: list[int] = field(default_factory=list)
     datapoint_ids: list[int] = field(default_factory=list)
 
@@ -58,12 +59,12 @@ class ModelDTO:
     model_name: str
     version: int
     project_ids: list[int]
+    training_dataset_id: int
     is_global: bool = False
     fine_tuning_model: str | None = None
     full_fine_tuned_model_id: str | None = None
     created_at: datetime = datetime.now(
     ).astimezone()
-    dataset_ids: list[int] = field(default_factory=list)
     parent_model_id: int | None = None
     training_run_id: int | None = None
     is_checkpoint_model: bool | None = None
