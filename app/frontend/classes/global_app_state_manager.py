@@ -1,5 +1,5 @@
 import streamlit as st
-from app.backend.dtos.response import ProjectDTO
+from app.backend.dtos.response import ComplexDatasetDTO, DataPointDTO, DatasetDTO, ProjectDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from typing import Any, Callable
 from backend.util.config import GLOBAL_SESSION_STATE_KEYS
@@ -44,6 +44,17 @@ class GlobalAppStateManager:
         cls._ensure_global_states()
         st.session_state[GLOBAL_SESSION_STATE_KEYS["GLOBAL_STATES_KEY"]
                          ][GLOBAL_SESSION_STATE_KEYS["CURRENT_PROJECT_KEY"]] = new_current_project
+
+    @classmethod
+    def get_current_dataset(cls) -> ComplexDatasetDTO:
+        cls._ensure_global_states()
+        return st.session_state[GLOBAL_SESSION_STATE_KEYS["GLOBAL_STATES_KEY"]][GLOBAL_SESSION_STATE_KEYS["CURRENT_DATASET_KEY"]]
+
+    @classmethod
+    def set_current_dataset(cls, new_current_dataset: ComplexDatasetDTO) -> None:
+        cls._ensure_global_states()
+        st.session_state[GLOBAL_SESSION_STATE_KEYS["GLOBAL_STATES_KEY"]
+                         ][GLOBAL_SESSION_STATE_KEYS["CURRENT_DATASET_KEY"]] = new_current_dataset
 
     @classmethod
     def get_global_states(cls) -> dict[str, Any]:
