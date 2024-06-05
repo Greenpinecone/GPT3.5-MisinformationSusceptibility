@@ -2,7 +2,7 @@ from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
 from marshmallow_sqlalchemy.fields import Nested
 from marshmallow import fields, post_load, post_dump
 from ...database.schema import *
-from ...dtos.response import *
+from app.backend.dtos.response import *
 import zoneinfo
 
 
@@ -33,17 +33,20 @@ class FlexibleDateTimeField(fields.DateTime):
 class BaseSchema(SQLAlchemyAutoSchema):
     def __init__(self, session, *args, **kwargs):
         # Dynamically creates a Meta class with the session for each created object to avoid setting the session as class attribute and causing issues with session sharing
-        class Meta:
-            datetimeformat = 'iso'
-            sqla_session = session
+        # Check if a session exists. Do not overwrite in case of Nested Schemas
+        if session:
+            class Meta:
+                datetimeformat = 'iso'
+                sqla_session = session
+                load_instance = True
 
-        self.Meta = Meta
+            self.Meta = Meta
         super().__init__(*args, **kwargs)
 
 
 class ProjectSchema(BaseSchema):
     def __init__(self, session, *args, **kwargs):
-        super().__init__(session, *args, **kwargs)
+        super().__init__(session=None, *args, **kwargs)
 
     id = auto_field()
     project_name = auto_field()
@@ -63,7 +66,7 @@ class ProjectSchema(BaseSchema):
 
 
 class DatasetSchema(BaseSchema):
-    def __init__(self, session, *args, **kwargs):
+    def __init__(self, session=None, *args, **kwargs):
         super().__init__(session, *args, **kwargs)
 
     id = auto_field()
@@ -92,8 +95,38 @@ class DatasetSchema(BaseSchema):
         return DatasetDTO(**data)
 
 
+class ComplexDatasetSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    id = auto_field()
+    dataset_name = auto_field()
+    augmented = auto_field()
+    category = CustomEnumConversionSchema(DatasetCategory)
+    created_at = FlexibleDateTimeField()
+    initial_dataset_id = auto_field()
+    fine_tuning_company = auto_field()
+    fine_tuning_model = auto_field()
+    fine_tuning_formatting = auto_field()
+    is_global = auto_field()
+    model_id = fields.Function(
+        serialize=lambda obj: obj.model.id if obj.model else None)
+    project_ids = fields.Function(
+        serialize=lambda obj: [project.id for project in obj.projects])
+    datapoints = fields.Nested(lambda: DataPointSchema(many=True), default=[])
+    test_dataset = fields.Nested(
+        lambda: ComplexDatasetSchema(), exclude=('test_dataset',), default=None)
+
+    class Meta:
+        model = Dataset
+
+    @post_dump
+    def make_complex_dataset_dto(self, data, **kwargs):
+        return ComplexDatasetDTO(**data)
+
+
 class DataPointSchema(BaseSchema):
-    def __init__(self, session, *args, **kwargs):
+    def __init__(self, session=None, *args, **kwargs):
         super().__init__(session, *args, **kwargs)
 
     id = auto_field()
@@ -119,7 +152,7 @@ class DataPointSchema(BaseSchema):
 
 
 class ModelSchema(BaseSchema):
-    def __init__(self, session, *args, **kwargs):
+    def __init__(self, session=None, *args, **kwargs):
         super().__init__(session, *args, **kwargs)
 
     id = auto_field()
@@ -149,7 +182,7 @@ class ModelSchema(BaseSchema):
 
 
 class ModelEvaluationSchema(BaseSchema):
-    def __init__(self, session, *args, **kwargs):
+    def __init__(self, session=None, *args, **kwargs):
         super().__init__(session, *args, **kwargs)
 
     id = auto_field()
@@ -170,7 +203,7 @@ class ModelEvaluationSchema(BaseSchema):
 
 
 class TrainingRunSchema(BaseSchema):
-    def __init__(self, session, *args, **kwargs):
+    def __init__(self, session=None, *args, **kwargs):
         super().__init__(session, *args, **kwargs)
 
     id = auto_field()

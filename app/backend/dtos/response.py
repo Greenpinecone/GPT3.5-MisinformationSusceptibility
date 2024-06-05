@@ -38,6 +38,26 @@ class DatasetDTO:
 
 
 @dataclass
+class ComplexDatasetDTO:
+    id: int
+    dataset_name: str
+    augmented: bool
+    category: DatasetCategory
+    fine_tuning_model: str
+    fine_tuning_company: FineTuningCompany
+    # The formatting of the underlying fine tuning data based on the company you want to fine tune with.
+    fine_tuning_formatting: str
+    is_global: bool = False
+    created_at: datetime = datetime.now(
+    ).astimezone()
+    initial_dataset_id: int | None = None
+    test_dataset: 'ComplexDatasetDTO' | None = None
+    model_id: int | None = None
+    project_ids: list[int] = field(default_factory=list)
+    datapoints: list['DataPointDTO'] = field(default_factory=list)
+
+
+@dataclass
 class DataPointDTO:
     id: int
     messages: MessagesContainer

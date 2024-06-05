@@ -2,6 +2,7 @@
 """
 from ...mapper.classes.entities_to_response_dtos import *
 from ...database.schema import *
+from app.backend.dtos.response import *
 from sqlalchemy.orm import Session
 
 
@@ -19,6 +20,11 @@ class MapperFacade:
     def map_dataset_to_dto(self, session: Session, dataset_entity: Dataset) -> DatasetDTO:
         # Convert a Dataset entity to DatasetDTO
         schema = DatasetSchema(session=session)
+        return schema.dump(dataset_entity)
+
+    def map_dataset_to_complex_dto(self, session: Session, dataset_entity: Dataset) -> ComplexDatasetDTO:
+        # Convert a Dataset entity to ComplexDatasetDTO
+        schema = ComplexDatasetSchema(session=session)
         return schema.dump(dataset_entity)
 
     def map_datapoint_to_dto(self, session: Session, datapoint_entity: DataPoint) -> DataPointDTO:

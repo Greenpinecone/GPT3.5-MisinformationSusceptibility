@@ -21,6 +21,7 @@ class UpdateDatasetDTO:
     is_global: bool | None = None
 
 
+@dataclass
 class UpdateDataPointDTO:
     id: int
     related_datapoint_ids: list[int] | None = None
