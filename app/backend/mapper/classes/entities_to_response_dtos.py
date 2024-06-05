@@ -148,6 +148,9 @@ class DataPointSchema(BaseSchema):
 
     @post_dump
     def make_data_point_dto(self, data, **kwargs):
+        # When "related_datapoints" is excluded in nested fields.
+        if not data.get("related_datapoints"):
+            data["related_datapoints"] = []
         return DataPointDTO(**data)
 
 
