@@ -14,7 +14,8 @@ GLOBAL_SESSION_STATE_KEYS = {
     'GLOBAL_STATES_KEY': 'global_states',
     'SERVICE_KEY': 'service',
     'CURRENT_PROJECT_KEY': 'current_project',
-    'GLOBAL_TOASTS_KEY': 'global_toasts'
+    'GLOBAL_TOASTS_KEY': 'global_toasts',
+    'CURRENT_DATASET_KEY': 'current_dataset'
 }
 
 # Unified page configuration
@@ -51,6 +52,12 @@ PAGE_CONFIG = {
     },
     'create_dataset': {
         'path': 'pages/5_create_dataset.py',
+        'query_params': {
+            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_KEY'], 'id']
+        }
+    },
+    'match_datapoint': {
+        'path': 'pages/6_match_datapoint.py',
         'query_params': {
             'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_KEY'], 'id']
         }
