@@ -45,5 +45,6 @@ def apply_global_style() -> None:
         height: 2px;
         margin-top: 14px;
     }
+    
     </style>
     """, unsafe_allow_html=True)

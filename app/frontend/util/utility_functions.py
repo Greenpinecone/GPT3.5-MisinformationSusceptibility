@@ -71,7 +71,7 @@ def display_dto(dto, attributes):
         if hasattr(dto, key):
             # Retrieve the value of the attribute
             value = getattr(dto, key)
-            if value or value is False:
+            if value or value is False or value is 0:
                 # Format the value with the name if provided
                 if name:
                     formatted_value = f"{name}: {value}"
