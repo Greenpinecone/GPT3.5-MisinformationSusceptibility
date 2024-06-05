@@ -9,7 +9,7 @@ from backend.util.logger import StreamlitLogger
 from backend.util import utility_functions as backend_uf
 from backend.util.config import UPLOAD_FORMAT_FORMATTINGS
 from backend.dtos.get_request import *
-from backend.dtos.response import *
+from app.backend.dtos.response import *
 from backend.dtos.create_request import *
 from backend.database.schema import DatasetCategory, MessageKeys, UploadFormats
 from app.frontend.classes.dataframe_editor import DataFrameEditor
@@ -151,7 +151,7 @@ with logger:
         "training_dataset_editor", DatasetCategory.training, DataFrameEditor, trainings_dataset_paginator, default_value=DatasetEditor
     )
     test_dataset_paginator = GlobalAppStateManager.get_or_create_session_state(
-        "trainings_dataset_paginator", default_value=Paginator
+        "test_dataset_paginator", default_value=Paginator
     )
     test_dataset_editor: DatasetEditor = GlobalAppStateManager.get_or_create_session_state(
         "test_dataset_editor", DatasetCategory.test, DataFrameEditor, test_dataset_paginator, default_value=DatasetEditor
@@ -163,6 +163,7 @@ with logger:
     all_dataset_editors = [training_dataset_editor, test_dataset_editor]
 
     def load_page(dataset_editor: DatasetEditor, all_dataset_editors: list[DatasetEditor]):
+        st.title("Create Dataset")
         # Container for file format selection
         chosen_file_format_container = st.container()
         # File uploader widget
@@ -205,8 +206,8 @@ with logger:
 
         # Display pagination buttons only when more items than fit on one page
         if len(dataset_editor.datapoints) > dataset_editor.paginator.items_per_page:
-            dataset_editor.paginator.get_paginated_items(
-                dataset_editor.datapoints)
+            # dataset_editor.paginator.get_paginated_items(
+            #     dataset_editor.datapoints)
             dataset_editor.paginator.create_pagination_buttons(
                 pagination_buttons_container_above, dataset_editor.datapoints)
             dataset_editor.paginator.create_pagination_buttons(
@@ -230,13 +231,19 @@ with logger:
                 help="Submit both datasets with all their datapoints", type="primary",
                 disabled=not all_dataset_editors[0].datapoints
             )
-            if submit_button:  # TODO: Set project id to session states current project.id
-                saved_dataset_dto: DatasetDTO = DatasetService.process_and_create_dataset(
-                    all_dataset_editors, GlobalAppStateManager.get_or_create_session_state("globalize_dataset_checkbox", None), GlobalAppStateManager.get_or_create_session_state("dataset_name_input", None), current_project.id, service)
-                if saved_dataset_dto:
+            if submit_button:
+                saved_dataset_dtos: ComplexDatasetDTO = DatasetService.process_and_create_dataset(
+                    all_dataset_editors, GlobalAppStateManager.get_or_create_session_state("globalize_dataset_checkbox", None), GlobalAppStateManager.get_or_create_session_state("dataset_name_input", None), current_project.id, service)[0]
+                if saved_dataset_dtos:
+                    GlobalAppStateManager.set_current_dataset(
+                        saved_dataset_dtos)
                     GlobalAppStateManager.clear_session_state_except()
                     ToastManager.add_global_toasts(
                         "Dataset has been successfully created.", "success")
-                    # PageNavigator.navigate_to_page("create_model") # TODO: Change this to new page
+                    # Match training and test datapoints if a test dataset has been uploaded
+                    if saved_dataset_dtos.test_dataset.datapoints:
+                        PageNavigator.navigate_to_page("match_datapoint")
+                    else:
+                        PageNavigator.navigate_to_page("create_model")
 
     load_page(dataset_editor, all_dataset_editors)

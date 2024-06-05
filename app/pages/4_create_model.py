@@ -88,8 +88,8 @@ with logger:
                     create_model_dto = CreateModelDTO(model_name=model_name, project_ids=[
                                                       current_project.id], training_dataset_id=selected_training_dataset.id, is_global=is_global)
 
-                    created_model_dto: ModelDTO = service.create_model(
-                        create_model_dto)
+                    created_model_dto: ModelDTO = service.create_models(
+                        [create_model_dto])
                     if created_model_dto:
                         GlobalAppStateManager.clear_session_state_except()
                         ToastManager.add_global_toasts(
