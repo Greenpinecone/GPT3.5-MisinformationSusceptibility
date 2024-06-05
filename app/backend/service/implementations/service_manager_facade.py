@@ -104,7 +104,7 @@ class ServiceManagerFacade(IServiceManager):
                 session, projects_data)
             return [self._mapper.map_project_to_dto(session, project) for project in projects]
 
-    def create_dataset_with_datapoints(self, trainings_dataset_dto: CreateDatasetDTO, trainings_datapoint_dtos: list[CreateDataPointDTO], test_dataset_dto: CreateDatasetDTO, test_datapoint_dtos: list[CreateDataPointDTO]) -> list[DatasetDTO]:
+    def create_dataset_with_datapoints(self, trainings_dataset_dto: CreateDatasetDTO, trainings_datapoint_dtos: list[CreateDataPointDTO], test_dataset_dto: CreateDatasetDTO, test_datapoint_dtos: list[CreateDataPointDTO]) -> ComplexDatasetDTO:
         with self._data_manager.get_session() as session:
             # Save test dataset first to then add it to the training dataset
             self._validator.validate_create_datasets(
@@ -137,7 +137,7 @@ class ServiceManagerFacade(IServiceManager):
             trainings_datapoints: list[DataPoint] = self._data_manager.create_datapoints(
                 session, trainings_datapoint_dtos)
 
-            return [self._mapper.map_dataset_to_dto(session, trainings_dataset)]
+            return [self._mapper.map_dataset_to_complex_dto(session, trainings_dataset)]
 
     def get_dataset_by_id(self, id: int) -> list[DatasetDTO]:
         with self._data_manager.get_session() as session:
@@ -145,10 +145,18 @@ class ServiceManagerFacade(IServiceManager):
                 session, id)[0]
             return [self._mapper.map_dataset_to_dto(session, dataset)]
 
-    def create_model(self, create_model_dto: CreateModelDTO) -> ModelDTO:
+    def create_models(self, create_model_dto: list[CreateModelDTO]) -> list[ModelDTO]:
         with self._data_manager.get_session() as session:
             self._validator.validate_create_models(
-                session, self._data_manager, [create_model_dto])
+                session, self._data_manager, create_model_dto)
             model: Model = self._data_manager.create_models(
-                session, [create_model_dto])[0]
+                session, create_model_dto)[0]
             return [self._mapper.map_model_to_dto(session, model)]
+
+    def update_datapoints(self, update_datapoint_dtos: list[UpdateDataPointDTO]) -> list[DataPointDTO]:
+        with self._data_manager.get_session() as session:
+            self._validator.validate_update_datapoints(
+                session, self._data_manager, update_datapoint_dtos)
+            datapoints: list[DataPoint] = self._data_manager.update_datapoints(
+                session, update_datapoint_dtos)
+            return [self._mapper.map_datapoint_to_dto(session, datapoint) for datapoint in datapoints]
