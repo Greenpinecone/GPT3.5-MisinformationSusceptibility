@@ -5,15 +5,20 @@ from backend.util.config import PAGE_CONFIG
 class PageNavigator:
 
     @classmethod
-    def set_navbar(cls, label: str, previous_page: str, help: str, icon: str = "◀️") -> None:
-        nav_bar_cols = st.columns((1.5, 5, 1), gap="large")
+    def set_navbar(cls, label: str, previous_page: str, help: str, icon: str = "◀️", is_left: bool = True, nav_bar_cols_config: list[int] = [1.5, 4.5, 1.5], gap: str = "large") -> None:
+        nav_bar_cols = st.columns(nav_bar_cols_config, gap)
         if not PAGE_CONFIG.get(previous_page):
             raise ValueError(
                 f"Page name '{previous_page}' not found in configuration.")
 
-        with nav_bar_cols[0]:
-            if st.button(f"{icon} {label}", help=help):
-                cls.navigate_to_page(previous_page)
+        if is_left:
+            with nav_bar_cols[0]:
+                if st.button(f"{icon} {label}", help=help):
+                    cls.navigate_to_page(previous_page)
+        else:
+            with nav_bar_cols[2]:
+                if st.button(f"{label} {icon}", help=help):
+                    cls.navigate_to_page(previous_page)
 
     @staticmethod
     def navigate_to_page(page: str) -> None:
