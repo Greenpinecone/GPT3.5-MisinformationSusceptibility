@@ -45,10 +45,9 @@ class DataPointMatcher:
             test_pagination_buttons_container, self.test_datapoints)
 
         st.markdown("###### Test Datapoint")
-        for test_datapoint in paginated_test_datapoints:
-            self.current_test_datapoint = test_datapoint
-            DataFrameWidgetProvider.create_simple_dataframe(
-                test_datapoint)
+        self.current_test_datapoint = paginated_test_datapoints[0]
+        DataFrameWidgetProvider.create_simple_dataframe(
+            self.current_test_datapoint)
 
         training_pagination_buttons_container = st.container()
         paginated_trainings_datapoints = trainings_dataset_paginator.get_paginated_items(
