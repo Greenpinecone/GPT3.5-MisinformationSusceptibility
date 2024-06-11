@@ -3,19 +3,24 @@ This module centralizes configuration settings for the application, including
 any constants and global settings required across different modules that are not sensitive information.
 """
 
+# All entries should be unique
+DATA_AUGMENTATION_METHODS = {
+    "google_translate": "google_translate",
+    "EDA_Easy_Data_Augmentation": "EDA_Easy_Data_Augmentation"
+}
+
 DTO_LIST_FORMATTING_PRESETS = {
     "DATASETDTO_SIMPLE": [
         ("", "dataset_name"), ("Augmented", "augmented"), ("Global", "is_global")],
-    "MODELDTO_SIMPLE": [("", "model_name"), ("Version", "version"), ("Model", "fine_tuning_model"), ("Checkpoint Model", "is_checkpoint_model"), ("Checkpoint Step", "checkpoint_step"), ("Global", "is_global")]
+    "MODELDTO_SIMPLE": [("", "model_name"), ("Version", "version"), ("Checkpoint Model", "is_checkpoint_model"), ("Checkpoint Step", "checkpoint_step"), ("Global", "is_global")],
+    "TRAINING_RUN_DTO_SIMPLE": [("", "model_name"), ("Version", "model_version")]
 }
-
 
 GLOBAL_SESSION_STATE_KEYS = {
     'GLOBAL_STATES_KEY': 'global_states',
     'SERVICE_KEY': 'service',
-    'CURRENT_PROJECT_KEY': 'current_project',
     'GLOBAL_TOASTS_KEY': 'global_toasts',
-    'CURRENT_DATASET_KEY': 'current_dataset'
+    'CURRENT_PROJECT_DATA_KEY': 'current_project_data'
 }
 
 # Unified page configuration
@@ -23,43 +28,43 @@ PAGE_CONFIG = {
     'home': {
         'path': 'main.py',
         'query_params': {
-            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_KEY'], 'id'],
+            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_DATA_KEY'], ['current_project', 'id']],
         }
     },
     'create_project': {
         'path': 'pages/1_create_project.py',
         'query_params': {
-            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_KEY'], 'id']
+            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_DATA_KEY'], ['current_project', 'id']]
         }
     },
     'update_project': {
         'path': 'pages/2_update_project.py',
         'query_params': {
-            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_KEY'], 'id']
+            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_DATA_KEY'], ['current_project', 'id']]
         }
     },
     'fine_tune_model': {
         'path': 'pages/3_fine_tune_model.py',
         'query_params': {
-            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_KEY'], 'id']
+            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_DATA_KEY'], ['current_project', 'id']]
         }
     },
     'create_model': {
         'path': 'pages/4_create_model.py',
         'query_params': {
-            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_KEY'], 'id']
+            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_DATA_KEY'], ['current_project', 'id']]
         }
     },
     'create_dataset': {
         'path': 'pages/5_create_dataset.py',
         'query_params': {
-            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_KEY'], 'id']
+            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_DATA_KEY'], ['current_project', 'id']]
         }
     },
     'match_datapoint': {
         'path': 'pages/6_match_datapoint.py',
         'query_params': {
-            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_KEY'], 'id']
+            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_DATA_KEY'], ['current_project', 'id']]
         }
     },
 }
