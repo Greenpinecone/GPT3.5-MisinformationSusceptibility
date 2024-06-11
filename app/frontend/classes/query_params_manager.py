@@ -1,7 +1,8 @@
 from typing import Any
 import streamlit as st
-from backend.util.config import GLOBAL_SESSION_STATE_KEYS, PAGE_CONFIG
+from backend.util.config import PAGE_CONFIG
 from dataclasses import is_dataclass, asdict
+from frontend.classes.global_app_state_manager import GlobalAppStateManager
 
 
 class QueryParamsManager:
@@ -18,8 +19,8 @@ class QueryParamsManager:
 
         cls._set_query_params_from_session(page_name)
 
-    @staticmethod
-    def _set_query_params_from_session(page_name: str) -> None:
+    @classmethod
+    def _set_query_params_from_session(cls, page_name: str) -> None:
         # Ensure the page configuration exists for the given page name
         if not PAGE_CONFIG.get(page_name):
             raise ValueError(f"Page '{page_name}' not found in PAGE_CONFIG.")
@@ -28,49 +29,24 @@ class QueryParamsManager:
         page_config = PAGE_CONFIG[page_name]
         params = page_config.get('query_params', {})
 
-        global_states_key = GLOBAL_SESSION_STATE_KEYS['GLOBAL_STATES_KEY']
-
-        # Check if global states key exists in session state
-        if not st.session_state.get(global_states_key):
-            raise ValueError(f"""Global state '{
-                             global_states_key}' not found in session state.""")
-
         # Initialize query parameters dictionary
         query_params = {}
-        global_state = st.session_state[global_states_key]
-
-        # Helper function to fetch attribute based on type
-        def fetch_attribute(obj: Any, attr: str) -> Any:
-            if isinstance(obj, dict):
-                return obj.get(attr)
-            elif isinstance(obj, list):
-                try:
-                    index = int(attr)
-                    return obj[index]
-                except (ValueError, IndexError):
-                    raise ValueError(
-                        f"List index '{attr}' is invalid for object '{obj}'")
-            elif is_dataclass(obj):
-                return asdict(obj).get(attr)
-            elif hasattr(obj, attr):
-                return getattr(obj, attr)
-            else:
-                raise ValueError(f"""Attribute '{attr}' not found in object of type '{
-                                 type(obj).__name__}'""")
+        global_state = GlobalAppStateManager.get_global_states()
 
         # Build query parameters from session state
         for query_key, session_info in params.items():
             session_key = session_info[0]
-            attribute = session_info[1]
+            attributes = session_info[1]
 
             if session_key in global_state:
                 session_value = global_state[session_key]
-                attribute_value = fetch_attribute(session_value, attribute)
+                attribute_value = cls.fetch_nested_attribute(
+                    session_value, attributes)
                 if attribute_value is not None:
                     query_params[query_key] = attribute_value
                 else:
                     raise ValueError(f"""Missing attribute '{
-                                     attribute}' in session state for key '{session_key}'""")
+                                     attributes}' in session state for key '{session_key}'""")
             else:
                 raise ValueError(
                     f"Session key '{session_key}' not found in global state")
@@ -84,3 +60,24 @@ class QueryParamsManager:
             key for key in params.keys() if not query_params.get(key)]
         if missing_keys:
             raise ValueError(f"Missing query parameters: {missing_keys}")
+
+    @staticmethod
+    def fetch_nested_attribute(obj: Any, attrs: list[str]) -> Any:
+        for attr in attrs:
+            if isinstance(obj, dict):
+                obj = obj.get(attr)
+            elif isinstance(obj, list):
+                try:
+                    index = int(attr)
+                    obj = obj[index]
+                except (ValueError, IndexError):
+                    raise ValueError(
+                        f"List index '{attr}' is invalid for object '{obj}'")
+            elif is_dataclass(obj):
+                obj = asdict(obj).get(attr)
+            elif hasattr(obj, attr):
+                obj = getattr(obj, attr)
+            else:
+                raise ValueError(f"""Attribute '{attr}' not found in object of type '{
+                                 type(obj).__name__}'""")
+        return obj
