@@ -53,7 +53,7 @@ def validate_iso_datetime(value: str):
     }"""
 
 
-def find_index_in_list(values_list: list[Any], specific_value: Any) -> Any:
+def find_index_in_list(values_list: list[Any], specific_value: Any, default: Any | None = None) -> Any:
     """
     Returns the index of the specific_value in values_list, or None if not found.
 
@@ -67,4 +67,4 @@ def find_index_in_list(values_list: list[Any], specific_value: Any) -> Any:
     try:
         return values_list.index(specific_value)
     except ValueError:
-        return None
+        return default

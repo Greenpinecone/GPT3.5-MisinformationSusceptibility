@@ -83,7 +83,7 @@ class DataFrameWidgetProvider:
                     current_test_datapoint, datapoint_dto)
 
             value = DataPointService.is_present(
-                current_test_datapoint, datapoint_dto)
+                current_test_datapoint.related_datapoints, datapoint_dto)
 
             st.checkbox(label="Select the current datapoint",
                         help="Select the current datapoint", value=value, label_visibility="collapsed", key=uuid4(), on_change=on_checkbox_change)
