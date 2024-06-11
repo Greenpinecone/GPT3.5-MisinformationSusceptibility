@@ -42,11 +42,11 @@ def sort_dicts(list_of_objects: list[object],
     return sorted_list
 
 
-def create_text_divider(text: str = None):
+def create_text_divider(text: str = None, column_partitions: list[int] = [5, 1, 5]):
     if text:
-        divider_cols = st.columns((5, 1, 5))
+        divider_cols = st.columns(column_partitions)
         divider_cols[0].divider()
-        divider_cols[1].write(text)
+        divider_cols[1].markdown(text)
         divider_cols[2].divider()
     else:
         st.divider()
@@ -88,3 +88,17 @@ def display_dto(dto, attributes):
 
     # Return the concatenated string
     return concatenated_string
+
+
+def scroll_to_bottom():
+    pass
+    # TODO: Implement
+    # # JavaScript to scroll to the bottom of the page
+    # scroll_script = """
+    # <script>
+    # window.onload = function() {
+    #     window.scrollTo(0, document.body.scrollHeight);
+    # }
+    # </script>
+    # """
+    # st.markdown(scroll_script, unsafe_allow_html=True)
