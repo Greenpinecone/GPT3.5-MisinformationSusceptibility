@@ -160,3 +160,71 @@ class ServiceManagerFacade(IServiceManager):
             datapoints: list[DataPoint] = self._data_manager.update_datapoints(
                 session, update_datapoint_dtos)
             return [self._mapper.map_datapoint_to_dto(session, datapoint) for datapoint in datapoints]
+
+    def filter_simple_training_runs(self, training_run_data: GetTrainingRunsDTO) -> list[SimpleTrainingRunDTO]:
+        with self._data_manager.get_session() as session:
+            self._validator.validate_get_training_runs(
+                session, self._data_manager, training_run_data)
+            training_runs: list[TrainingRun] = self._data_manager.get_all_training_runs(
+                session, training_run_data)
+
+            return [self._mapper.map_training_run_to_simple_dto(session, training_run) for training_run in training_runs]
+
+    def get_or_create_current_project_data(self) -> list[CurrentProjectDataDTO]:
+        with self._data_manager.get_session() as session:
+            # TODO: Add validator
+            current_project_data: CurrentProjectData = self._data_manager.get_or_create_current_project_data(session)[
+                0]
+            return [self._mapper.map_current_project_data_to_dto(session, current_project_data)]
+
+    def update_current_project_data(self, current_project_data: UpdateCurrentProjectDataDTO) -> list[CurrentProjectDataDTO]:
+        with self._data_manager.get_session() as session:
+            # TODO: Add validator
+            current_project_data: CurrentProjectData = self._data_manager.update_current_project_data(session, current_project_data)[
+                0]
+            return [self._mapper.map_current_project_data_to_dto(session, current_project_data)]
+
+    def create_training_run_dtos(self, training_run_dtos: list[CreateTrainingRunDTO]) -> list[TrainingRunDTO]:
+        with self._data_manager.get_session() as session:
+            self._validator.validate_create_training_runs(
+                session, training_run_dtos)
+            training_runs: list[TrainingRunDTO] = self._data_manager.create_training_runs(
+                session, training_run_dtos)
+
+            return [self._mapper.map_training_run_to_dto(training_run) for training_run in training_runs]
+
+    def update_training_run_dtos(self, training_run_dtos: list[UpdateTrainingRunDTO]) -> list[TrainingRunDTO]:
+        with self._data_manager.get_session() as session:
+            self._validator.validate_update_training_runs(
+                session, training_run_dtos)
+            training_runs: list[TrainingRunDTO] = self._data_manager.update_training_runs(
+                session, training_run_dtos)
+
+            return [self._mapper.map_training_run_to_dto(training_run) for training_run in training_runs]
+
+    def create_datapoint_evaluations(self, create_datapoint_evaluations: list[CreateDataPointEvaluationDTO]) -> list[DataPointEvaluationDTO]:
+        with self._data_manager.get_session() as session:
+            self._validator.validate_create_datapoint_evaluations(
+                session, create_datapoint_evaluations)
+            datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.create_datapoint_evaluations(
+                session, create_datapoint_evaluations)
+
+            return [self._mapper.map_datapoint_evaluation_to_dto(datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
+
+    def update_datapoint_evaluations(self, update_datapoint_evaluations: list[UpdateDataPointEvaluationDTO]) -> list[DataPointEvaluationDTO]:
+        with self._data_manager.get_session() as session:
+            self._validator.validate_update_datapoint_evaluations(
+                session, update_datapoint_evaluations)
+            datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.update_datapoint_evaluations(
+                session, update_datapoint_evaluations)
+
+            return [self._mapper.map_datapoint_evaluation_to_dto(datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
+
+    def get_datapoint_evaluations(self, get_datapoint_evaluation: GetDataPointEvaluationsDTO) -> list[DataPointEvaluationDTO]:
+        with self._data_manager.get_session() as session:
+            self._validator.validate_get_datapoint_evaluation(
+                session, get_datapoint_evaluation)
+            datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.get_datapoint_evaluations(
+                session, get_datapoint_evaluation)
+
+            return [self._mapper.map_datapoint_evaluation_to_dto(datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
