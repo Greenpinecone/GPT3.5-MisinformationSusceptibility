@@ -5,7 +5,7 @@ from sqlalchemy.orm.query import Query
 from pathlib import Path
 from typing import Generator
 from sqlalchemy.exc import SQLAlchemyError, MultipleResultsFound, NoResultFound
-from backend.database.schema import Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun, Base
+from backend.database.schema import CurrentProjectData, DataPointEvaluation, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun, Base
 from ...util.logger import Logger
 from ..interfaces.i_data_manager import IDataManager
 from datetime import datetime
@@ -47,6 +47,98 @@ class DataManager(IDataManager):
             raise
         finally:
             self.Session.remove()  # Remove the session to ensure it is properly closed
+
+    def get_or_create_current_project_data(self, session: Session) -> list[CurrentProjectData]:
+        try:
+            current_project_data = session.query(
+                CurrentProjectData).one_or_none()
+
+            if current_project_data is None:
+                current_project_data_singelton = CurrentProjectData()
+                session.add(current_project_data_singelton)
+                session.flush()
+                return [current_project_data_singelton]
+            else:
+                return [current_project_data]
+
+        except MultipleResultsFound as e:
+            logger.exception(
+                f"More than one current project data entry found. There should be only one. {e}")
+            raise Exception(
+                "More than one current project data entry found. There should be only one.") from e
+
+        except SQLAlchemyError as e:
+            logger.exception(
+                f"Failed to create or get current project data due to error: {e}")
+            raise Exception(
+                "Failed to create or get current project data due to error.") from e
+
+    def update_current_project_data(self, session: Session, current_project_data: UpdateCurrentProjectDataDTO) -> list[CurrentProjectData]:
+        saved_data: list[CurrentProjectData] = []
+        try:
+            data = None
+            if getattr(current_project_data, 'id', None):
+                data = session.get(CurrentProjectData, current_project_data.id)
+                if not data:
+                    raise ValueError(f"""Current project data with ID {
+                                     current_project_data.id} not found.""")
+
+            if not data:
+                raise ValueError("No valid data found to update.")
+
+            # Define a dictionary for attribute mappings
+            attribute_mapping = {
+                'fine_tuning_augmentation_methods': current_project_data.fine_tuning_augmentation_methods,
+                'fine_tuning_augmentation_method_percentages': current_project_data.fine_tuning_augmentation_method_percentages,
+                'fine_tuning_step_counter': current_project_data.fine_tuning_step_counter,
+                'unfinished_progress': current_project_data.unfinished_progress,
+                'current_page': current_project_data.current_page
+            }
+
+            # Update attributes if not SENTINEL
+            for attribute, value in attribute_mapping.items():
+                if value is not SENTINEL:
+                    setattr(data, attribute, value)
+
+            # Update complex relationships
+            if current_project_data.current_project_id is not SENTINEL:
+                if not current_project_data.current_project_id:
+                    data.current_project = current_project_data.current_project_id
+                else:
+                    data.current_project = self.get_project_by_id(
+                        session, current_project_data.current_project_id)[0]
+
+            if current_project_data.current_fine_tuning_model_id is not SENTINEL:
+                if not current_project_data.current_fine_tuning_model_id:
+                    data.current_fine_tuning_model = current_project_data.current_fine_tuning_model_id
+                else:
+                    data.current_fine_tuning_model = self.get_project_by_id(
+                        session, current_project_data.current_fine_tuning_model_id)[0]
+
+            if current_project_data.selected_model_for_fine_tuning_id is not SENTINEL:
+                if not current_project_data.selected_model_for_fine_tuning_id:
+                    data.selected_model_for_fine_tuning = current_project_data.selected_model_for_fine_tuning_id
+                else:
+                    data.selected_model_for_fine_tuning = self.get_model_by_id(
+                        session, current_project_data.selected_model_for_fine_tuning_id)[0]
+
+            if current_project_data.currently_modified_dataset_id is not SENTINEL:
+                if not current_project_data.currently_modified_dataset_id:
+                    data.currently_modified_dataset = current_project_data.currently_modified_dataset_id
+                else:
+                    data.currently_modified_dataset = self.get_dataset_by_id(
+                        session, current_project_data.currently_modified_dataset_id)[0]
+
+            saved_data.append(data)
+
+            # Must be flushed to create primary key / datetime etc.
+            session.flush()
+            return saved_data
+        except SQLAlchemyError as e:
+            logger.exception(
+                f"Failed to save or update project data due to error: {e}")
+            raise Exception(
+                "Failed to save or update project data due to error.") from e
 
     # CREATE / UPDATE
 
@@ -220,16 +312,6 @@ class DataManager(IDataManager):
                         update_dto.id} not found.""")
 
                 # Update attributes
-                    # Can be 0
-                if update_dto.coherence_score is not None:
-                    datapoint.coherence_score = update_dto.coherence_score
-                    # Can be 0
-                if update_dto.relevance_score is not None:
-                    datapoint.relevance_score = update_dto.relevance_score
-                    # Can be 0
-                if update_dto.semantic_similarity_score is not None:
-                    datapoint.semantic_similarity_score = update_dto.semantic_similarity_score
-
                 if update_dto.related_datapoint_ids:
                     datapoints = session.query(DataPoint).filter(
                         DataPoint.id.in_(update_dto.related_datapoint_ids)).all()
@@ -255,9 +337,6 @@ class DataManager(IDataManager):
 
                 # Assign attributes from DTO
                 datapoint.messages = datapoint_dto.messages
-                datapoint.coherence_score = datapoint_dto.coherence_score
-                datapoint.relevance_score = datapoint_dto.relevance_score
-                datapoint.semantic_similarity_score = datapoint_dto.semantic_similarity_score
                 datapoint.augmentation_type = datapoint_dto.augmentation_type
                 datapoint.dataset_id = datapoint_dto.dataset_id
 
@@ -291,20 +370,21 @@ class DataManager(IDataManager):
 
                 model.model_name = model_dto.model_name
                 model.is_global = model_dto.is_global
-                model.training_dataset_id = model_dto.training_dataset_id
 
                 # Associate datasets - must not be explicitly set via orm since the relation is automatically established on flush on a one to one relation. TODO: Check this.
                 # dataset = session.get(
                 #     DataPoint, model_dto.training_dataset_id)
                 # model.training_dataset = dataset
 
+                # Setting related datasets
+                training_datasets = session.query(Dataset).filter(
+                    Dataset.id.in_(model_dto.training_dataset_ids)).all()
+                model.training_datasets = training_datasets
+
                 # Setting related projects
                 projects = session.query(Project).filter(
                     Project.id.in_(model_dto.project_ids)).all()
                 model.projects = projects
-
-                if model_dto.fine_tuning_model:
-                    model.fine_tuning_model = model_dto.fine_tuning_model
 
                 if model_dto.full_fine_tuned_model_id:
                     model.full_fine_tuned_model_id = model_dto.full_fine_tuned_model_id
@@ -321,6 +401,8 @@ class DataManager(IDataManager):
                         Model, model_dto.parent_model_id)
                     model.parent_model = parent_model
                     model.version = parent_model.version + 1
+                else:
+                    model.version = 0
 
                 # Handle training_run_id if present
                 if model_dto.training_run_id:
@@ -351,17 +433,21 @@ class DataManager(IDataManager):
 
                 if model_dto.model_name:
                     model.model_name = model_dto.model_name
+
                 # A model can only belong to multiple projects if it is a global model
                 if model_dto.project_ids is not None:
                     projects = session.query(Project).filter(
                         Project.id.in_(model_dto.project_ids)).all()
                     model.projects = projects
 
+                # Update the corresponding training datasets
+                if model_dto.training_dataset_ids is not None:
+                    training_datasets = session.query(Dataset).filter(
+                        Dataset.id.in_(model_dto.training_dataset_ids)).all()
+                    model.training_datasets = training_datasets
+
                 if model_dto.is_global is not None:
                     model.is_global = model_dto.is_global
-
-                if model_dto.fine_tuning_model:
-                    model.fine_tuning_model = model_dto.fine_tuning_model
 
                 if model_dto.full_fine_tuned_model_id:
                     model.full_fine_tuned_model_id = model_dto.full_fine_tuned_model_id
@@ -461,6 +547,8 @@ class DataManager(IDataManager):
                 training_run.epochs = run_dto.epochs
                 training_run.learning_rate_multiplier = run_dto.learning_rate_multiplier
                 training_run.batch_size = run_dto.batch_size
+                training_run.seed = run_dto.seed
+                training_run.fine_tuning_model = run_dto.fine_tuning_model
 
                 # Fetch the Model object using the model_id from DTO
                 model = session.get(Model, run_dto.model_id)
@@ -510,7 +598,6 @@ class DataManager(IDataManager):
             version: int = model_data.version
             project_id: int = model_data.project_id
             is_global: bool = model_data.is_global
-            fine_tuning_model: str = model_data.fine_tuning_model
             excluded_project_id: int = model_data.exlude_project_id
 
             if model_name:
@@ -531,11 +618,6 @@ class DataManager(IDataManager):
                 query = query.filter(
                     Model.is_global == is_global)
 
-            # Cannot be an empty string
-            if fine_tuning_model:
-                query = query.filter(
-                    Model.fine_tuning_model == fine_tuning_model)
-
             models: list[Model] = query.all()
 
             # Apply additional filtering based on excluded_project_id
@@ -550,6 +632,76 @@ class DataManager(IDataManager):
         except SQLAlchemyError as e:
             logger.exception("Failed to retrieve models")
             raise SQLAlchemyError("Failed to retrieve models") from e
+
+    def create_datapoint_evaluations(self, session: Session, evaluations_data: list[CreateDataPointEvaluationDTO]) -> list[DataPointEvaluation]:
+        saved_evaluations: list[DataPointEvaluation] = []
+        try:
+            for evaluation_dto in evaluations_data:
+                evaluation = DataPointEvaluation(
+                    datapoint_id=evaluation_dto.datapoint_id,
+                    model_id=evaluation_dto.model_id,
+                    coherence_score=evaluation_dto.coherence_score,
+                    relevance_score=evaluation_dto.relevance_score,
+                    semantic_similarity_score=evaluation_dto.semantic_similarity_score
+                )
+                session.add(evaluation)
+                saved_evaluations.append(evaluation)
+
+            session.flush()  # Ensure IDs are generated
+            return saved_evaluations
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.exception("Failed to create datapoint evaluations")
+            raise SQLAlchemyError(
+                "Failed to create datapoint evaluations") from e
+
+    def update_datapoint_evaluations(self, session: Session, evaluations_data: list[UpdateDataPointEvaluationDTO]) -> list[DataPointEvaluation]:
+        updated_evaluations: list[DataPointEvaluation] = []
+        try:
+            for evaluation_dto in evaluations_data:
+                evaluation = session.get(
+                    DataPointEvaluation, evaluation_dto.id)
+
+                if evaluation_dto.coherence_score is not None:
+                    evaluation.coherence_score = evaluation_dto.coherence_score
+                if evaluation_dto.relevance_score is not None:
+                    evaluation.relevance_score = evaluation_dto.relevance_score
+                if evaluation_dto.semantic_similarity_score is not None:
+                    evaluation.semantic_similarity_score = evaluation_dto.semantic_similarity_score
+
+                updated_evaluations.append(evaluation)
+
+            session.flush()  # Commit the changes
+            return updated_evaluations
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.exception("Failed to update datapoint evaluations")
+            raise SQLAlchemyError(
+                "Failed to update datapoint evaluations") from e
+
+    def get_datapoint_evaluations(self, session: Session, filter_data: GetDataPointEvaluationsDTO) -> list[DataPointEvaluation]:
+        try:
+            query = session.query(DataPointEvaluation).filter_by(
+                datapoint_id=filter_data.datapoint_id,
+                model_id=filter_data.model_id
+            )
+
+            if filter_data.coherence_score is not None:
+                query = query.filter(
+                    DataPointEvaluation.coherence_score == filter_data.coherence_score)
+            if filter_data.relevance_score is not None:
+                query = query.filter(
+                    DataPointEvaluation.relevance_score == filter_data.relevance_score)
+            if filter_data.semantic_similarity_score is not None:
+                query = query.filter(
+                    DataPointEvaluation.semantic_similarity_score == filter_data.semantic_similarity_score)
+
+            evaluations: list[DataPointEvaluation] = query.all()
+            return evaluations
+        except SQLAlchemyError as e:
+            logger.exception("Failed to retrieve datapoint evaluations")
+            raise SQLAlchemyError(
+                "Failed to retrieve datapoint evaluations") from e
 
     def get_all_datasets(self, session: Session, dataset_data: GetDatasetsDTO) -> list[Dataset]:
         logger.debug(f"Dataset data: {dataset_data}")
@@ -598,8 +750,73 @@ class DataManager(IDataManager):
             logger.exception("Failed to retrieve datasets")
             raise SQLAlchemyError("Failed to retrieve datasets") from e
 
-    # For retrieving all models associated with a project filterable by name and version
+    def get_all_training_runs(self, session: Session, training_run_data: GetTrainingRunsDTO) -> list[TrainingRun]:
+        logger.debug(f"Training run data: {training_run_data}")
 
+        try:
+            query = session.query(TrainingRun)
+
+            if training_run_data.model_id is not None:
+                query = query.filter(TrainingRun.model_id ==
+                                     training_run_data.model_id)
+            if training_run_data.seed is not None:
+                query = query.filter(TrainingRun.seed ==
+                                     training_run_data.seed)
+            if training_run_data.epochs is not None:
+                query = query.filter(TrainingRun.epochs ==
+                                     training_run_data.epochs)
+            if training_run_data.learning_rate_multiplier is not None:
+                query = query.filter(
+                    TrainingRun.learning_rate_multiplier == training_run_data.learning_rate_multiplier)
+            if training_run_data.batch_size is not None:
+                query = query.filter(
+                    TrainingRun.batch_size == training_run_data.batch_size)
+            if training_run_data.fine_tuning_model is not None:
+                query = query.filter(
+                    TrainingRun.fine_tuning_model == training_run_data.fine_tuning_model)
+
+            training_runs: list[TrainingRun] = query.all()
+            return training_runs
+
+        except SQLAlchemyError as e:
+            logger.exception("Failed to retrieve training runs")
+            raise SQLAlchemyError("Failed to retrieve training runs") from e
+
+    def update_training_runs(self, session: Session, update_training_run_dtos: list[UpdateTrainingRunDTO]) -> list[TrainingRun]:
+        logger.debug(f"""Updating training runs with data: {
+                     update_training_run_dtos}""")
+        updated_training_runs: list[TrainingRun] = []
+
+        try:
+            for update_data in update_training_run_dtos:
+                # Retrieve the existing training run
+                training_run = session.get(TrainingRun, update_data.id)
+
+                if not training_run:
+                    raise ValueError(f"""Training run with ID {
+                                     update_data.id} not found.""")
+
+                # Update the fields only if they are not None
+                if update_data.epochs is not None:
+                    training_run.epochs = update_data.epochs
+                if update_data.learning_rate_multiplier is not None:
+                    training_run.learning_rate_multiplier = update_data.learning_rate_multiplier
+                if update_data.batch_size is not None:
+                    training_run.batch_size = update_data.batch_size
+
+                updated_training_runs.append(training_run)
+
+            # Commit the changes to the database
+            session.commit()
+
+            return updated_training_runs
+
+        except SQLAlchemyError as e:
+            logger.exception("Failed to update training runs")
+            session.rollback()
+            raise SQLAlchemyError("Failed to update training runs") from e
+
+    # For retrieving all models associated with a project filterable by name and version
     def get_models_by_project_id(self, session: Session, model_project_data: GetModelsByProjectIdDTO) -> list[Model]:
         logger.debug(f"Model_project_data: {model_project_data}")
         try:
@@ -614,10 +831,6 @@ class DataManager(IDataManager):
             if model_project_data.version:
                 query = query.filter(
                     Model.version == model_project_data.version)
-
-            if model_project_data.fine_tuning_model:
-                query = query.filter(
-                    Model.fine_tuning_model == model_project_data.fine_tuning_model)
 
             models: list[Model] = query.all()
             return models
@@ -665,15 +878,6 @@ class DataManager(IDataManager):
             query = session.query(DataPoint).filter(
                 DataPoint.dataset_id == dataset_datapoints_data.dataset_id)
 
-            if dataset_datapoints_data.coherence_score:
-                query = query.filter(
-                    DataPoint.coherence_score == dataset_datapoints_data.coherence_score)
-            if dataset_datapoints_data.relevance_score:
-                query = query.filter(
-                    DataPoint.relevance_score == dataset_datapoints_data.relevance_score)
-            if dataset_datapoints_data.semantic_similarity:
-                query = query.filter(
-                    DataPoint.semantic_similarity_score == dataset_datapoints_data.semantic_similarity)
             if dataset_datapoints_data.augmentation_type:
                 query = query.filter(
                     DataPoint.augmentation_type == dataset_datapoints_data.augmentation_type)
