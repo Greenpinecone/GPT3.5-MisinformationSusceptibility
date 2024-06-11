@@ -1,3 +1,4 @@
+from typing import Any, Callable
 import streamlit as st
 from backend.util.config import PAGE_CONFIG
 
@@ -5,19 +6,26 @@ from backend.util.config import PAGE_CONFIG
 class PageNavigator:
 
     @classmethod
-    def set_navbar(cls, label: str, previous_page: str, help: str, icon: str = "◀️", is_left: bool = True, nav_bar_cols_config: list[int] = [1.5, 4.5, 1.5], gap: str = "large") -> None:
-        nav_bar_cols = st.columns(nav_bar_cols_config, gap)
+    def set_navbar(cls, label: str, previous_page: str, help: str, icon: str = "◀️", is_left: bool = True, nav_bar_cols_config: list[int] = [1.5, 4.5, 1.5], gap: str = "large", func: Callable[..., None] = None, args: list[Any] = None) -> None:
+        if args is None:
+            args = []
+
+        nav_bar_cols = st.columns(nav_bar_cols_config, gap=gap)
         if not PAGE_CONFIG.get(previous_page):
             raise ValueError(
                 f"Page name '{previous_page}' not found in configuration.")
 
         if is_left:
             with nav_bar_cols[0]:
-                if st.button(f"{icon} {label}", help=help):
+                if st.button(label=f"{icon} {label}", help=help):
+                    if func:
+                        func(*args)
                     cls.navigate_to_page(previous_page)
         else:
             with nav_bar_cols[2]:
-                if st.button(f"{label} {icon}", help=help):
+                if st.button(label=f"{label} {icon}", help=help):
+                    if func:
+                        func(*args)
                     cls.navigate_to_page(previous_page)
 
     @staticmethod
