@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Boolean, func, Enum, Float, JSON
+from sqlalchemy import ARRAY, Column, Integer, String, ForeignKey, Table, DateTime, Boolean, func, Enum, Float, JSON
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import CheckConstraint, UniqueConstraint
@@ -31,7 +31,8 @@ class FineTuningCompany(enum.Enum):
 
 
 class FineTuningModelVersions(enum.Enum):
-    openai = ["gpt-3.5-turbo", "gpt-4"]
+    openai = ["gpt-3.5-turbo-0125", "gpt-3.5-turbo-0613",
+              "gpt-3.5-turbo-1106", "gpt-4"]
     google = ["non existent google models"]
 
 
@@ -42,7 +43,8 @@ class MessageKeys(enum.Enum):
 
 
 class UploadFormats(enum.Enum):
-    openai = {"gpt-3.5-turbo": ["jsonl"], "gpt-4": ["jsonl"]}
+    openai = {"gpt-3.5-turbo-0125": ["jsonl"], "gpt-3.5-turbo-0613": [
+        "jsonl"], "gpt-3.5-turbo-1106": ["jsonl"], "gpt-4": ["jsonl"]}
     google = {"non existent google models": ["nonexistent google format"]}
 
 
@@ -68,11 +70,16 @@ project_model_link = Table(
     Column('project_id', Integer, ForeignKey('projects.id'), primary_key=True),
     Column('model_id', Integer, ForeignKey('models.id'), primary_key=True)
 )
+# Association table for the many-to-many relationship
+model_dataset_association = Table(
+    'model_dataset_association', Base.metadata,
+    Column('model_id', Integer, ForeignKey('models.id')),
+    Column('dataset_id', Integer, ForeignKey('datasets.id'))
+)
+
 
 # One project can have multiple datasets and models.
 # Each project has a name.
-
-
 class Project(Base):
     __tablename__ = 'projects'
     id = Column(Integer, primary_key=True)
@@ -127,8 +134,12 @@ class Dataset(Base):
     datapoints = relationship(
         "DataPoint", order_by="DataPoint.id", back_populates="dataset")
 
-    model = relationship(
-        "Model", back_populates="training_dataset", uselist=False)
+    # Many-to-many relationship with Model
+    models = relationship(
+        "Model",
+        secondary=model_dataset_association,
+        back_populates="training_datasets"
+    )
 
     __table_args__ = (
         UniqueConstraint('dataset_name', 'category',
@@ -142,12 +153,6 @@ class DataPoint(Base):
     id = Column(Integer, primary_key=True)
     dataset_id = Column(Integer, ForeignKey('datasets.id'),
                         nullable=False)  # ForeignKey pointing to Dataset
-    # 1-10 score for coherence
-    coherence_score = Column(Integer)
-    # 1-10 score for relevance
-    relevance_score = Column(Integer)
-    # Semantic similarity measure between initial datapoint and augmented one.
-    semantic_similarity_score = Column(Float)
     augmentation_type = Column(
         Enum(AugmentationType))  # null = not augmented
     # Add a column for storing messages in JSON format
@@ -185,18 +190,17 @@ class Model(Base):
     full_fine_tuned_model_id = Column(String(), unique=True)
     # if the model is set global to choose
     is_global = Column(Boolean, nullable=False)
-    # what is the model version that was used for fine tuning
-    fine_tuning_model = Column(String)
     # Is the model one of the checkpoint models, openai creates after each epoch training
     is_checkpoint_model = Column(Boolean)
     # At which checkpoint step was the checkpoint model created
     checkpoint_step = Column(Integer)
 
-    # References the training dataset which again references the test dataset
-    training_dataset_id = Column(Integer, ForeignKey('datasets.id'),
-                                 nullable=False, unique=True)  # ForeignKey pointing to Dataset
-    training_dataset = relationship(
-        "Dataset", back_populates="model", uselist=False)
+    # Many-to-many relationship with Dataset
+    training_datasets = relationship(
+        "Dataset",
+        secondary=model_dataset_association,
+        back_populates="models"
+    )
 
     # Many-to-many relationship to projects
     projects = relationship(
@@ -210,6 +214,8 @@ class Model(Base):
     # Orm relationship for initial_datapoint
     parent_model = relationship("Model", remote_side=[
         id], backref="child_models", uselist=False)
+
+# TODO: Theoretically a unique constraint for name, version and specific project would be good so that a project cannot have two models with teh same name and version. This is currently handeled in the data manager because of complexity.
 
 
 # This table holds information regarding the evaluation of a model against its trainingsdataset(s). The model id points to the model this information belongs to. The evaluation type can be one of four values for the confusion matrix. And the helpful_score, honest_score and harmless_score is for saving the HHH criteria related data for each datapoint for later calculating the results and also reevaluating the previous evaluation. The datapoint id saves the reference to the original datapoint that was evaluated.
@@ -248,5 +254,60 @@ class TrainingRun(Base):
     learning_rate_multiplier = Column(Float, nullable=False)
     batch_size = Column(Integer, nullable=False)
     created_at = Column(DateTime, default=func.now())
+    seed = Column(Integer)
+    fine_tuning_model = Column(String)
     # Back-populates to model.training_runs
     model = relationship("Model", back_populates="training_run", uselist=False)
+
+
+# The data the current project needs to reestablish configuration after page reload and session state deletion
+class CurrentProjectData(Base):
+    __tablename__ = "current_project_data"
+
+    id = Column(Integer, primary_key=True)
+    created_at = Column(DateTime, default=func.now())
+    # If the user is currently in an unfinished operation
+    unfinished_progress = Column(Boolean, default=False)
+    # The last page the user visited
+    current_page = Column(String)
+    # Should checkpoint models also be saved if they are created
+    save_checkpoint_models = Column(Boolean, default=False)
+    fine_tuning_augmentation_methods = Column(JSON(String), default=list)
+    fine_tuning_augmentation_method_percentages = Column(
+        JSON(Float), default=list)
+    # The id of the currently created dataset
+    currently_modified_dataset_id = Column(Integer, ForeignKey('datasets.id'))
+    # The base model used for fine tuning the current fine tuning model
+    selected_model_for_fine_tuning_id = Column(
+        Integer, ForeignKey('models.id'))
+    fine_tuning_step_counter = Column(Integer, default=0)
+    # The current project the user is working with
+    current_project_id = Column(Integer, ForeignKey('projects.id'))
+    # The model id of the model currently newly created and fine tuned
+    current_fine_tuning_model_id = Column(Integer, ForeignKey('models.id'))
+    current_project = relationship("Project", uselist=False)
+    selected_model_for_fine_tuning = relationship(
+        "Model", uselist=False, foreign_keys=[selected_model_for_fine_tuning_id])
+    currently_modified_dataset = relationship(
+        "Dataset", uselist=False)
+    current_fine_tuning_model = relationship(
+        "Model", uselist=False, foreign_keys=[current_fine_tuning_model_id])
+
+
+# Used to evaluate augmented training datapoints
+class DataPointEvaluation(Base):
+    __tablename__ = 'datapoint_evaluations'
+    id = Column(Integer, primary_key=True)
+    model_id = Column(Integer, ForeignKey('models.id'), nullable=False)
+    datapoint_id = Column(Integer, ForeignKey('datapoints.id'), nullable=False)
+    # 1-10 score for coherence
+    coherence_score = Column(Integer)
+    # 1-10 score for relevance
+    relevance_score = Column(Integer)
+    # Semantic similarity measure between initial datapoint and augmented one.
+    semantic_similarity_score = Column(Float)
+    created_at = Column(DateTime, default=func.now())
+    # One-to-many relationship from ModelEvaluation to its DataPoint
+    datapoint = relationship("DataPoint", uselist=False)
+    # One-to-many relationship from ModelEvaluation to the model the datapoint belongs to
+    model = relationship("Model", uselist=False)
