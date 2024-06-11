@@ -1,7 +1,7 @@
-from __future__ import annotations
 from datetime import datetime
 from dataclasses import dataclass, field
-from ..database.schema import DatasetCategory, EvaluationType, AugmentationType, FineTuningCompany, FineTuningModelVersions
+from typing import Optional
+from ..database.schema import DatasetCategory, EvaluationType, AugmentationType, FineTuningCompany
 from ..dtos.create_request import MessagesContainer
 
 
@@ -11,8 +11,8 @@ class ProjectDTO:
     id: int
     project_name: str
     description: str | None = None
-    created_at: datetime = datetime.now(
-    ).astimezone()
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
     model_ids: list[int] = field(default_factory=list)
     dataset_ids: list[int] = field(default_factory=list)
 
@@ -28,13 +28,37 @@ class DatasetDTO:
     # The formatting of the underlying fine tuning data based on the company you want to fine tune with.
     fine_tuning_formatting: str
     is_global: bool = False
-    created_at: datetime = datetime.now(
-    ).astimezone()
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
     initial_dataset_id: int | None = None
     test_dataset_id: int | None = None
-    model_id: int | None = None
+    model_ids: list[int] = field(default_factory=list)
     project_ids: list[int] = field(default_factory=list)
     datapoint_ids: list[int] = field(default_factory=list)
+
+
+@dataclass
+class DataPointDTO:
+    id: int
+    messages: MessagesContainer
+    dataset_id: int
+    related_datapoints: list['DataPointDTO']
+    augmentation_type: AugmentationType | None = None
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
+    initial_datapoint_id: int | None = None
+
+
+@dataclass
+class DataPointEvaluationDTO:
+    id: int
+    datapoint_id: int
+    model_id: int
+    coherence_score: int
+    relevance_score: int
+    semantic_similarity_score: float
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
 
 
 @dataclass
@@ -48,28 +72,13 @@ class ComplexDatasetDTO:
     # The formatting of the underlying fine tuning data based on the company you want to fine tune with.
     fine_tuning_formatting: str
     is_global: bool = False
-    created_at: datetime = datetime.now(
-    ).astimezone()
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
     initial_dataset_id: int | None = None
-    test_dataset: 'ComplexDatasetDTO' | None = None
-    model_id: int | None = None
+    test_dataset: Optional['ComplexDatasetDTO'] = None
+    model_ids: list[int] = field(default_factory=list)
     project_ids: list[int] = field(default_factory=list)
-    datapoints: list['DataPointDTO'] = field(default_factory=list)
-
-
-@dataclass
-class DataPointDTO:
-    id: int
-    messages: MessagesContainer
-    dataset_id: int
-    related_datapoints: list['DataPointDTO']
-    created_at: datetime = datetime.now(
-    ).astimezone()
-    augmentation_type: AugmentationType | None = None
-    coherence_score: int | None = None
-    relevance_score: int | None = None
-    semantic_similarity_score: float | None = None
-    initial_datapoint_id: int | None = None
+    datapoints: list[DataPointDTO] = field(default_factory=list)
 
 
 @dataclass
@@ -78,12 +87,11 @@ class ModelDTO:
     model_name: str
     version: int
     project_ids: list[int]
-    training_dataset_id: int
+    training_dataset_ids: list[int]
     is_global: bool = False
-    fine_tuning_model: str | None = None
     full_fine_tuned_model_id: str | None = None
-    created_at: datetime = datetime.now(
-    ).astimezone()
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
     parent_model_id: int | None = None
     training_run_id: int | None = None
     is_checkpoint_model: bool | None = None
@@ -99,16 +107,62 @@ class ModelEvaluationDTO:
     helpful_score: int
     honest_score: int
     harmless_score: int
-    created_at: datetime = datetime.now(
-    ).astimezone()
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
 
 
 @dataclass
 class TrainingRunDTO:
     id: int
     model_id: int
+    seed: int
     epochs: int
     learning_rate_multiplier: float
     batch_size: int
-    created_at: datetime = datetime.now(
-    ).astimezone()
+    fine_tuning_model: str
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
+
+
+@dataclass
+class ComplexModelDTO:
+    id: int
+    model_name: str
+    version: int
+    project_ids: list[int]
+    training_dataset_ids: list[int]
+    is_global: bool = False
+    full_fine_tuned_model_id: str | None = None
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
+    is_checkpoint_model: bool | None = None
+    checkpoint_step: int | None = None
+    parent_model: Optional['ComplexModelDTO'] = None
+    training_run: TrainingRunDTO | None = None
+
+
+@dataclass
+class SimpleTrainingRunDTO:
+    id: int
+    model_name: str
+    model_version: int
+    fine_tuning_model: str
+    seed: int
+
+
+@dataclass
+class CurrentProjectDataDTO:
+    id: int
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
+    fine_tuning_augmentation_methods: list[str] = field(default_factory=list)
+    fine_tuning_augmentation_method_percentages: list[float] = field(
+        default_factory=list)
+    unfinished_progress: bool = False
+    current_page: str = ""
+    save_checkpoint_models: bool = False
+    fine_tuning_step_counter: int = 0
+    current_project: ProjectDTO | None = None
+    current_fine_tuning_model: ModelDTO | None = None
+    selected_model_for_fine_tuning: ComplexModelDTO | None = None
+    currently_modified_dataset: ComplexDatasetDTO | None = None

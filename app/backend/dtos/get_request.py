@@ -16,7 +16,6 @@ class GetModelsDTO:
     version: int | None = None
     project_id: int | None = None
     is_global: bool | None = None
-    fine_tuning_model: str | None = None
     exlude_project_id: int | None = None
 
 
@@ -36,7 +35,6 @@ class GetModelsByProjectIdDTO:
     project_id: int
     name: str | None = None
     version: int | None = None
-    fine_tuning_model: str | None = None
 
 
 @dataclass
@@ -51,7 +49,23 @@ class GetDatasetsByModelIdDTO:
 @dataclass
 class GetDatapointsByDatasetIdDTO:
     dataset_id: int
+    augmentation_type: AugmentationType | None = None
+
+
+@dataclass
+class GetTrainingRunsDTO:
+    model_id: int | None = None
+    seed: int | None = None
+    epochs: int | None = None
+    learning_rate_multiplier: float | None = None
+    batch_size: int | None = None
+    fine_tuning_model: str | None = None
+
+
+@dataclass
+class GetDataPointEvaluationsDTO:
+    datapoint_id: int
+    model_id: int
     coherence_score: int | None = None
     relevance_score: int | None = None
-    semantic_similarity: float | None = None
-    augmentation_type: AugmentationType | None = None
+    semantic_similarity_score: float | None = None

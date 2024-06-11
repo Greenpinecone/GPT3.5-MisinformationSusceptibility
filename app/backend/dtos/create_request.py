@@ -1,6 +1,5 @@
-from typing import Optional, Dict, TypedDict, TYPE_CHECKING
 from dataclasses import dataclass, field
-from ..database.schema import DatasetCategory, AugmentationType, FineTuningModelVersions, EvaluationType, FineTuningCompany
+from ..database.schema import DatasetCategory, AugmentationType, EvaluationType, FineTuningCompany
 from ..custom_types.typedicts import MessagesContainer
 
 
@@ -34,9 +33,6 @@ class CreateDataPointDTO:
     messages: MessagesContainer
     dataset_id: int | None = None
     related_datapoint_ids: list[int] | None = None
-    coherence_score: int | None = None
-    relevance_score: int | None = None
-    semantic_similarity_score: float | None = None
     augmentation_type: AugmentationType | None = None
     initial_datapoint_id: int | None = None
 
@@ -45,13 +41,12 @@ class CreateDataPointDTO:
 class CreateModelDTO:
     model_name: str
     project_ids: list[int]
-    training_dataset_id: int
-    fine_tuning_model: str | None = None
+    training_dataset_ids: list[int]
     full_fine_tuned_model_id: str | None = None
     parent_model_id: int | None = None
     training_run_id: int | None = None
     is_global: bool = False
-    is_checkpoint_model: bool | None = None
+    is_checkpoint_model: bool = False
     checkpoint_step: int | None = None
 
 
@@ -68,6 +63,17 @@ class CreateModelEvaluationDTO:
 @dataclass
 class CreateTrainingRunDTO:
     model_id: int
-    epochs: int
-    learning_rate_multiplier: float
-    batch_size: int
+    fine_tuning_model: str
+    epochs: int | None = None
+    learning_rate_multiplier: float | None = None
+    batch_size: int | None = None
+    seed: int | None = None
+
+
+@dataclass
+class CreateDataPointEvaluationDTO:
+    datapoint_id: int
+    model_id: int
+    coherence_score: int | None = None
+    relevance_score: int | None = None
+    semantic_similarity_score: float | None = None
