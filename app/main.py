@@ -9,6 +9,8 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly as pl
+from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO
+from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from app.frontend.classes.toast_manager import ToastManager
 from backend.util.logger import StreamlitLogger
 from frontend.util import utility_functions as uf_frontend
@@ -22,14 +24,16 @@ from app.frontend.classes.page_navigator import PageNavigator
 apply_global_style()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
+current_page = "home"
 
 with logger:
-
+    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
+    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+        service, current_page)
     ToastManager.show_global_toasts()
-    service = GlobalAppStateManager.get_service()
+    QueryParamsManager.clear_query_params()
 
     def load_page():
-        QueryParamsManager.clear_query_params()
 
         update_button_base_key = "update_project_button_"
         delete_button_base_key = "delete_project_button_"
@@ -55,7 +59,7 @@ with logger:
                 "Create Project +", help="Click me to create a new project", type="primary", key="create_project_button")
 
             if create_project_button:
-                GlobalAppStateManager.clear_session_state_except()
+                GlobalAppStateManager.clear_session_state()
                 PageNavigator.navigate_to_page('create_project')
         switch_to_create_project()
 
@@ -98,7 +102,7 @@ with logger:
                             if st.session_state.get(project_update_state_key):
                                 set_clicked_project_data(
                                     sorted_projects, update_button_base_key)
-                                GlobalAppStateManager.clear_session_state_except()
+                                GlobalAppStateManager.clear_session_state()
                                 PageNavigator.navigate_to_page(
                                     'update_project')
 
@@ -111,7 +115,7 @@ with logger:
                             if st.session_state.get(project_choose_state_key):
                                 set_clicked_project_data(
                                     sorted_projects, choose_button_base_key)
-                                GlobalAppStateManager.clear_session_state_except()
+                                GlobalAppStateManager.clear_session_state()
                                 PageNavigator.navigate_to_page(
                                     'fine_tune_model')
 
@@ -136,7 +140,8 @@ with logger:
         for i, project in enumerate(sorted_projects):
             key = base_key + str(i)
             if st.session_state.get(key):
-                GlobalAppStateManager.set_current_project(project)
+                GlobalAppStateManager.update_current_project_data(service,
+                                                                  UpdateCurrentProjectDataDTO(id=current_project_data.id, current_project_id=project.id))
                 print(GlobalAppStateManager.get_global_states())
 
     load_page()

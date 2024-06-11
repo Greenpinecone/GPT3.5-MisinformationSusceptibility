@@ -18,13 +18,15 @@ from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
 apply_global_style()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
+current_page = "create_project"
 
 with logger:
+    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
+    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+        service, current_page)
     ToastManager.show_global_toasts()
     PageNavigator.set_navbar(
         "Go back", "home", "Return to the previous page")
-
-    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
 
     def load_page():
         st.title("Create Project")
@@ -66,7 +68,7 @@ with logger:
                     saved_project_dto: ProjectDTO = service.create_projects(
                         [project_to_save])
                     if saved_project_dto:
-                        GlobalAppStateManager.clear_session_state_except()
+                        GlobalAppStateManager.clear_session_state()
                         ToastManager.add_global_toasts(
                             "Successfully created project.", "success")
                         PageNavigator.navigate_to_page('home')

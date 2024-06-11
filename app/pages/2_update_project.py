@@ -9,30 +9,34 @@ from backend.util.logger import StreamlitLogger
 from backend.dtos.get_request import *
 from backend.dtos.response import *
 from backend.dtos.create_request import *
-from backend.dtos.update_request import *
+from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO, UpdateProjectDTO
 from backend.database.schema import DatasetCategory
 from frontend.custom_styles.global_styles import apply_global_style
 from frontend.classes.query_params_manager import QueryParamsManager
 from frontend.classes.page_navigator import PageNavigator
 from frontend.util import utility_functions as frontend_uf
 from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
+from backend.util.config import GLOBAL_SESSION_STATE_KEYS as global_keys
 
 apply_global_style()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
+current_page = "update_project"
 
 with logger:
+    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
+    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+        service, current_page)
     ToastManager.show_global_toasts()
-    QueryParamsManager.set_query_params_from_page("update_project")
+    QueryParamsManager.set_query_params_from_page(current_page)
     PageNavigator.set_navbar(
         "Go back", "home", "Return to the previous page")
-    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
 
     def load_page():
 
         st.title("Update Project")
 
-        current_project: ProjectDTO = GlobalAppStateManager.get_current_project()
+        current_project: ProjectDTO = current_project_data.current_project
 
         # Get all global datasets and models.
         models: list[ModelDTO] = service.filter_models(GetModelsDTO(
@@ -79,7 +83,9 @@ with logger:
                     updated_project_dto: ProjectDTO = service.udpate_projects(
                         [updated_project])
                     if updated_project_dto:
-                        GlobalAppStateManager.clear_session_state_except()
+                        GlobalAppStateManager.clear_session_state()
+                        GlobalAppStateManager.update_current_project_data(service,
+                                                                          UpdateCurrentProjectDataDTO(id=current_project_data.id, current_project_id=None))
                         ToastManager.add_global_toasts(
                             "Successfully updated project.", "success")
                         PageNavigator.navigate_to_page('home')

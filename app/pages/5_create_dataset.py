@@ -4,14 +4,15 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly as pl
+from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from backend.util.logger import StreamlitLogger
 from backend.util import utility_functions as backend_uf
-from backend.util.config import UPLOAD_FORMAT_FORMATTINGS
+from backend.util.config import UPLOAD_FORMAT_FORMATTINGS, GLOBAL_SESSION_STATE_KEYS
 from backend.dtos.get_request import *
 from app.backend.dtos.response import *
 from backend.dtos.create_request import *
-from backend.database.schema import DatasetCategory, MessageKeys, UploadFormats
+from backend.database.schema import DatasetCategory, FineTuningModelVersions, MessageKeys, UploadFormats
 from app.frontend.classes.dataframe_editor import DataFrameEditor
 from frontend.classes.dataset_editor import DatasetEditor
 from frontend.classes.dataset_service import DatasetService
@@ -25,6 +26,7 @@ from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
 apply_global_style()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
+current_page = "create_dataset"
 
 
 def load_choose_file_format_form(dataset_editor: DatasetEditor, uploaded_dataset_file: BytesIO, all_dataset_editors: list[DatasetEditor]) -> None:
@@ -32,7 +34,7 @@ def load_choose_file_format_form(dataset_editor: DatasetEditor, uploaded_dataset
     create_formatting_examples_tabs()
     options = [company for company in FineTuningCompany]
     index = backend_uf.find_index_in_list(
-        options, dataset_editor.chosen_company) or 0
+        options, dataset_editor.chosen_company, default=0)
 
     formatting_cols = st.columns(3)
 
@@ -53,7 +55,7 @@ def load_choose_file_format_form(dataset_editor: DatasetEditor, uploaded_dataset
     options = FineTuningModelVersions[chosen_company.value].value if chosen_company else [
     ]
     index = backend_uf.find_index_in_list(
-        options, dataset_editor.chosen_model) or 0
+        options, dataset_editor.chosen_model, default=0)
 
     # Select box for choosing company model
     with formatting_cols[1]:
@@ -72,7 +74,7 @@ def load_choose_file_format_form(dataset_editor: DatasetEditor, uploaded_dataset
     options = UploadFormats[chosen_company.value].value[chosen_model] if chosen_model else [
     ]
     index = backend_uf.find_index_in_list(
-        options, dataset_editor.chosen_file_format) or 0
+        options, dataset_editor.chosen_file_format, default=0)
 
     # Select box for choosing upload file format
     with formatting_cols[2]:
@@ -139,9 +141,11 @@ with logger:
     PageNavigator.set_navbar(
         "Go back", "create_model", "Return to the previous page")
     service: ServiceManagerFacade = GlobalAppStateManager.get_service()
-    current_project: ProjectDTO = GlobalAppStateManager.get_current_project()
+    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+        service, current_page)
+    current_project: ProjectDTO = current_project_data.current_project
     QueryParamsManager.set_query_params_from_page(
-        "create_dataset")
+        current_page)
 
     # Initialize DatasetEditor for training and test datasets with corresponding paginator
     trainings_dataset_paginator = GlobalAppStateManager.get_or_create_session_state(
@@ -235,15 +239,17 @@ with logger:
                 saved_dataset_dtos: ComplexDatasetDTO = DatasetService.process_and_create_dataset(
                     all_dataset_editors, GlobalAppStateManager.get_or_create_session_state("globalize_dataset_checkbox", None), GlobalAppStateManager.get_or_create_session_state("dataset_name_input", None), current_project.id, service)[0]
                 if saved_dataset_dtos:
-                    GlobalAppStateManager.set_current_dataset(
-                        saved_dataset_dtos)
-                    GlobalAppStateManager.clear_session_state_except()
                     ToastManager.add_global_toasts(
                         "Dataset has been successfully created.", "success")
                     # Match training and test datapoints if a test dataset has been uploaded
                     if saved_dataset_dtos.test_dataset.datapoints:
+                        GlobalAppStateManager.update_current_project_data(service,
+                                                                          UpdateCurrentProjectDataDTO(id=current_project_data.id, currently_modified_dataset_id=saved_dataset_dtos.id))
+                        GlobalAppStateManager.clear_session_state()
                         PageNavigator.navigate_to_page("match_datapoint")
                     else:
+                        GlobalAppStateManager.update_current_project_data(service,
+                                                                          UpdateCurrentProjectDataDTO(id=current_project_data.id, currently_modified_dataset_id=None))
                         PageNavigator.navigate_to_page("create_model")
 
     load_page(dataset_editor, all_dataset_editors)

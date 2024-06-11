@@ -22,6 +22,7 @@ from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
 apply_global_style()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
+current_page = "create_model"
 
 
 def all_fields_set(model_name: str, selected_training_dataset: DatasetDTO) -> bool:
@@ -34,8 +35,10 @@ with logger:
     PageNavigator.set_navbar(
         "Go back", "fine_tune_model", "Return to the previous page")
     service: ServiceManagerFacade = GlobalAppStateManager.get_service()
-    current_project: ProjectDTO = GlobalAppStateManager.get_current_project()
-    QueryParamsManager.set_query_params_from_page("create_model")
+    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+        service, current_page)
+    current_project: ProjectDTO = current_project_data.current_project
+    QueryParamsManager.set_query_params_from_page(current_page)
 
     def load_page():
 
@@ -77,7 +80,7 @@ with logger:
                 create_dataset_button = st.button("Create Dataset", help="Click me to create a new dataset",
                                                   type="secondary", key="create_dataset")
                 if create_dataset_button:
-                    GlobalAppStateManager.clear_session_state_except()
+                    GlobalAppStateManager.clear_session_state()
                     PageNavigator.navigate_to_page('create_dataset')
 
                 frontend_uf.create_text_divider()
@@ -86,12 +89,12 @@ with logger:
                                                 key="create_model_button", type="primary", disabled=not all_fields_set(model_name, selected_training_dataset))
                 if create_model_button:
                     create_model_dto = CreateModelDTO(model_name=model_name, project_ids=[
-                                                      current_project.id], training_dataset_id=selected_training_dataset.id, is_global=is_global)
+                                                      current_project.id], training_dataset_ids=[selected_training_dataset.id], is_global=is_global)
 
                     created_model_dto: ModelDTO = service.create_models(
                         [create_model_dto])
                     if created_model_dto:
-                        GlobalAppStateManager.clear_session_state_except()
+                        GlobalAppStateManager.clear_session_state()
                         ToastManager.add_global_toasts(
                             "Model has been successfully saved.", "success")
                         PageNavigator.navigate_to_page("fine_tune_model")
