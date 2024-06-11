@@ -7,7 +7,6 @@ from ....dtos.update_request import *
 from ....custom_types.exceptions import CustomValidationError
 from marshmallow import Schema
 from sqlalchemy.orm import Session
-from backend.database.schema import DatasetCategory
 
 
 class ValidatorFacade:
@@ -55,6 +54,14 @@ class ValidatorFacade:
         self.validate_data(
             data, CreateTrainingRunSchema, session, data_manager, "create training runs")
 
+    def validate_get_training_runs(self, session: Session, data_manager: IDataManager, data: GetTrainingRunsDTO) -> None:
+        self.validate_data(
+            data, GetTrainingRunsSchema, session, data_manager, "get training runs")
+
+    def validate_update_training_runs(self, session: Session, data_manager: IDataManager, data: list[UpdateTrainingRunDTO]) -> None:
+        self.validate_data(
+            data, UpdateTrainingRunSchema, session, data_manager, "update training runs")
+
     def validate_get_all_projects(self, session: Session, data_manager: IDataManager, data: GetProjectsDTO) -> None:
         self.validate_data(
             data, GetProjectsSchema, session, data_manager, "get all projects")
@@ -98,3 +105,15 @@ class ValidatorFacade:
     def validate_update_model_evaluations(self, session: Session, data_manager: IDataManager, data: list[UpdateModelEvaluationDTO]) -> None:
         self.validate_data(
             data, UpdateModelEvaluationSchema, session, data_manager, "update model evaluations")
+
+    def validate_create_datapoint_evaluations(self, session: Session, data_manager: IDataManager, data: list[CreateDataPointEvaluationDTO]) -> None:
+        self.validate_data(
+            data, CreateDataPointEvaluationSchema, session, data_manager, "create datapoint evaluations")
+
+    def validate_update_datapoint_evaluations(self, session: Session, data_manager: IDataManager, data: list[UpdateDataPointEvaluationDTO]) -> None:
+        self.validate_data(
+            data, UpdateDataPointEvaluationSchema, session, data_manager, "update datapoint evaluations")
+
+    def validate_get_datapoint_evaluation(self, session: Session, data_manager: IDataManager, data: GetDataPointEvaluationsDTO) -> None:
+        self.validate_data(
+            data, GetDataPointEvaluationSchema, session, data_manager, "get datapoint evaluations")

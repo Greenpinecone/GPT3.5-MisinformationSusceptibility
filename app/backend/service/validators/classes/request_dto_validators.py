@@ -361,25 +361,6 @@ class CreateDataPointSchema(Schema):
         fields.Integer(validate=lambda n: n > 0), allow_none=True, error_messages={
             'invalid': 'Related datapoint ids must be > 0',
         })
-
-    coherence_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, allow_none=True,
-        error_messages={
-            'invalid': 'Coherence score must be an integer between 1 and 10.',
-        }
-    )
-    relevance_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, allow_none=True,
-        error_messages={
-            'invalid': 'Relevance score must be an integer between 1 and 10.',
-        }
-    )
-    semantic_similarity_score = fields.Float(
-        allow_none=True,
-        error_messages={
-            'invalid': 'Semantic similarity score must be a float.'
-        }
-    )
     augmentation_type = CustomEnumValidationField(
         AugmentationType,
         by_value=True,
@@ -494,12 +475,15 @@ class CreateModelSchema(Schema):
             'invalid': 'Each project ID must exist and be greater than 0.'
         }
     )
-    training_dataset_id = fields.Int(
-        validate=lambda n: n > 0,
+    training_dataset_ids = fields.List(fields.Int(validate=lambda n: n > 0, error_messages={
+        'invalid': 'All associated training dataset ids must be > 0.'
+    }),
+        validate=lambda n: len(n) > 0,
         required=True,
         error_messages={
-            'invalid': 'Training dataset ID must be greater than 0.'
-        }
+        'required': 'Training dataset list is required.',
+        'invalid': 'Model must be associated to at least one training dataset.'
+    }
     )
     training_run_id = fields.Int(
         allow_none=True,
@@ -512,7 +496,8 @@ class CreateModelSchema(Schema):
             'invalid': 'Is_global must be either True or False.'
         }
     )
-    is_checkpoint_model = fields.Boolean(allow_none=True, error_messages={
+    is_checkpoint_model = fields.Boolean(required=True, error_messages={
+        'required': 'Is_checkpoint_model must be set',
                                          'invalid': 'Is_checkpoint_model must be of type boolean.'})
     checkpoint_step = fields.Int(allow_none=True, validate=lambda n: n > 0, error_messages={
         'invalid': 'Checkpoint step must be of type integer > 0.'})
@@ -522,9 +507,6 @@ class CreateModelSchema(Schema):
                                           error_messages={
                                               'invalid': 'Full fine tuned model name must be of type string'
                                           })
-    fine_tuning_model = fields.Str(allow_none=True, validate=lambda s: len(s) > 0,  error_messages={
-        'invalid': 'Fine tuning model name must be of type string'
-    })
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -557,15 +539,18 @@ class CreateModelSchema(Schema):
             raise ValidationError(f"""Projects with IDs {
                 missing_projects} do not exist.""")
 
-    @validates('training_dataset_id')
-    def validate_datasets_exist(self, dataset_id: int):
-
+    @validates('training_dataset_ids')
+    def validate_datasets_exist(self, dataset_ids: list[int]):
+        missing_dataset_ids: list[int] = []
         try:
-            self.data_manager.get_dataset_by_id(
-                self.session, dataset_id)[0]
+            for dataset_id in dataset_ids:
+                self.data_manager.get_dataset_by_id(
+                    self.session, dataset_id)[0]
         except NoResultFound:
-            raise ValidationError(f"""Dataset with ID {
-                dataset_id} does not exist.""")
+            missing_dataset_ids.append(dataset_id)
+        if missing_dataset_ids:
+            raise ValidationError(f"""Datasets with ID {
+                missing_dataset_ids} do not exist.""")
 
     @validates('training_run_id')
     def validate_training_run_exists(self, training_run_id: int):
@@ -577,17 +562,6 @@ class CreateModelSchema(Schema):
             except NoResultFound:
                 raise ValidationError(f"""Training run with ID {
                     training_run_id} does not exist.""")
-
-    @validates('fine_tuning_model')
-    def validate_fine_tuning_model(self, value: str):
-        if value:
-            valid_models = []
-            for version_list in FineTuningModelVersions:
-                valid_models.extend(version_list.value)
-
-            if value not in valid_models:
-                raise ValidationError(
-                    f"The model version must be one of {valid_models}")
 
     @post_load
     def make_create_model_dto(self, data, **kwargs):
@@ -680,25 +654,37 @@ class CreateTrainingRunSchema(Schema):
             'invalid': 'Model ID must be a positive integer.'
         }
     )
+    fine_tuning_model = fields.Str(required=True, validate=lambda s: len(s) > 0,  error_messages={
+        'required': 'Fine tuning model is required.',
+        'invalid': 'Fine tuning model name must be of type string'
+    })
     epochs = fields.Int(
-        required=True, validate=lambda n: n > 0,
+        required=True, validate=lambda n: n >= 1 and n <= 10,
         error_messages={
             'required': 'Number of epochs is required.',
-            'invalid': 'Number of epochs must be greater than 0.'
+            'invalid': 'Number of epochs must be greater than 0 and smaller than 11.'
         }
     )
     learning_rate_multiplier = fields.Float(
-        required=True, validate=lambda n: n > 0,
+        required=True, validate=lambda n: n >= 0.1 and n <= 10,
         error_messages={
             'required': 'Learning rate multiplier is required.',
-            'invalid': 'Learning rate multiplier must be a positive float greater than 0.0.',
+            'invalid': 'Learning rate multiplier must be a positive float greater than 0.0 and smaller than 11.',
         }
     )
     batch_size = fields.Int(
-        required=True, validate=lambda n: n > 0,
+        required=True, validate=lambda n: n >= 1 and n <= 32,
         error_messages={
             'required': 'Batch size is required.',
-            'invalid': 'Batch size must be a positive integer greater 0.',
+            'invalid': 'Batch size must be a positive integer greater 0 and smaller 33.',
+        }
+    )
+
+    seed = fields.Int(
+        required=True, validate=lambda n: n >= 0,
+        error_messages={
+            'required': 'Seed is required.',
+            'invalid': 'Seed must be an  integer greater or equals to 0.',
         }
     )
 
@@ -716,9 +702,141 @@ class CreateTrainingRunSchema(Schema):
             raise ValidationError(
                 f"Model with ID {model_id} does not exist.")
 
+    @validates('fine_tuning_model')
+    def validate_fine_tuning_model(self, value: str):
+        if value:
+            valid_models = []
+            for version_list in FineTuningModelVersions:
+                valid_models.extend(version_list.value)
+
+            if value not in valid_models:
+                raise ValidationError(
+                    f"The model version must be one of {valid_models}")
+
     @post_load
     def make_create_training_run_dto(self, data, **kwargs):
         return CreateTrainingRunDTO(**data)
+
+
+class CreateDataPointEvaluationSchema(BaseUpdateSchema):
+    datapoint_id = fields.Int(
+        validate=lambda n: n > 0, required=True, error_messages={
+            'required': 'Datapoint id is required.',
+            'invalid': 'Datapoint id must be an integer > 0.'
+        }
+    )
+    model_id = fields.Int(
+        validate=lambda n: n > 0, required=True, error_messages={
+            'required': 'Model id is required.',
+            'invalid': 'Model id must be an integer > 0.'
+        }
+    )
+    coherence_score = fields.Int(
+        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        error_messages={
+            'invalid': 'Coherence score must be an integer between 1 and 10.',
+        }
+    )
+    relevance_score = fields.Int(
+        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        error_messages={
+            'invalid': 'Relevance score must be an integer between 1 and 10.',
+        }
+    )
+    semantic_similarity_score = fields.Float(
+        allow_none=True,
+        error_messages={
+            'invalid': 'Semantic similarity score must be a float.'
+        }
+    )
+
+    def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session: Session = session
+        self.data_manager: IDataManager = data_manager
+
+    @validates('datapoint_id')
+    def validate_datapoint_id(self, datapoint_id: int) -> None:
+        try:
+            self.data_manager.get_datapoint_by_id(
+                self.session, datapoint_id)[0]
+        except:
+            raise ValidationError(f"""No datapoint with the id {
+                                  datapoint_id} found.""")
+
+    @validates('model_id')
+    def validate_datapoint_id(self, model_id: int) -> None:
+        try:
+            self.data_manager.get_model_by_id(
+                self.session, model_id)[0]
+        except:
+            raise ValidationError(f"""No model with the id {
+                                  model_id} found.""")
+
+    @post_load
+    def make_create_training_run_dto(self, data, **kwargs):
+        return CreateDataPointEvaluationDTO(**data)
+
+
+class GetTrainingRunsSchema(Schema):
+    model_id = fields.Int(allow_none=True,
+                          error_messages={
+                              'invalid': 'Model ID must be a positive integer.'
+                          }
+                          )
+    epochs = fields.Int(allow_none=True, validate=lambda n: n >= 1 and n <= 10,
+                        error_messages={
+                            'invalid': 'Number of epochs must be greater than 0 and smaller than 11.'
+                        }
+                        )
+    learning_rate_multiplier = fields.Float(allow_none=True, validate=lambda n: n >= 0.1 and n <= 10,
+                                            error_messages={
+                                                'invalid': 'Learning rate multiplier must be a positive float greater than 0.0 and smaller than 11.',
+                                            }
+                                            )
+    batch_size = fields.Int(allow_none=True, validate=lambda n: n >= 1 and n <= 32,
+                            error_messages={
+                                'invalid': 'Batch size must be a positive integer greater 0 and smaller 33.',
+                            }
+                            )
+
+    seed = fields.Int(allow_none=True, validate=lambda n: n >= 0,
+                      error_messages={
+                          'invalid': 'Seed must be an  integer greater or equals to 0.',
+                      }
+                      )
+    fine_tuning_model = fields.Str(allow_none=True, validate=lambda s: len(s) > 0,  error_messages={
+        'invalid': 'Fine tuning model name must be of type string'
+    })
+
+    def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session: Session = session
+        self.data_manager: IDataManager = data_manager
+
+    @validates('model_id')
+    def validate_model_id(self, model_id):
+        if model_id:
+            try:
+                self.data_manager.get_model_by_id(self.session, model_id)[0]
+            except NoResultFound:
+                raise ValidationError(
+                    f"Model with ID {model_id} does not exist.")
+
+    @validates('fine_tuning_model')
+    def validate_fine_tuning_model(self, value: str):
+        if value:
+            valid_models = []
+            for version_list in FineTuningModelVersions:
+                valid_models.extend(version_list.value)
+
+            if value not in valid_models:
+                raise ValidationError(
+                    f"The model version must be one of {valid_models}")
+
+    @post_load
+    def make_create_training_run_dto(self, data, **kwargs):
+        return GetTrainingRunsDTO(**data)
 
 
 class GetProjectsSchema(Schema):
@@ -776,10 +894,6 @@ class GetModelsSchema(Schema):
                                }
                                )
 
-    fine_tuning_model = fields.Str(allow_none=True, validate=lambda n: len(n) > 0, error_messages={
-        'invalid': 'Fine tuning model must be of type string.'
-    })
-
     exlude_project_id = fields.Int(allow_none=True, validate=lambda n: n > 0, rror_messages={
         'invalid': 'Excluded project id must be > 0.'
     })
@@ -808,17 +922,6 @@ class GetModelsSchema(Schema):
             except NoResultFound:
                 raise ValidationError(
                     f"Project with ID {project_id} does not exist.")
-
-    @validates('fine_tuning_model')
-    def validate_fine_tuning_model(self, value: str):
-        if value:
-            valid_models = []
-            for version_list in FineTuningModelVersions:
-                valid_models.extend(version_list.value)
-
-            if value not in valid_models:
-                raise ValidationError(
-                    f"The model version must be one of {valid_models}")
 
 
 class GetDatasetsSchema(Schema):
@@ -919,9 +1022,6 @@ class GetModelsByProjectIdSchema(Schema):
             'invalid': 'Version must be a positive integer greater 0.',
         }
     )
-    fine_tuning_model = fields.Str(allow_none=True,  error_messages={
-        'invalid': 'Fine tuning model must be of type string.'
-    })
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -936,16 +1036,6 @@ class GetModelsByProjectIdSchema(Schema):
         except NoResultFound:
             raise ValidationError(
                 f"Project with ID {project_id} does not exist.")
-
-    @validates('fine_tuning_model')
-    def validate_fine_tuning_model(self, value: str):
-        valid_models = []
-        for version_list in FineTuningModelVersions:
-            valid_models.extend(version_list.value)
-
-        if value not in valid_models:
-            raise ValidationError(
-                f"The model version must be one of {valid_models}")
 
     @post_load
     def make_get_models_by_project_id_dto(self, data, **kwargs):
@@ -1016,26 +1106,6 @@ class GetDatapointsByDatasetIdSchema(Schema):
             'invalid': 'Dataset ID must be an integer.'
         }
     )
-    coherence_score = fields.Int(
-        allow_none=True,
-        validate=lambda n: 1 <= n <= 10,
-        error_messages={
-            'invalid': 'Coherence score must be a positive Integer between 1 and 10.',
-        }
-    )
-    relevance_score = fields.Int(
-        allow_none=True,
-        validate=lambda n: 1 <= n <= 10,
-        error_messages={
-            'invalid': 'Relevance score must be a positive Integer between 1 and 10.',
-        }
-    )
-    semantic_similarity = fields.Float(
-        allow_none=True,
-        error_messages={
-            'invalid': 'Semantic similarity score must be a float.'
-        }
-    )
     augmentation_type = CustomEnumValidationField(
         AugmentationType,
         by_value=True,
@@ -1062,6 +1132,66 @@ class GetDatapointsByDatasetIdSchema(Schema):
     @post_load
     def make_get_datapoints_by_dataset_id_dto(self, data, **kwargs):
         return GetDatapointsByDatasetIdDTO(**data)
+
+
+class GetDataPointEvaluationSchema(BaseUpdateSchema):
+    datapoint_id = fields.Int(
+        validate=lambda n: n > 0, required=True, error_messages={
+            'required': 'Datapoint id is required.',
+            'invalid': 'Datapoint id must be an integer > 0.'
+        }
+    )
+    model_id = fields.Int(
+        validate=lambda n: n > 0, required=True, error_messages={
+            'required': 'Model id is required.',
+            'invalid': 'Model id must be an integer > 0.'
+        }
+    )
+    coherence_score = fields.Int(
+        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        error_messages={
+            'invalid': 'Coherence score must be an integer between 1 and 10.',
+        }
+    )
+    relevance_score = fields.Int(
+        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        error_messages={
+            'invalid': 'Relevance score must be an integer between 1 and 10.',
+        }
+    )
+    semantic_similarity_score = fields.Float(
+        allow_none=True,
+        error_messages={
+            'invalid': 'Semantic similarity score must be a float.'
+        }
+    )
+
+    def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session: Session = session
+        self.data_manager: IDataManager = data_manager
+
+    @validates('datapoint_id')
+    def validate_datapoint_id(self, datapoint_id: int) -> None:
+        try:
+            self.data_manager.get_datapoint_by_id(
+                self.session, datapoint_id)[0]
+        except:
+            raise ValidationError(f"""No datapoint with the id {
+                                  datapoint_id} found.""")
+
+    @validates('model_id')
+    def validate_datapoint_id(self, model_id: int) -> None:
+        try:
+            self.data_manager.get_model_by_id(
+                self.session, model_id)[0]
+        except:
+            raise ValidationError(f"""No model with the id {
+                                  model_id} found.""")
+
+    @post_load
+    def make_create_training_run_dto(self, data, **kwargs):
+        return GetDataPointEvaluationsDTO(**data)
 
 
 class UpdateProjectSchema(BaseUpdateSchema):
@@ -1186,25 +1316,6 @@ class UpdateDataPointSchema(BaseUpdateSchema):
             'invalid': 'Related datapoint ids must be > 0',
         })
 
-    coherence_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, allow_none=True,
-        error_messages={
-            'invalid': 'Coherence score must be an integer between 1 and 10.',
-        }
-    )
-    relevance_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, allow_none=True,
-        error_messages={
-            'invalid': 'Relevance score must be an integer between 1 and 10.',
-        }
-    )
-    semantic_similarity_score = fields.Float(
-        allow_none=True,
-        error_messages={
-            'invalid': 'Semantic similarity score must be a float.'
-        }
-    )
-
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.session: Session = session
@@ -1245,14 +1356,20 @@ class UpdateModelSchema(BaseUpdateSchema):
             'invalid': 'Each project ID must exist and be greater than 0.'
         }
     )
+    training_dataset_ids = fields.List(fields.Int(validate=lambda n: n > 0, error_messages={
+        'invalid': 'All associated training dataset ids must be > 0.'
+    }),
+        allow_none=True,
+        error_messages={
+        'required': 'Training dataset list is required.',
+        'invalid': 'Model must be associated to at least one training dataset.'
+    }
+    )
     is_global = fields.Boolean(
         error_messages={
             'invalid': 'Is_global must be either True or False.'
         }
     )
-    fine_tuning_model = fields.Str(allow_none=True, error_messages={
-        'invalid': 'Fine tuning model must be of type string.'
-    })
 
     full_fine_tuned_model_id = fields.Str(allow_none=True, error_messages={
         'invalid': 'Full fine tuned model id must be of type string.'
@@ -1277,28 +1394,18 @@ class UpdateModelSchema(BaseUpdateSchema):
             raise ValidationError(f"""Projects with IDs {
                 missing_projects} do not exist.""")
 
-    @validates_schema(pass_original=True)
-    def validate_fine_tuning_model(self, data: dict[str, Any], **kwargs):
-        model_id = data.get("id")
-        if not model_id:
-            raise ValidationError('Model ID is required.')
+    @validates('training_dataset_ids')
+    def validate_datasets_exist(self, dataset_ids: list[int]):
+        missing_dataset_ids: list[int] = []
+        try:
+            for dataset_id in dataset_ids:
+                self.data_manager.get_dataset_by_id(
+                    self.session, dataset_id)[0]
+        except NoResultFound:
+            missing_dataset_ids.append(dataset_id)
 
-        model: Model = self.data_manager.get_model_by_id(
-            self.session, model_id)[0]
-        if not model:
-            raise ValidationError('Model not found.')
-
-        if data.get('fine_tuning_model') and model.fine_tuning_model:
-            raise ValidationError(
-                "This model already has a fine-tuned model set and cannot be updated with a new one.")
-
-        valid_models = []
-        for version_list in FineTuningModelVersions:
-            valid_models.extend(version_list.value)
-
-        if data.get('fine_tuning_model') not in valid_models:
-            raise ValidationError(
-                f"The model version must be one of {valid_models}")
+        raise ValidationError(f"""Datasets with ID {
+            missing_dataset_ids} do not exist.""")
 
     @validates_schema(pass_original=True)
     def validate_full_fine_tuned_model_id(self, data: dict[str, Any], ** kwargs):
@@ -1361,3 +1468,71 @@ class UpdateModelEvaluationSchema(BaseUpdateSchema):
     @post_load
     def make_create_model_evaluation_dto(self, data, **kwargs):
         return UpdateModelEvaluationDTO(**data)
+
+
+class UpdateTrainingRunSchema(BaseUpdateSchema):
+    fine_tuning_model = fields.Str(required=True, validate=lambda s: len(s) > 0,  error_messages={
+        'required': 'Fine tuning model is required.',
+        'invalid': 'Fine tuning model name must be of type string'
+    })
+    epochs = fields.Int(
+        required=True, validate=lambda n: n >= 1 and n <= 10,
+        error_messages={
+            'required': 'Number of epochs is required.',
+            'invalid': 'Number of epochs must be greater than 0 and smaller than 11.'
+        }
+    )
+    learning_rate_multiplier = fields.Float(
+        required=True, validate=lambda n: n >= 0.1 and n <= 10,
+        error_messages={
+            'required': 'Learning rate multiplier is required.',
+            'invalid': 'Learning rate multiplier must be a positive float greater than 0.0 and smaller than 11.',
+        }
+    )
+    batch_size = fields.Int(
+        required=True, validate=lambda n: n >= 1 and n <= 32,
+        error_messages={
+            'required': 'Batch size is required.',
+            'invalid': 'Batch size must be a positive integer greater 0 and smaller 33.',
+        }
+    )
+
+    def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session: Session = session
+        self.data_manager: IDataManager = data_manager
+
+    @post_load
+    def make_create_training_run_dto(self, data, **kwargs):
+        return UpdateTrainingRunDTO(**data)
+
+
+class UpdateDataPointEvaluationSchema(BaseUpdateSchema):
+
+    coherence_score = fields.Int(
+        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        error_messages={
+            'invalid': 'Coherence score must be an integer between 1 and 10.',
+        }
+    )
+    relevance_score = fields.Int(
+        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        error_messages={
+            'invalid': 'Relevance score must be an integer between 1 and 10.',
+        }
+    )
+    semantic_similarity_score = fields.Float(
+        allow_none=True,
+        error_messages={
+            'invalid': 'Semantic similarity score must be a float.'
+        }
+    )
+
+    def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session: Session = session
+        self.data_manager: IDataManager = data_manager
+
+    @post_load
+    def make_create_training_run_dto(self, data, **kwargs):
+        return UpdateDataPointEvaluationDTO(**data)
