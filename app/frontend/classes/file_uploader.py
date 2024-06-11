@@ -1,7 +1,7 @@
 from io import BytesIO
 import json
 from typing import Any, Iterator
-from app.backend.database.schema import FineTuningCompany
+from app.backend.database.schema import FineTuningCompany, FineTuningModelVersions
 from ...backend.custom_types.typedicts import *
 import pandas as pd
 from frontend.classes.toast_manager import ToastManager
@@ -46,8 +46,8 @@ class FileUploader:
     def process_uploads(cls, uploaded_files: list[BytesIO], chosen_company: FineTuningCompany, chosen_file_format: str, chosen_model: str) -> list[MessagesContainer]:
         """ Processes an uploaded file. """
         validated_message_containers = []
-        # TODO: Make the following code dynamic
-        if chosen_company.value == "openai" and (chosen_model == "gpt-3.5-turbo" or chosen_model == "gpt-4") and chosen_file_format == "jsonl":
+        # TODO: Make the following code dynamic for multiple formats as soon as they are supported
+        if chosen_company.value == "openai" and chosen_model in FineTuningModelVersions.openai.value and chosen_file_format == "jsonl":
             for file_buffer in uploaded_files:
                 file_text = file_buffer.decode(
                     "utf-8").splitlines()  # Decode and split lines
