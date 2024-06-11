@@ -46,3 +46,18 @@ class MapperFacade:
         # Convert a TrainingRun entity to TrainingRunDTO
         schema = TrainingRunSchema(session=session)
         return schema.dump(training_run_entity)
+
+    def map_training_run_to_simple_dto(self, session: Session, training_run_entity: TrainingRun) -> SimpleTrainingRunDTO:
+        # Convert a TrainingRun entity to SimpleTrainingRunDTO
+        schema = SimpleTrainingRunSchema(session=session)
+        return schema.dump(training_run_entity)
+
+    def map_current_project_data_to_dto(self, session: Session, current_project_data: CurrentProjectData) -> CurrentProjectDataDTO:
+        # Convert a CurrentProjectData entity to CurrentProjectDataDTO
+        schema = CurrentProjectDataSchema(session=session)
+        return schema.dump(current_project_data)
+
+    def map_datapoint_evaluation_to_dto(self, session: Session, current_project_data: DataPointEvaluation) -> DataPointEvaluationDTO:
+        # Convert a DataPointEvalaution entity to DataPointEvaluationDTO
+        schema = DataPointEvaluationSchema(session=session)
+        return schema.dump(current_project_data)

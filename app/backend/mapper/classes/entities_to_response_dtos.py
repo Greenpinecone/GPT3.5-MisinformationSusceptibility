@@ -45,8 +45,8 @@ class BaseSchema(SQLAlchemyAutoSchema):
 
 
 class ProjectSchema(BaseSchema):
-    def __init__(self, session, *args, **kwargs):
-        super().__init__(session=None, *args, **kwargs)
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
 
     id = auto_field()
     project_name = auto_field()
@@ -80,8 +80,8 @@ class DatasetSchema(BaseSchema):
     fine_tuning_model = auto_field()
     fine_tuning_formatting = auto_field()
     is_global = auto_field()
-    model_id = fields.Function(
-        serialize=lambda obj: obj.model.id if obj.model else None)
+    model_ids = fields.Function(
+        serialize=lambda obj: [model.id for model in obj.models])
     project_ids = fields.Function(
         serialize=lambda obj: [project.id for project in obj.projects])
     datapoint_ids = fields.Function(
@@ -109,8 +109,8 @@ class ComplexDatasetSchema(BaseSchema):
     fine_tuning_model = auto_field()
     fine_tuning_formatting = auto_field()
     is_global = auto_field()
-    model_id = fields.Function(
-        serialize=lambda obj: obj.model.id if obj.model else None)
+    model_ids = fields.Function(
+        serialize=lambda obj: [model.id for model in obj.models])
     project_ids = fields.Function(
         serialize=lambda obj: [project.id for project in obj.projects])
     datapoints = fields.Nested(lambda: DataPointSchema(many=True), default=[])
@@ -131,9 +131,6 @@ class DataPointSchema(BaseSchema):
 
     id = auto_field()
     dataset_id = auto_field()
-    coherence_score = auto_field()
-    relevance_score = auto_field()
-    semantic_similarity_score = auto_field()
     augmentation_type = CustomEnumConversionSchema(AugmentationType)
     created_at = FlexibleDateTimeField()
     messages = auto_field()
@@ -161,8 +158,6 @@ class ModelSchema(BaseSchema):
     id = auto_field()
     model_name = auto_field()
     parent_model_id = auto_field()
-    # Nested(
-    #   lambda: ModelSchema(only=["id"]), many=False, allow_none=True)
     version = auto_field()
     created_at = FlexibleDateTimeField()
     is_global = auto_field()
@@ -170,9 +165,9 @@ class ModelSchema(BaseSchema):
     checkpoint_step = auto_field()
     project_ids = fields.Function(
         serialize=lambda obj: [project.id for project in obj.projects])
-    fine_tuning_model = auto_field()
     full_fine_tuned_model_id = auto_field()
-    training_dataset_id = auto_field()
+    training_dataset_ids = fields.Function(
+        serialize=lambda obj: [dataset.id for dataset in obj.training_datasets])
     training_run_id = fields.Function(
         serialize=lambda obj: obj.training_run.id if obj.training_run else None)
 
@@ -213,7 +208,9 @@ class TrainingRunSchema(BaseSchema):
     model_id = auto_field()
     epochs = auto_field()
     learning_rate_multiplier = auto_field()
+    fine_tuning_model = auto_field()
     batch_size = auto_field()
+    seed = auto_field()
     created_at = FlexibleDateTimeField()
 
     class Meta(BaseSchema.Meta):
@@ -222,3 +219,95 @@ class TrainingRunSchema(BaseSchema):
     @post_dump
     def make_training_run_dto(self, data, **kwargs):
         return TrainingRunDTO(**data)
+
+
+class SimpleTrainingRunSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    id = auto_field()
+    model_name = fields.Function(serialize=lambda obj: obj.model.model_name)
+    model_version = fields.Function(serialize=lambda obj: obj.model.version)
+    fine_tuning_model = auto_field()
+    seed = auto_field()
+
+    class Meta(BaseSchema.Meta):
+        model = TrainingRun
+
+    @post_dump
+    def make_training_run_dto(self, data, **kwargs):
+        return SimpleTrainingRunDTO(**data)
+
+
+class ComplexModelSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    id = auto_field()
+    model_name = auto_field()
+    version = auto_field()
+    created_at = FlexibleDateTimeField()
+    is_global = auto_field()
+    is_checkpoint_model = auto_field()
+    checkpoint_step = auto_field()
+    project_ids = fields.Function(
+        serialize=lambda obj: [project.id for project in obj.projects])
+    full_fine_tuned_model_id = auto_field()
+    training_dataset_ids = fields.Function(
+        serialize=lambda obj: [dataset.id for dataset in obj.training_datasets])
+    parent_model = fields.Nested(
+        lambda: ComplexModelSchema(), exclude=('parent_model',), default=None)
+    training_run = fields.Nested(lambda: TrainingRunSchema(), default=None)
+
+    class Meta(BaseSchema.Meta):
+        model = Model
+
+    @post_dump
+    def make_model_dto(self, data, **kwargs):
+        return ComplexModelDTO(**data)
+
+
+class CurrentProjectDataSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    id = auto_field()
+    created_at = FlexibleDateTimeField()
+    fine_tuning_augmentation_methods = auto_field()
+    fine_tuning_augmentation_method_percentages = auto_field()
+    unfinished_progress = auto_field()
+    current_page = auto_field()
+    save_checkpoint_models = auto_field()
+    fine_tuning_step_counter = auto_field()
+    current_project = fields.Nested(lambda: ProjectSchema(), default=None)
+    current_fine_tuning_model = fields.Nested(
+        lambda: ModelSchema(), default=None)
+    selected_model_for_fine_tuning = fields.Nested(
+        lambda: ComplexModelSchema(), default=None)
+    currently_modified_dataset = fields.Nested(
+        lambda: ComplexDatasetSchema(), default=None)
+
+    class Meta(BaseSchema.Meta):
+        model = CurrentProjectData
+
+    @post_dump
+    def make_training_run_dto(self, data, **kwargs):
+        return CurrentProjectDataDTO(**data)
+
+
+class DataPointEvaluationSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    datapoint_id = auto_field()
+    model_id = auto_field()
+    coherence_score = auto_field()
+    relevance_score = auto_field()
+    semantic_similarity_score = auto_field()
+
+    class Meta(BaseSchema.Meta):
+        model = DataPointEvaluation
+
+    @post_dump
+    def make_training_run_dto(self, data, **kwargs):
+        return DataPointEvaluationDTO(**data)
