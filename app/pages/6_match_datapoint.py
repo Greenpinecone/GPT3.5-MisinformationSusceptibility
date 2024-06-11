@@ -3,6 +3,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly as pl
+from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from backend.util.logger import StreamlitLogger
 from backend.util import utility_functions as backend_uf
@@ -28,20 +29,45 @@ apply_global_style()
 center_elements_with_custom_span_in_column()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
+current_page = "match_datapoint"
+
+
+def save_intermediate_dataset_state(datapoint_matcher: DataPointMatcher, datapoints_to_update: list[DataPointDTO]) -> None:
+
+    # If a test datapoint is selected and it has related datapoints added
+    if datapoint_matcher.current_test_datapoint:
+        if datapoint_matcher.current_test_datapoint.related_datapoints:
+            DataPointService.replace_datapoint_in_list(
+                datapoint_matcher.current_test_datapoint, datapoints_to_update)
+        # if the related datapoints are empty and the datapoint still has not been updated, remove it again, since there is nothing to update
+        elif DataPointService.is_present(datapoints_to_update, datapoint_matcher.current_test_datapoint):
+            DataPointService.remove_datapoint_from_list(
+                datapoint_matcher.current_test_datapoint, datapoints_to_update)
+
+        # Save the intermediate update to the database and clear the current datapoints that have already been updated
+        if len(datapoints_to_update) >= 3:
+            DataPointService.update_datapoints(
+                service, datapoints_to_update)
+            datapoints_to_update.clear()
+
 
 with logger:
 
     ToastManager.show_global_toasts()
-    PageNavigator.set_navbar(
-        "Skip", "create_model", "Submit the dataset without matched datapoints", icon="▶️", is_left=False)
     service: ServiceManagerFacade = GlobalAppStateManager.get_service()
-    current_dataset: ComplexDatasetDTO = GlobalAppStateManager.get_current_dataset()
+    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+        service, current_page)
+    current_dataset: ComplexDatasetDTO = current_project_data.currently_modified_dataset
     QueryParamsManager.set_query_params_from_page(
-        "match_datapoint")
-
+        current_page)
     datapoint_matcher: DataPointMatcher = GlobalAppStateManager.get_or_create_session_state(
         "datapoint_matcher", current_dataset.datapoints, current_dataset.test_dataset.datapoints, default_value=DataPointMatcher
     )
+    # To stroe all updated test datapoints until a certain threshold is reached to save it to the database and retrieve it via the current_project_data.currently_modified_dataset again to restore states in case needed
+    datapoints_to_update: list[DataPointDTO] = GlobalAppStateManager.get_or_create_session_state(
+        "datapoints_to_update", default_value=list())
+
+    save_intermediate_dataset_state(datapoint_matcher, datapoints_to_update)
 
     def load_page(datapoint_matcher: DataPointMatcher):
         st.title("Match Datapoints")
@@ -55,11 +81,15 @@ with logger:
                 help="Submit matched datapoint configurations", type="primary"
             )
             if submit_button:
-                updated_datapoints: list[DataPointDTO] = DataPointService.update_datapoints(
-                    service, datapoint_matcher.test_datapoints)
-                if updated_datapoints:
-                    GlobalAppStateManager.clear_session_state_except()
-                    ToastManager.add_global_toasts(
-                        "Datapoints have been successfully matched.", "success")
-                    PageNavigator.navigate_to_page("create_model")
+                if datapoints_to_update:
+                    # Update only the not yet updated datapoints
+                    updated_datapoints: list[DataPointDTO] = DataPointService.update_datapoints(
+                        service, datapoints_to_update)
+
+                GlobalAppStateManager.clear_session_state()
+                GlobalAppStateManager.update_current_project_data(service,
+                                                                  UpdateCurrentProjectDataDTO(id=current_project_data.id, currently_modified_dataset_id=None, unfinished_progress=False))
+                ToastManager.add_global_toasts(
+                    "Datapoints have been successfully matched.", "success")
+                PageNavigator.navigate_to_page("create_model")
     load_page(datapoint_matcher)
