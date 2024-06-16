@@ -1,7 +1,7 @@
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional
-from ..database.schema import DatasetCategory, EvaluationType, AugmentationType, FineTuningCompany
+from app.backend.database.schema import DatasetCategory, EvaluationType, AugmentationType, FineTuningCompany
 from ..dtos.create_request import MessagesContainer
 
 
@@ -85,7 +85,7 @@ class ComplexDatasetDTO:
 class ModelDTO:
     id: int
     model_name: str
-    version: int
+    version: str
     project_ids: list[int]
     training_dataset_ids: list[int]
     is_global: bool = False
@@ -128,7 +128,7 @@ class TrainingRunDTO:
 class ComplexModelDTO:
     id: int
     model_name: str
-    version: int
+    version: str
     project_ids: list[int]
     training_dataset_ids: list[int]
     is_global: bool = False
@@ -145,7 +145,7 @@ class ComplexModelDTO:
 class SimpleTrainingRunDTO:
     id: int
     model_name: str
-    model_version: int
+    model_version: str
     fine_tuning_model: str
     seed: int
 

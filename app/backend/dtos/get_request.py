@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from ..database.schema import DatasetCategory, AugmentationType
+from app.backend.database.schema import DatasetCategory, AugmentationType
 
 
 @dataclass
@@ -13,7 +13,7 @@ class GetProjectsDTO:
 class GetModelsDTO:
     model_name: str | None = None
     created_at: datetime | None = None
-    version: int | None = None
+    version: str | None = None
     project_id: int | None = None
     is_global: bool | None = None
     exlude_project_id: int | None = None
@@ -34,7 +34,7 @@ class GetDatasetsDTO:
 class GetModelsByProjectIdDTO:
     project_id: int
     name: str | None = None
-    version: int | None = None
+    version: str | None = None
 
 
 @dataclass

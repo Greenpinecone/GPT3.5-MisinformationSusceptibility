@@ -1,7 +1,7 @@
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
 from marshmallow_sqlalchemy.fields import Nested
 from marshmallow import fields, post_load, post_dump
-from ...database.schema import *
+from app.backend.database.schema import Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData
 from app.backend.dtos.response import *
 import zoneinfo
 
@@ -221,6 +221,14 @@ class TrainingRunSchema(BaseSchema):
         return TrainingRunDTO(**data)
 
 
+class SimpleTrainingRunDTOSchema(SQLAlchemyAutoSchema):
+    id = fields.Int()
+    model_name = fields.Str()
+    model_version = fields.Str()
+    fine_tuning_model = fields.Str()
+    seed = fields.Int()
+
+
 class SimpleTrainingRunSchema(BaseSchema):
     def __init__(self, session=None, *args, **kwargs):
         super().__init__(session, *args, **kwargs)
@@ -236,7 +244,10 @@ class SimpleTrainingRunSchema(BaseSchema):
 
     @post_dump
     def make_training_run_dto(self, data, **kwargs):
-        return SimpleTrainingRunDTO(**data)
+        # Use the SimpleTrainingRunDTOSchema to filter and create the DTO
+        dto_schema = SimpleTrainingRunDTOSchema()
+        filtered_data = dto_schema.dump(data)
+        return SimpleTrainingRunDTO(**filtered_data)
 
 
 class ComplexModelSchema(BaseSchema):
