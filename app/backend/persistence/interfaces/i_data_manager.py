@@ -3,7 +3,7 @@
 
 from abc import ABC, abstractmethod
 from sqlalchemy.orm import Session
-from app.backend.database.schema import *
+from app.backend.database.schema import Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData
 from ...dtos.create_request import *
 from ...dtos.get_request import *
 from ...dtos.response import *

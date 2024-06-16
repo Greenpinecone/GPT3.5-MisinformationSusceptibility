@@ -1,11 +1,11 @@
 from contextlib import contextmanager
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, and_, create_engine, or_
 from sqlalchemy.orm import sessionmaker, Session, scoped_session, joinedload
 from sqlalchemy.orm.query import Query
 from pathlib import Path
 from typing import Generator
 from sqlalchemy.exc import SQLAlchemyError, MultipleResultsFound, NoResultFound
-from backend.database.schema import CurrentProjectData, DataPointEvaluation, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun, Base
+from app.backend.database.schema import CurrentProjectData, DataPointEvaluation, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun, project_model_link, Base
 from ...util.logger import Logger
 from ..interfaces.i_data_manager import IDataManager
 from datetime import datetime
@@ -13,6 +13,7 @@ from ...dtos.create_request import *
 from ...dtos.get_request import *
 from ...dtos.update_request import *
 from ...dtos.response import *
+from app.backend.database.version_manager import VersionManager
 
 
 # Instantiates a new database or loads the currently
@@ -92,7 +93,8 @@ class DataManager(IDataManager):
                 'fine_tuning_augmentation_method_percentages': current_project_data.fine_tuning_augmentation_method_percentages,
                 'fine_tuning_step_counter': current_project_data.fine_tuning_step_counter,
                 'unfinished_progress': current_project_data.unfinished_progress,
-                'current_page': current_project_data.current_page
+                'current_page': current_project_data.current_page,
+                'save_checkpoint_models': current_project_data.save_checkpoint_models
             }
 
             # Update attributes if not SENTINEL
@@ -112,7 +114,7 @@ class DataManager(IDataManager):
                 if not current_project_data.current_fine_tuning_model_id:
                     data.current_fine_tuning_model = current_project_data.current_fine_tuning_model_id
                 else:
-                    data.current_fine_tuning_model = self.get_project_by_id(
+                    data.current_fine_tuning_model = self.get_model_by_id(
                         session, current_project_data.current_fine_tuning_model_id)[0]
 
             if current_project_data.selected_model_for_fine_tuning_id is not SENTINEL:
@@ -365,26 +367,14 @@ class DataManager(IDataManager):
         try:
             for model_dto in models_data:
                 model = Model()
-                # Add and add required values immediately after retrieving or creating to avoid auto flush inconsistencies on queries
                 session.add(model)
 
                 model.model_name = model_dto.model_name
                 model.is_global = model_dto.is_global
 
-                # Associate datasets - must not be explicitly set via orm since the relation is automatically established on flush on a one to one relation. TODO: Check this.
-                # dataset = session.get(
-                #     DataPoint, model_dto.training_dataset_id)
-                # model.training_dataset = dataset
-
-                # Setting related datasets
                 training_datasets = session.query(Dataset).filter(
                     Dataset.id.in_(model_dto.training_dataset_ids)).all()
                 model.training_datasets = training_datasets
-
-                # Setting related projects
-                projects = session.query(Project).filter(
-                    Project.id.in_(model_dto.project_ids)).all()
-                model.projects = projects
 
                 if model_dto.full_fine_tuned_model_id:
                     model.full_fine_tuned_model_id = model_dto.full_fine_tuned_model_id
@@ -395,24 +385,34 @@ class DataManager(IDataManager):
                 if model_dto.checkpoint_step:
                     model.checkpoint_step = model_dto.checkpoint_step
 
-                # Handle parent_model_id if present and set child model version + 1 from teh parent model version
+                parent_model = None
                 if model_dto.parent_model_id:
                     parent_model = session.get(
                         Model, model_dto.parent_model_id)
                     model.parent_model = parent_model
-                    model.version = parent_model.version + 1
-                else:
-                    model.version = 0
 
-                # Handle training_run_id if present
+                    model.version = VersionManager.get_next_version(
+                        session, model_dto, parent_model)
+                else:
+                    model.version = "0"
+
                 if model_dto.training_run_id:
                     training_run = session.get(
                         TrainingRun, model_dto.training_run_id)
                     model.training_run = training_run
 
+                for project_id in model_dto.project_ids:
+                    project_model_association = {
+                        'model_id': model.id,
+                        'project_id': project_id,
+                        'model_name': model.model_name,
+                        'version': model.version,
+                    }
+                    session.execute(project_model_link.insert().values(
+                        project_model_association))
+
                 saved_models.append(model)
 
-            # Must be flushed to create primary key / datetime etc.
             session.flush()
             return saved_models
         except Exception as e:
@@ -609,7 +609,11 @@ class DataManager(IDataManager):
                     Model.created_at >= created_at)
             if version:
                 query = query.filter(
-                    Model.version == version)
+                    or_(
+                        Model.version >= version,
+                        and_(Model.version.like(
+                            f"{version}.%"), Model.version >= version)
+                    ))
             if project_id:
                 query = query.filter(
                     Model.projects.any(Project.id == project_id)
@@ -829,9 +833,12 @@ class DataManager(IDataManager):
                 query = query.filter(Model.model_name.ilike(
                     f"%{model_project_data.name}%"))
             if model_project_data.version:
-                query = query.filter(
-                    Model.version == model_project_data.version)
-
+                query = query(Model).filter(
+                    or_(
+                        Model.version > model_project_data.version,
+                        and_(Model.version.like(
+                            f"{model_project_data.version}.%"), Model.version > model_project_data.version)
+                    ))
             models: list[Model] = query.all()
             return models
         except SQLAlchemyError as e:
