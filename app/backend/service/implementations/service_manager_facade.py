@@ -2,7 +2,7 @@
 """
 
 
-from app.backend.database.schema import *
+from app.backend.database.schema import Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, CurrentProjectData
 from ...dtos.get_request import *
 from ...dtos.response import *
 from ...dtos.create_request import *
@@ -20,7 +20,6 @@ from ...util.config import Config
 from ...util.logger import Logger
 from ...mapper.implementations.mappers_facade import MapperFacade
 from ..validators.implementations.validators_facade import ValidatorFacade
-from backend.database.schema import DatasetCategory
 
 logger = Logger(__name__)
 
@@ -187,44 +186,113 @@ class ServiceManagerFacade(IServiceManager):
     def create_training_run_dtos(self, training_run_dtos: list[CreateTrainingRunDTO]) -> list[TrainingRunDTO]:
         with self._data_manager.get_session() as session:
             self._validator.validate_create_training_runs(
-                session, training_run_dtos)
+                session, self._data_manager, training_run_dtos)
             training_runs: list[TrainingRunDTO] = self._data_manager.create_training_runs(
                 session, training_run_dtos)
 
-            return [self._mapper.map_training_run_to_dto(training_run) for training_run in training_runs]
+            return [self._mapper.map_training_run_to_dto(session, training_run) for training_run in training_runs]
 
     def update_training_run_dtos(self, training_run_dtos: list[UpdateTrainingRunDTO]) -> list[TrainingRunDTO]:
         with self._data_manager.get_session() as session:
             self._validator.validate_update_training_runs(
-                session, training_run_dtos)
+                session, self._data_manager, training_run_dtos)
             training_runs: list[TrainingRunDTO] = self._data_manager.update_training_runs(
                 session, training_run_dtos)
 
-            return [self._mapper.map_training_run_to_dto(training_run) for training_run in training_runs]
+            return [self._mapper.map_training_run_to_dto(session, training_run) for training_run in training_runs]
 
     def create_datapoint_evaluations(self, create_datapoint_evaluations: list[CreateDataPointEvaluationDTO]) -> list[DataPointEvaluationDTO]:
         with self._data_manager.get_session() as session:
             self._validator.validate_create_datapoint_evaluations(
-                session, create_datapoint_evaluations)
+                session, self._data_manager, create_datapoint_evaluations)
             datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.create_datapoint_evaluations(
                 session, create_datapoint_evaluations)
 
-            return [self._mapper.map_datapoint_evaluation_to_dto(datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
+            return [self._mapper.map_datapoint_evaluation_to_dto(session, datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
 
     def update_datapoint_evaluations(self, update_datapoint_evaluations: list[UpdateDataPointEvaluationDTO]) -> list[DataPointEvaluationDTO]:
         with self._data_manager.get_session() as session:
             self._validator.validate_update_datapoint_evaluations(
-                session, update_datapoint_evaluations)
+                session, self._data_manager, update_datapoint_evaluations)
             datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.update_datapoint_evaluations(
                 session, update_datapoint_evaluations)
 
-            return [self._mapper.map_datapoint_evaluation_to_dto(datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
+            return [self._mapper.map_datapoint_evaluation_to_dto(session, datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
 
     def get_datapoint_evaluations(self, get_datapoint_evaluation: GetDataPointEvaluationsDTO) -> list[DataPointEvaluationDTO]:
         with self._data_manager.get_session() as session:
             self._validator.validate_get_datapoint_evaluation(
-                session, get_datapoint_evaluation)
+                session, self._data_manager, get_datapoint_evaluation)
             datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.get_datapoint_evaluations(
                 session, get_datapoint_evaluation)
 
-            return [self._mapper.map_datapoint_evaluation_to_dto(datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
+            return [self._mapper.map_datapoint_evaluation_to_dto(session, datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
+
+    # TODO: Add validators
+    def create_fine_tuning_run(self, model_id: int, training_run_dto: TrainingRunDTO) -> ModelDTO:
+        with self._data_manager.get_session() as session:
+            # Fetch the model entity
+            model: Model = self._data_manager.get_model_by_id(session, model_id)[
+                0]
+            fine_tuning_job_id = self._openai_service.create_fine_tuning_run(
+                model, training_run_dto)
+
+            # Assign fine tuning job id to model
+            model.full_fine_tuned_model_id = fine_tuning_job_id
+
+            return [self._mapper.map_model_to_dto(session, model)]
+
+    def get_current_fine_tuning_status(self, fine_tuning_job_id: str) -> tuple[None | float, str, dict]:
+        current_training_progress, status, progress_message, hyperparameters = self._openai_service.get_fine_tuning_status(
+            fine_tuning_job_id)
+        return current_training_progress, status, progress_message, hyperparameters
+
+    def cancel_fine_tuning_run(self, fine_tuning_job_id: str) -> None:
+        # TODO: Add proper response obejct handling
+        response = self._openai_service.cancel_fine_tuning_job(
+            fine_tuning_job_id)
+
+        return response
+
+    def save_checkpoint_models(self, current_fine_tuning_model: ModelDTO, current_project_id: int) -> list[ModelDTO]:
+        # Fetch checkpoint data
+        checkpoints = self._openai_service.get_checkpoints(
+            current_fine_tuning_model.full_fine_tuned_model_id)
+
+        if not checkpoints:
+            return
+
+        new_model_dtos: list[CreateModelDTO] = []
+        new_training_run_dtos = list[CreateTrainingRunDTO] = []
+
+        for i, checkpoint in enumerate(checkpoints, 1):
+            # Create a new model DTO for each checkpoint
+            new_model_dto = CreateModelDTO(
+                model_name=current_fine_tuning_model.model_name + f"""C {i}""",
+                project_ids=[current_project_id],
+                training_dataset_ids=current_fine_tuning_model.training_dataset_ids,
+                full_fine_tuned_model_id=checkpoint['fine_tuning_job_id'],
+                parent_model_id=current_fine_tuning_model.parent_model_id,
+                is_global=current_fine_tuning_model.is_global,
+                is_checkpoint_model=True,
+                checkpoint_step=checkpoint['step_number']
+            )
+
+            # Fetch those data, copy the current training run, replace these values, save it with the new model.
+            checkpoint["metrics"]  # [train_loss], [train_mean_token_accuracy]
+
+            # Save the new model (assuming you have a method to save models)
+            new_model_dtos.append(new_model_dto)
+
+        saved_models = self._data_manager.create_models(new_model_dtos)
+
+        return [self._mapper.map_model_to_dto(model_dto) for model_dto in saved_models]
+
+    def get_training_dataset_datapoint_amount(self, dataset_ids: list[int]) -> int:
+        with self._data_manager.get_session() as session:
+            datasets: list[Dataset] = []
+            for dataset_id in dataset_ids:
+                datasets.append(
+                    self._data_manager.get_dataset_by_id(session, dataset_id)[0])
+
+            return self._openai_service.count_datapoints_in_dataset_list(datasets)
