@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from ..database.schema import DatasetCategory, AugmentationType, EvaluationType, FineTuningCompany
+from app.backend.database.schema import DatasetCategory, AugmentationType, EvaluationType, FineTuningCompany
 from ..custom_types.typedicts import MessagesContainer
 
 

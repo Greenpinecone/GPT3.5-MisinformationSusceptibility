@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from app.backend.dtos.response import ComplexDatasetDTO, ModelDTO, ProjectDTO, TrainingRunDTO
-from ..database.schema import EvaluationType
+from app.backend.database.schema import EvaluationType
 
 
 SENTINEL = object()
