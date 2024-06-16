@@ -32,7 +32,7 @@ class FineTuningCompany(enum.Enum):
 
 class FineTuningModelVersions(enum.Enum):
     openai = ["gpt-3.5-turbo-0125", "gpt-3.5-turbo-0613",
-              "gpt-3.5-turbo-1106", "gpt-4"]
+              "gpt-3.5-turbo-1106", "gpt-4-0613"]
     google = ["non existent google models"]
 
 
@@ -64,11 +64,22 @@ datapoint_relationships = Table(
     Column('target_datapoint_id', Integer, ForeignKey(
         'datapoints.id'), primary_key=True)
 )
+# project_model_link = Table(
+#     'project_model_link',  # Table name
+#     Base.metadata,
+#     Column('project_id', Integer, ForeignKey('projects.id'), primary_key=True),
+#     Column('model_id', Integer, ForeignKey('models.id'), primary_key=True)
+# )
+
+# Ensure that each model can only occure once per project with the same model_name and version to avoid confusion with simillar named models.
 project_model_link = Table(
-    'project_model_link',  # Table name
-    Base.metadata,
+    'project_model_link', Base.metadata,
+    Column('model_id', Integer, ForeignKey('models.id'), primary_key=True),
     Column('project_id', Integer, ForeignKey('projects.id'), primary_key=True),
-    Column('model_id', Integer, ForeignKey('models.id'), primary_key=True)
+    Column('model_name', String, nullable=False),
+    Column('version', String, nullable=False),
+    UniqueConstraint('model_name', 'version',
+                     'project_id', name='_model_project_version_uc')
 )
 # Association table for the many-to-many relationship
 model_dataset_association = Table(
@@ -182,9 +193,10 @@ class DataPoint(Base):
 class Model(Base):
     __tablename__ = 'models'
     id = Column(Integer, primary_key=True)
-    model_name = Column(String, nullable=False, unique=True)
+    model_name = Column(String, nullable=False)
     parent_model_id = Column(Integer, ForeignKey('models.id'))
-    version = Column(Integer, default=0)
+    # The main version of the model (increased for each model trained directly from a base model (version 0))
+    version = Column(String, default="0")
     created_at = Column(DateTime, default=func.now())
     # full id of the fine tuned model to retrieve it
     full_fine_tuned_model_id = Column(String(), unique=True)
@@ -214,8 +226,6 @@ class Model(Base):
     # Orm relationship for initial_datapoint
     parent_model = relationship("Model", remote_side=[
         id], backref="child_models", uselist=False)
-
-# TODO: Theoretically a unique constraint for name, version and specific project would be good so that a project cannot have two models with teh same name and version. This is currently handeled in the data manager because of complexity.
 
 
 # This table holds information regarding the evaluation of a model against its trainingsdataset(s). The model id points to the model this information belongs to. The evaluation type can be one of four values for the confusion matrix. And the helpful_score, honest_score and harmless_score is for saving the HHH criteria related data for each datapoint for later calculating the results and also reevaluating the previous evaluation. The datapoint id saves the reference to the original datapoint that was evaluated.
@@ -250,9 +260,9 @@ class TrainingRun(Base):
     id = Column(Integer, primary_key=True)
     model_id = Column(Integer, ForeignKey('models.id'),
                       unique=True, nullable=False)
-    epochs = Column(Integer, nullable=False)
-    learning_rate_multiplier = Column(Float, nullable=False)
-    batch_size = Column(Integer, nullable=False)
+    epochs = Column(Integer)
+    learning_rate_multiplier = Column(Float)
+    batch_size = Column(Integer)
     created_at = Column(DateTime, default=func.now())
     seed = Column(Integer)
     fine_tuning_model = Column(String)
