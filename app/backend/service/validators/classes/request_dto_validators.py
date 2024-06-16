@@ -8,7 +8,7 @@ from ....dtos.get_request import *
 from ....dtos.update_request import *
 from ....dtos.response import DatasetDTO, ModelDTO
 from sqlalchemy.orm import Session
-from backend.database.schema import DatasetCategory, MessageKeys, UploadFormats, EvaluationType, AugmentationType, FineTuningCompany, FineTuningModelVersions, MessageKeys, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun
+from app.backend.database.schema import DatasetCategory, MessageKeys, UploadFormats, EvaluationType, AugmentationType, FineTuningCompany, FineTuningModelVersions, MessageKeys, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun
 
 
 class BaseUpdateSchema(Schema):
@@ -659,21 +659,21 @@ class CreateTrainingRunSchema(Schema):
         'invalid': 'Fine tuning model name must be of type string'
     })
     epochs = fields.Int(
-        required=True, validate=lambda n: n >= 1 and n <= 10,
+        allow_none=True, validate=lambda n: n >= 1 and n <= 10,
         error_messages={
             'required': 'Number of epochs is required.',
             'invalid': 'Number of epochs must be greater than 0 and smaller than 11.'
         }
     )
     learning_rate_multiplier = fields.Float(
-        required=True, validate=lambda n: n >= 0.1 and n <= 10,
+        allow_none=True, validate=lambda n: n >= 0.1 and n <= 10,
         error_messages={
             'required': 'Learning rate multiplier is required.',
             'invalid': 'Learning rate multiplier must be a positive float greater than 0.0 and smaller than 11.',
         }
     )
     batch_size = fields.Int(
-        required=True, validate=lambda n: n >= 1 and n <= 32,
+        allow_none=True, validate=lambda n: n >= 1 and n <= 32,
         error_messages={
             'required': 'Batch size is required.',
             'invalid': 'Batch size must be a positive integer greater 0 and smaller 33.',
@@ -681,7 +681,7 @@ class CreateTrainingRunSchema(Schema):
     )
 
     seed = fields.Int(
-        required=True, validate=lambda n: n >= 0,
+        allow_none=True, validate=lambda n: n >= 0,
         error_messages={
             'required': 'Seed is required.',
             'invalid': 'Seed must be an  integer greater or equals to 0.',
@@ -876,11 +876,11 @@ class GetModelsSchema(Schema):
             'invalid': 'Creation date must be a valid datetime format.'
         }
     )
-    version = fields.Int(validate=lambda n: n >= 1,
+    version = fields.Str(validate=lambda n: len(n) > 0,
                          allow_none=True,
                          error_messages={
-                             'invalid': 'Model version must be an Integer >= 1.'
-                         })
+                             'invalid': 'Model version must be a string with len() > 0.'
+    })
 
     project_id = fields.Int(validate=lambda n: n >= 1,
                             allow_none=True,
@@ -1015,11 +1015,11 @@ class GetModelsByProjectIdSchema(Schema):
         'invalid': 'Model name must be a string.'
     }
     )
-    version = fields.Int(
+    version = fields.Str(
         allow_none=True,
-        validate=lambda n: n > 0,
+        validate=lambda n: len(n) > 0,
         error_messages={
-            'invalid': 'Version must be a positive integer greater 0.',
+            'invalid': 'Version must be a string with len > 0.',
         }
     )
 
@@ -1471,10 +1471,6 @@ class UpdateModelEvaluationSchema(BaseUpdateSchema):
 
 
 class UpdateTrainingRunSchema(BaseUpdateSchema):
-    fine_tuning_model = fields.Str(required=True, validate=lambda s: len(s) > 0,  error_messages={
-        'required': 'Fine tuning model is required.',
-        'invalid': 'Fine tuning model name must be of type string'
-    })
     epochs = fields.Int(
         required=True, validate=lambda n: n >= 1 and n <= 10,
         error_messages={
@@ -1483,10 +1479,10 @@ class UpdateTrainingRunSchema(BaseUpdateSchema):
         }
     )
     learning_rate_multiplier = fields.Float(
-        required=True, validate=lambda n: n >= 0.1 and n <= 10,
+        required=True, validate=lambda n: n >= 0.1 and n <= 10.0,
         error_messages={
             'required': 'Learning rate multiplier is required.',
-            'invalid': 'Learning rate multiplier must be a positive float greater than 0.0 and smaller than 11.',
+            'invalid': 'Learning rate multiplier must be a positive float greater than 0.0 and smaller than 11.0.',
         }
     )
     batch_size = fields.Int(
