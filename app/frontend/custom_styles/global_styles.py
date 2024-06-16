@@ -5,7 +5,7 @@ def apply_global_style() -> None:
     st.markdown("""
     <style>
     /* General styles for all widgets inside #root */
-    #root, #root .stButton, #root .stTextInput, #root .stDataFrame, #root .stPlotlyChart, #root .stAlert {
+    #root, #root .stButton, #root .stTextInput, #root .stDataFrame, #root .stPlotlyChart, #root .stAlert #root .stProgress {
         display: flex;
         flex-direction: column;
         align-items: center;

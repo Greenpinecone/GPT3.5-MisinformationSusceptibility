@@ -6,7 +6,7 @@ from backend.util.config import PAGE_CONFIG
 class PageNavigator:
 
     @classmethod
-    def set_navbar(cls, label: str, previous_page: str, help: str, icon: str = "◀️", is_left: bool = True, nav_bar_cols_config: list[int] = [1.5, 4.5, 1.5], gap: str = "large", func: Callable[..., None] = None, args: list[Any] = None) -> None:
+    def set_navbar(cls, label: str, previous_page: str, help: str, icon: str = "◀️", is_left: bool = True, nav_bar_cols_config: list[int] = [1.5, 4.5, 1.5], gap: str = "large", func: Callable[..., None] = None, args: list[Any] = None, disabled: bool = False) -> None:
         if args is None:
             args = []
 
@@ -17,13 +17,13 @@ class PageNavigator:
 
         if is_left:
             with nav_bar_cols[0]:
-                if st.button(label=f"{icon} {label}", help=help):
+                if st.button(label=f"{icon} {label}", help=help, disabled=disabled):
                     if func:
                         func(*args)
                     cls.navigate_to_page(previous_page)
         else:
             with nav_bar_cols[2]:
-                if st.button(label=f"{label} {icon}", help=help):
+                if st.button(label=f"{label} {icon}", help=help, disabled=disabled):
                     if func:
                         func(*args)
                     cls.navigate_to_page(previous_page)
