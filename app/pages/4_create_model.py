@@ -10,7 +10,7 @@ from backend.util.logger import StreamlitLogger
 from backend.dtos.get_request import *
 from backend.dtos.response import *
 from backend.dtos.create_request import *
-from backend.database.schema import DatasetCategory
+from app.backend.database.schema import DatasetCategory
 from frontend.custom_styles.global_styles import apply_global_style
 from frontend.classes.query_params_manager import QueryParamsManager
 from frontend.classes.page_navigator import PageNavigator

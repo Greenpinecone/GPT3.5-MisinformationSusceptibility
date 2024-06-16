@@ -1,5 +1,4 @@
-from ....database.schema import (Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun,
-                                 DatasetCategory, AugmentationType, EvaluationType, Base)
+from app.backend.database.schema import AugmentationType, DatasetCategory, EvaluationType, Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData, Base
 from app.backend.persistence.interfaces.i_data_manager import IDataManager
 from ....custom_types.typedicts import MessagesContainer
 from .test_database import successful_test_messages
