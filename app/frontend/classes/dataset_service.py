@@ -6,7 +6,7 @@ from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
 from frontend.classes.dataset_editor import DatasetEditor
 from backend.dtos.create_request import CreateDatasetDTO, CreateDataPointDTO
 from frontend.mappers.frontend_mappers import ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO
-from backend.database.schema import DatasetCategory, MessageKeys
+from app.backend.database.schema import DatasetCategory, MessageKeys
 from frontend.classes.toast_manager import ToastManager
 
 
@@ -17,13 +17,21 @@ class DatasetService:
             ToastManager.show_toast("Dataset name is required.", "info")
             return
 
-        all_dataset_dtos = []
-        all_datapoint_dtos = []
-
         for dataset_editor in all_dataset_editors:
             # Remove all datapoints without rows
             cls.remove_empty_datapoints(
                 dataset_editor.datapoints)
+
+            if dataset_editor.dataset_category == DatasetCategory.training:
+                if len(dataset_editor.datapoints) < 1:
+                    ToastManager.show_toast(
+                        "Dataset must contain at least 1 datapoint.", "info")
+                    return
+
+        all_dataset_dtos = []
+        all_datapoint_dtos = []
+
+        for dataset_editor in all_dataset_editors:
 
             datapoint_dtos = ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO(
                 many=True).dump(dataset_editor.datapoints)
