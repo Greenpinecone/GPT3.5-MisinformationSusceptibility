@@ -5,7 +5,7 @@ from typing import Generator
 from app.backend.util.logger import Logger
 from app.backend.persistence.interfaces.i_data_manager import IDataManager
 from ....dtos.create_request import *
-from ....database.schema import *
+from app.backend.database.schema import Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData
 from ....dtos.response import *
 import pytest
 

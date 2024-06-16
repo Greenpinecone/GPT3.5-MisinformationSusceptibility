@@ -9,7 +9,7 @@ from app.frontend.classes.toast_manager import ToastManager
 from backend.util.logger import StreamlitLogger
 from backend.dtos.get_request import *
 from backend.dtos.response import *
-from backend.database.schema import DatasetCategory
+from app.backend.database.schema import DatasetCategory
 from backend.dtos.create_request import *
 from frontend.custom_styles.global_styles import apply_global_style
 from frontend.util import utility_functions as frontend_uf
