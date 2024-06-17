@@ -238,7 +238,7 @@ class ServiceManagerFacade(IServiceManager):
                 model, training_run_dto)
 
             # Assign fine tuning job id to model
-            model.full_fine_tuned_model_id = fine_tuning_job_id
+            model.fine_tuning_job_id = fine_tuning_job_id
 
             return [self._mapper.map_model_to_dto(session, model)]
 
@@ -257,7 +257,7 @@ class ServiceManagerFacade(IServiceManager):
     def save_checkpoint_models(self, current_fine_tuning_model: ModelDTO, current_project_id: int) -> list[ModelDTO]:
         # Fetch checkpoint data
         checkpoints = self._openai_service.get_checkpoints(
-            current_fine_tuning_model.full_fine_tuned_model_id)
+            current_fine_tuning_model.fine_tuning_job_id)
 
         if not checkpoints:
             return
@@ -271,7 +271,7 @@ class ServiceManagerFacade(IServiceManager):
                 model_name=current_fine_tuning_model.model_name + f"""C {i}""",
                 project_ids=[current_project_id],
                 training_dataset_ids=current_fine_tuning_model.training_dataset_ids,
-                full_fine_tuned_model_id=checkpoint['fine_tuning_job_id'],
+                fine_tuning_job_id=checkpoint['fine_tuning_job_id'],
                 parent_model_id=current_fine_tuning_model.parent_model_id,
                 is_global=current_fine_tuning_model.is_global,
                 is_checkpoint_model=True,

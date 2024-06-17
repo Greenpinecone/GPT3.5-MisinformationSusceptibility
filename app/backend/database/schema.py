@@ -199,7 +199,7 @@ class Model(Base):
     version = Column(String, default="0")
     created_at = Column(DateTime, default=func.now())
     # full id of the fine tuned model to retrieve it
-    full_fine_tuned_model_id = Column(String(), unique=True)
+    fine_tuning_job_id = Column(String(), unique=True)
     # if the model is set global to choose
     is_global = Column(Boolean, nullable=False)
     # Is the model one of the checkpoint models, openai creates after each epoch training

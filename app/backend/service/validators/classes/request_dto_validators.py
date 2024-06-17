@@ -502,11 +502,11 @@ class CreateModelSchema(Schema):
     checkpoint_step = fields.Int(allow_none=True, validate=lambda n: n > 0, error_messages={
         'invalid': 'Checkpoint step must be of type integer > 0.'})
 
-    full_fine_tuned_model_id = fields.Str(allow_none=True,
-                                          validate=lambda s: len(s) > 0,
-                                          error_messages={
-                                              'invalid': 'Full fine tuned model name must be of type string'
-                                          })
+    fine_tuning_job_id = fields.Str(allow_none=True,
+                                    validate=lambda s: len(s) > 0,
+                                    error_messages={
+                                        'invalid': 'Full fine tuned model name must be of type string'
+                                    })
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1371,7 +1371,7 @@ class UpdateModelSchema(BaseUpdateSchema):
         }
     )
 
-    full_fine_tuned_model_id = fields.Str(allow_none=True, error_messages={
+    fine_tuning_job_id = fields.Str(allow_none=True, error_messages={
         'invalid': 'Full fine tuned model id must be of type string.'
     })
 
@@ -1408,7 +1408,7 @@ class UpdateModelSchema(BaseUpdateSchema):
             missing_dataset_ids} do not exist.""")
 
     @validates_schema(pass_original=True)
-    def validate_full_fine_tuned_model_id(self, data: dict[str, Any], ** kwargs):
+    def validate_fine_tuning_job_id(self, data: dict[str, Any], ** kwargs):
         model_id = data.get("id")
         if not model_id:
             raise ValidationError('Model ID is required.')
@@ -1416,7 +1416,7 @@ class UpdateModelSchema(BaseUpdateSchema):
         model: Model = self.data_manager.get_model_by_id(
             self.session, model_id)[0]
 
-        if model.full_fine_tuned_model_id and data.get("full_fine_tuned_model_id"):
+        if model.fine_tuning_job_id and data.get("fine_tuning_job_id"):
             raise ValidationError(
                 "This model already has an full fine tuned model id set and cannot be updated with a new one.")
 

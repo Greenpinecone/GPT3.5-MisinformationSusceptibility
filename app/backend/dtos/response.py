@@ -89,7 +89,7 @@ class ModelDTO:
     project_ids: list[int]
     training_dataset_ids: list[int]
     is_global: bool = False
-    full_fine_tuned_model_id: str | None = None
+    fine_tuning_job_id: str | None = None
     created_at: datetime = field(
         default_factory=lambda: datetime.now().astimezone())
     parent_model_id: int | None = None
@@ -132,7 +132,7 @@ class ComplexModelDTO:
     project_ids: list[int]
     training_dataset_ids: list[int]
     is_global: bool = False
-    full_fine_tuned_model_id: str | None = None
+    fine_tuning_job_id: str | None = None
     created_at: datetime = field(
         default_factory=lambda: datetime.now().astimezone())
     is_checkpoint_model: bool | None = None

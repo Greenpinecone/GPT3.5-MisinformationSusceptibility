@@ -59,7 +59,7 @@ with logger:
     # Get the current training status every ten seconds
 
     @st.experimental_fragment(run_every=10)
-    def fine_tuning_progress_bar(full_fine_tuned_model_id: str, save_checkpoint_models: bool, current_fine_tuning_model: ModelDTO, current_project_id: int):
+    def fine_tuning_progress_bar(fine_tuning_job_id: str, save_checkpoint_models: bool, current_fine_tuning_model: ModelDTO, current_project_id: int):
         # Always need to go two steps back when the fine tuning progress bar is called
         PageNavigator.set_navbar("Previous step", current_page, nav_bar_cols_config=[
                                  2, 3, 2], help="Go back to previous step", func=current_page_navigation_settings, args=[current_project_data.fine_tuning_step_counter])
@@ -70,7 +70,7 @@ with logger:
             f"##### Fine tuning model", [0.4, 1.5, 0.4])
 
         current_training_progress, status, progress_message, hyperparameters = service.get_current_fine_tuning_status(
-            full_fine_tuned_model_id)
+            fine_tuning_job_id)
 
         if current_training_progress:
             progress_text = f"Fine tuning in progress. Please wait. - {
@@ -123,7 +123,7 @@ with logger:
                 label="Cancel", help="Cancel the fine tuning process and return to the previous step", type="primary")
 
             if cancel_fine_tuning:
-                service.cancel_fine_tuning_run(full_fine_tuned_model_id)
+                service.cancel_fine_tuning_run(fine_tuning_job_id)
                 GlobalAppStateManager.update_current_project_data(service,
                                                                   UpdateCurrentProjectDataDTO(id=current_project_data.id, fine_tuning_step_counter=current_project_data.fine_tuning_step_counter - 1))
                 st.rerun()
@@ -313,7 +313,7 @@ with logger:
             # Either train the model directly if the current parent model has not been trained or increase the step counter by one to go directly to the next step
             if current_project_data.fine_tuning_step_counter == 1 and parent_model.version == "0":
                 fine_tuning_progress_bar(
-                    current_project_data.current_fine_tuning_model.full_fine_tuned_model_id, save_checkpoint_models, current_project_data.current_fine_tuning_model, current_project_data.current_project.id)
+                    current_project_data.current_fine_tuning_model.fine_tuning_job_id, save_checkpoint_models, current_project_data.current_fine_tuning_model, current_project_data.current_project.id)
             elif current_project_data.fine_tuning_step_counter == 1:
                 GlobalAppStateManager.update_current_project_data(service,
                                                                   UpdateCurrentProjectDataDTO(id=current_project_data.id, fine_tuning_step_counter=current_project_data.fine_tuning_step_counter + 1))
