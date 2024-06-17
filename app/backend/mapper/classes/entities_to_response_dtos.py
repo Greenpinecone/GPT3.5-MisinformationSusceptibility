@@ -165,7 +165,7 @@ class ModelSchema(BaseSchema):
     checkpoint_step = auto_field()
     project_ids = fields.Function(
         serialize=lambda obj: [project.id for project in obj.projects])
-    full_fine_tuned_model_id = auto_field()
+    fine_tuning_job_id = auto_field()
     training_dataset_ids = fields.Function(
         serialize=lambda obj: [dataset.id for dataset in obj.training_datasets])
     training_run_id = fields.Function(
@@ -263,7 +263,7 @@ class ComplexModelSchema(BaseSchema):
     checkpoint_step = auto_field()
     project_ids = fields.Function(
         serialize=lambda obj: [project.id for project in obj.projects])
-    full_fine_tuned_model_id = auto_field()
+    fine_tuning_job_id = auto_field()
     training_dataset_ids = fields.Function(
         serialize=lambda obj: [dataset.id for dataset in obj.training_datasets])
     parent_model = fields.Nested(

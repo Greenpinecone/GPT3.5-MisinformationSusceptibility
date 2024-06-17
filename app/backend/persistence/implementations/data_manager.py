@@ -376,8 +376,8 @@ class DataManager(IDataManager):
                     Dataset.id.in_(model_dto.training_dataset_ids)).all()
                 model.training_datasets = training_datasets
 
-                if model_dto.full_fine_tuned_model_id:
-                    model.full_fine_tuned_model_id = model_dto.full_fine_tuned_model_id
+                if model_dto.fine_tuning_job_id:
+                    model.fine_tuning_job_id = model_dto.fine_tuning_job_id
 
                 if model_dto.is_checkpoint_model is not None:
                     model.is_checkpoint_model = model_dto.is_checkpoint_model
@@ -449,8 +449,8 @@ class DataManager(IDataManager):
                 if model_dto.is_global is not None:
                     model.is_global = model_dto.is_global
 
-                if model_dto.full_fine_tuned_model_id:
-                    model.full_fine_tuned_model_id = model_dto.full_fine_tuned_model_id
+                if model_dto.fine_tuning_job_id:
+                    model.fine_tuning_job_id = model_dto.fine_tuning_job_id
 
                 saved_models.append(model)
 

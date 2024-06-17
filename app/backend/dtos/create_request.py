@@ -42,7 +42,7 @@ class CreateModelDTO:
     model_name: str
     project_ids: list[int]
     training_dataset_ids: list[int]
-    full_fine_tuned_model_id: str | None = None
+    fine_tuning_job_id: str | None = None
     parent_model_id: int | None = None
     training_run_id: int | None = None
     is_global: bool = False

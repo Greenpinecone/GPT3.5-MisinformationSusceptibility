@@ -38,7 +38,7 @@ class UpdateModelDTO:
     is_global: bool | None = None
     training_dataset_ids: list[int] | None = None
     # Can only be updated if no values has been set already
-    full_fine_tuned_model_id: str | None = None
+    fine_tuning_job_id: str | None = None
 
 
 @dataclass
