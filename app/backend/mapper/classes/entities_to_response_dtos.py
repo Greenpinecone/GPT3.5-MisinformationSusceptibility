@@ -161,6 +161,9 @@ class ModelSchema(BaseSchema):
     version = auto_field()
     created_at = FlexibleDateTimeField()
     is_global = auto_field()
+    uuid = auto_field()
+    fine_tuning_checkpoint_job_id = auto_field()
+    fine_tuned_model_id = auto_field()
     is_checkpoint_model = auto_field()
     checkpoint_step = auto_field()
     project_ids = fields.Function(
@@ -261,6 +264,9 @@ class ComplexModelSchema(BaseSchema):
     is_global = auto_field()
     is_checkpoint_model = auto_field()
     checkpoint_step = auto_field()
+    uuid = auto_field()
+    fine_tuning_checkpoint_job_id = auto_field()
+    fine_tuned_model_id = auto_field()
     project_ids = fields.Function(
         serialize=lambda obj: [project.id for project in obj.projects])
     fine_tuning_job_id = auto_field()
