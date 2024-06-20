@@ -39,6 +39,8 @@ class UpdateModelDTO:
     training_dataset_ids: list[int] | None = None
     # Can only be updated if no values has been set already
     fine_tuning_job_id: str | None = None
+    fine_tuning_checkpoint_job_id: str | None = None
+    fine_tuned_model_id: str | None = None
 
 
 @dataclass
@@ -56,6 +58,7 @@ class UpdateTrainingRunDTO:
     epochs: int | None = None
     learning_rate_multiplier: float | None = None
     batch_size: int | None = None
+    seed: int | None = None
 
 
 class UpdateDataPointEvaluationDTO:

@@ -88,6 +88,9 @@ class ModelDTO:
     version: str
     project_ids: list[int]
     training_dataset_ids: list[int]
+    uuid: str
+    fine_tuning_checkpoint_job_id: str | None = None
+    fine_tuned_model_id: str | None = None
     is_global: bool = False
     fine_tuning_job_id: str | None = None
     created_at: datetime = field(
@@ -131,6 +134,9 @@ class ComplexModelDTO:
     version: str
     project_ids: list[int]
     training_dataset_ids: list[int]
+    uuid: str
+    fine_tuning_checkpoint_job_id: str | None = None
+    fine_tuned_model_id: str | None = None
     is_global: bool = False
     fine_tuning_job_id: str | None = None
     created_at: datetime = field(
