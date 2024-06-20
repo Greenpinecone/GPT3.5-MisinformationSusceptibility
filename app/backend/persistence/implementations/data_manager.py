@@ -9,10 +9,10 @@ from app.backend.database.schema import CurrentProjectData, DataPointEvaluation,
 from ...util.logger import Logger
 from ..interfaces.i_data_manager import IDataManager
 from datetime import datetime
-from ...dtos.create_request import *
-from ...dtos.get_request import *
-from ...dtos.update_request import *
-from ...dtos.response import *
+from app.backend.dtos.create_request import *
+from app.backend.dtos.get_request import *
+from app.backend.dtos.update_request import *
+from app.backend.dtos.response import *
 from app.backend.database.version_manager import VersionManager
 
 
@@ -372,6 +372,12 @@ class DataManager(IDataManager):
                 model.model_name = model_dto.model_name
                 model.is_global = model_dto.is_global
 
+                if model_dto.fine_tuning_checkpoint_job_id:
+                    model.fine_tuning_checkpoint_job_id = model_dto.fine_tuning_checkpoint_job_id
+
+                if model_dto.fine_tuned_model_id:
+                    model.fine_tuned_model_id = model_dto.fine_tuned_model_id
+
                 training_datasets = session.query(Dataset).filter(
                     Dataset.id.in_(model_dto.training_dataset_ids)).all()
                 model.training_datasets = training_datasets
@@ -421,6 +427,41 @@ class DataManager(IDataManager):
             raise Exception(
                 "Failed to save or update models due to error.") from e
 
+    def delete_models(self, session: Session, model_ids: list[int]) -> list[Model]:
+        # TODO: it might be possible to configure the database ORM relations directly to correctly de-associate but this is simple and effective
+        try:
+            for model_id in model_ids:
+                model: Model = session.query(Model).get(model_id)
+                if model:
+                    # Remove the model from related projects
+                    for project in model.projects:
+                        project.models.remove(model)
+
+                    # Remove the model from related datasets
+                    for dataset in model.training_datasets:
+                        dataset.models.remove(model)
+
+                    # Remove the model from parent model's child models if any
+                    if model.parent_model:
+                        model.parent_model.child_models.remove(model)
+
+                    # Remove the model's training run without deleting related objects
+                    if model.training_run:
+                        session.delete(model.training_run)
+
+                    # Manually remove entries from the project_model_link association table
+                    session.execute(
+                        project_model_link.delete().where(project_model_link.c.model_id == model.id)
+                    )
+
+                    # Finally, delete the model itself
+                    session.delete(model)
+
+            return
+        except Exception as e:
+            logger.exception(f"Failed to delete models due to error: {e}")
+            raise Exception("Failed to delete models due to error.") from e
+
     # For updating a model
     def update_models(self, session: Session, models_data: list[UpdateModelDTO]) -> list[Model]:
         saved_models: list[Model] = []
@@ -433,6 +474,12 @@ class DataManager(IDataManager):
 
                 if model_dto.model_name:
                     model.model_name = model_dto.model_name
+
+                if model_dto.fine_tuning_checkpoint_job_id:
+                    model.fine_tuning_checkpoint_job_id = model_dto.fine_tuning_checkpoint_job_id
+
+                if model_dto.fine_tuned_model_id:
+                    model.fine_tuned_model_id = model_dto.fine_tuned_model_id
 
                 # A model can only belong to multiple projects if it is a global model
                 if model_dto.project_ids is not None:
@@ -807,11 +854,10 @@ class DataManager(IDataManager):
                     training_run.learning_rate_multiplier = update_data.learning_rate_multiplier
                 if update_data.batch_size is not None:
                     training_run.batch_size = update_data.batch_size
+                if update_data.seed is not None:
+                    training_run.seed = update_data.seed
 
                 updated_training_runs.append(training_run)
-
-            # Commit the changes to the database
-            session.commit()
 
             return updated_training_runs
 
