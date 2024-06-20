@@ -507,6 +507,12 @@ class CreateModelSchema(Schema):
                                     error_messages={
                                         'invalid': 'Full fine tuned model name must be of type string'
                                     })
+    fine_tuning_checkpoint_job_id = fields.Str(allow_none=True, error_messages={
+        'invalid': 'Model checkpoint job id must be of type string.'
+    })
+    fine_tuned_model_id = fields.Str(allow_none=True, error_messages={
+        'invalid': 'Full fine tuned model id must be of type string.'
+    })
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -661,21 +667,18 @@ class CreateTrainingRunSchema(Schema):
     epochs = fields.Int(
         allow_none=True, validate=lambda n: n >= 1 and n <= 10,
         error_messages={
-            'required': 'Number of epochs is required.',
             'invalid': 'Number of epochs must be greater than 0 and smaller than 11.'
         }
     )
     learning_rate_multiplier = fields.Float(
         allow_none=True, validate=lambda n: n >= 0.1 and n <= 10,
         error_messages={
-            'required': 'Learning rate multiplier is required.',
             'invalid': 'Learning rate multiplier must be a positive float greater than 0.0 and smaller than 11.',
         }
     )
     batch_size = fields.Int(
         allow_none=True, validate=lambda n: n >= 1 and n <= 32,
         error_messages={
-            'required': 'Batch size is required.',
             'invalid': 'Batch size must be a positive integer greater 0 and smaller 33.',
         }
     )
@@ -683,7 +686,6 @@ class CreateTrainingRunSchema(Schema):
     seed = fields.Int(
         allow_none=True, validate=lambda n: n >= 0,
         error_messages={
-            'required': 'Seed is required.',
             'invalid': 'Seed must be an  integer greater or equals to 0.',
         }
     )
@@ -1365,13 +1367,18 @@ class UpdateModelSchema(BaseUpdateSchema):
         'invalid': 'Model must be associated to at least one training dataset.'
     }
     )
-    is_global = fields.Boolean(
-        error_messages={
-            'invalid': 'Is_global must be either True or False.'
-        }
-    )
-
-    fine_tuning_job_id = fields.Str(allow_none=True, error_messages={
+    is_global = fields.Boolean(allow_none=True,
+                               error_messages={
+                                   'invalid': 'Is_global must be either True or False.'
+                               }
+                               )
+    fine_tuning_job_id = fields.Str(allow_none=True, validate=lambda n: len(n) > 0, error_messages={
+        'invalid': 'Model fine tuning job id must be of type string.'
+    })
+    fine_tuning_checkpoint_job_id = fields.Str(allow_none=True, validate=lambda n: len(n) > 0, error_messages={
+        'invalid': 'Model checkpoint job id must be of type string.'
+    })
+    fine_tuned_model_id = fields.Str(allow_none=True, validate=lambda n: len(n) > 0, error_messages={
         'invalid': 'Full fine tuned model id must be of type string.'
     })
 
@@ -1383,32 +1390,34 @@ class UpdateModelSchema(BaseUpdateSchema):
     @validates('project_ids')
     def validate_projects(self, project_ids: list[int]):
         missing_projects = []
-        for project_id in project_ids:
-            try:
-                self.data_manager.get_project_by_id(
-                    self.session, project_id)[0]
-            except NoResultFound:
-                missing_projects.append(project_id)
+        if project_ids:
+            for project_id in project_ids:
+                try:
+                    self.data_manager.get_project_by_id(
+                        self.session, project_id)[0]
+                except NoResultFound:
+                    missing_projects.append(project_id)
 
-        if missing_projects:
-            raise ValidationError(f"""Projects with IDs {
-                missing_projects} do not exist.""")
+            if missing_projects:
+                raise ValidationError(f"""Projects with IDs {
+                    missing_projects} do not exist.""")
 
     @validates('training_dataset_ids')
     def validate_datasets_exist(self, dataset_ids: list[int]):
         missing_dataset_ids: list[int] = []
-        try:
-            for dataset_id in dataset_ids:
-                self.data_manager.get_dataset_by_id(
-                    self.session, dataset_id)[0]
-        except NoResultFound:
-            missing_dataset_ids.append(dataset_id)
+        if dataset_ids:
+            try:
+                for dataset_id in dataset_ids:
+                    self.data_manager.get_dataset_by_id(
+                        self.session, dataset_id)[0]
+            except NoResultFound:
+                missing_dataset_ids.append(dataset_id)
 
-        raise ValidationError(f"""Datasets with ID {
-            missing_dataset_ids} do not exist.""")
+            raise ValidationError(f"""Datasets with ID {
+                missing_dataset_ids} do not exist.""")
 
     @validates_schema(pass_original=True)
-    def validate_fine_tuning_job_id(self, data: dict[str, Any], ** kwargs):
+    def validate_fine_tuning_job_id(self, data: dict[str, Any], original_data: dict[str, Any], **kwargs):
         model_id = data.get("id")
         if not model_id:
             raise ValidationError('Model ID is required.')
@@ -1490,6 +1499,12 @@ class UpdateTrainingRunSchema(BaseUpdateSchema):
         error_messages={
             'required': 'Batch size is required.',
             'invalid': 'Batch size must be a positive integer greater 0 and smaller 33.',
+        }
+    )
+    seed = fields.Int(
+        allow_none=True, validate=lambda n: n >= 0,
+        error_messages={
+            'invalid': 'Seed must be an  integer greater or equals to 0.',
         }
     )
 
