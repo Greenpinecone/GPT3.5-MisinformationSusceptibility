@@ -9,9 +9,9 @@ from app.backend.service.implementations.service_manager_facade import ServiceMa
 from backend.util.logger import StreamlitLogger
 from backend.util import utility_functions as backend_uf
 from backend.util.config import UPLOAD_FORMAT_FORMATTINGS, GLOBAL_SESSION_STATE_KEYS
-from backend.dtos.get_request import *
+from app.backend.dtos.get_request import *
 from app.backend.dtos.response import *
-from backend.dtos.create_request import *
+from app.backend.dtos.create_request import *
 from app.backend.database.schema import DatasetCategory, FineTuningModelVersions, MessageKeys, UploadFormats
 from app.frontend.classes.dataframe_editor import DataFrameEditor
 from frontend.classes.dataset_editor import DatasetEditor

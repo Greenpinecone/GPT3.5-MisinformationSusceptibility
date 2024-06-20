@@ -14,8 +14,8 @@ from app.backend.service.implementations.service_manager_facade import ServiceMa
 from app.frontend.classes.toast_manager import ToastManager
 from backend.util.logger import StreamlitLogger
 from frontend.util import utility_functions as uf_frontend
-from backend.dtos.get_request import *
-from backend.dtos.response import *
+from app.backend.dtos.get_request import *
+from app.backend.dtos.response import *
 from frontend.custom_styles.global_styles import apply_global_style
 from frontend.classes.global_app_state_manager import GlobalAppStateManager
 from frontend.classes.query_params_manager import QueryParamsManager
