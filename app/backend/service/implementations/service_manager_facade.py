@@ -148,9 +148,22 @@ class ServiceManagerFacade(IServiceManager):
         with self._data_manager.get_session() as session:
             self._validator.validate_create_models(
                 session, self._data_manager, create_model_dto)
-            model: Model = self._data_manager.create_models(
-                session, create_model_dto)[0]
-            return [self._mapper.map_model_to_dto(session, model)]
+            models: list[Model] = self._data_manager.create_models(
+                session, create_model_dto)
+            return [self._mapper.map_model_to_dto(session, model) for model in models]
+
+    def update_models(self, update_model_dtos: list[UpdateModelDTO]) -> list[ModelDTO]:
+        with self._data_manager.get_session() as session:
+            self._validator.validate_update_models(
+                session, self._data_manager, update_model_dtos)
+            models: list[Model] = self._data_manager.update_models(
+                session, update_model_dtos)
+            return [self._mapper.map_model_to_dto(session, model) for model in models]
+
+    def delete_models(self, model_ids: list[int]) -> None:
+        with self._data_manager.get_session() as session:
+            self._data_manager.delete_models(session, model_ids)
+            return
 
     def update_datapoints(self, update_datapoint_dtos: list[UpdateDataPointDTO]) -> list[DataPointDTO]:
         with self._data_manager.get_session() as session:
@@ -243,50 +256,58 @@ class ServiceManagerFacade(IServiceManager):
             return [self._mapper.map_model_to_dto(session, model)]
 
     def get_current_fine_tuning_status(self, fine_tuning_job_id: str) -> tuple[None | float, str, dict]:
-        current_training_progress, status, progress_message, hyperparameters = self._openai_service.get_fine_tuning_status(
+        current_training_progress, status, progress_message, hyperparameters, seed, fine_tuned_model_id = self._openai_service.get_fine_tuning_status(
             fine_tuning_job_id)
-        return current_training_progress, status, progress_message, hyperparameters
+        return current_training_progress, status, progress_message, hyperparameters, seed, fine_tuned_model_id
 
     def cancel_fine_tuning_run(self, fine_tuning_job_id: str) -> None:
         # TODO: Add proper response obejct handling
         response = self._openai_service.cancel_fine_tuning_job(
             fine_tuning_job_id)
 
-        return response
+        if response:
+            return response.status
+        else:
+            return "cancelled"
 
-    def save_checkpoint_models(self, current_fine_tuning_model: ModelDTO, current_project_id: int) -> list[ModelDTO]:
-        # Fetch checkpoint data
-        checkpoints = self._openai_service.get_checkpoints(
-            current_fine_tuning_model.fine_tuning_job_id)
+    def save_checkpoint_models(self, current_fine_tuning_model: ModelDTO, current_project_id: int, updated_training_run_dto: TrainingRunDTO) -> list[ModelDTO]:
+        with self._data_manager.get_session() as session:
+            # Fetch checkpoint data
+            checkpoints = self._openai_service.get_checkpoints(
+                current_fine_tuning_model.fine_tuning_job_id)
 
-        if not checkpoints:
-            return
+            if not checkpoints:
+                return []
 
-        new_model_dtos: list[CreateModelDTO] = []
-        new_training_run_dtos = list[CreateTrainingRunDTO] = []
+            new_models: list[Model] = []
 
-        for i, checkpoint in enumerate(checkpoints, 1):
-            # Create a new model DTO for each checkpoint
-            new_model_dto = CreateModelDTO(
-                model_name=current_fine_tuning_model.model_name + f"""C {i}""",
-                project_ids=[current_project_id],
-                training_dataset_ids=current_fine_tuning_model.training_dataset_ids,
-                fine_tuning_job_id=checkpoint['fine_tuning_job_id'],
-                parent_model_id=current_fine_tuning_model.parent_model_id,
-                is_global=current_fine_tuning_model.is_global,
-                is_checkpoint_model=True,
-                checkpoint_step=checkpoint['step_number']
-            )
+            for i, checkpoint in enumerate(checkpoints, 1):
+                # Create a new model DTO for each checkpoint
+                new_model_dto = CreateModelDTO(
+                    model_name=current_fine_tuning_model.model_name +
+                    f""" - C {i}""",
+                    project_ids=[current_project_id],
+                    training_dataset_ids=current_fine_tuning_model.training_dataset_ids,
+                    fine_tuning_job_id=checkpoint['fine_tuning_job_id'],
+                    fine_tuning_checkpoint_job_id=checkpoint['id'],
+                    fine_tuned_model_id=checkpoint['fine_tuned_model_checkpoint'],
+                    parent_model_id=current_fine_tuning_model.parent_model_id,
+                    is_global=current_fine_tuning_model.is_global,
+                    is_checkpoint_model=True,
+                    checkpoint_step=checkpoint['step_number']
+                )
 
-            # Fetch those data, copy the current training run, replace these values, save it with the new model.
-            checkpoint["metrics"]  # [train_loss], [train_mean_token_accuracy]
+                # Save the model
+                saved_model: Model = self._data_manager.create_models(
+                    session, [new_model_dto])[0]
 
-            # Save the new model (assuming you have a method to save models)
-            new_model_dtos.append(new_model_dto)
+                # Create a new training run for the model that copies all the values of the initial fine tuning job. (A separate instance is easier to implement and might have some benefits in the future at the cost of another similar entity for each cehkpoint model)
+                self._data_manager.create_training_runs(session, [CreateTrainingRunDTO(model_id=saved_model.id, fine_tuning_model=updated_training_run_dto.fine_tuning_model, epochs=updated_training_run_dto.epochs,
+                                                                                       learning_rate_multiplier=updated_training_run_dto.learning_rate_multiplier, batch_size=updated_training_run_dto.batch_size, seed=updated_training_run_dto.seed)])[0]
 
-        saved_models = self._data_manager.create_models(new_model_dtos)
+                new_models.append(saved_model)
 
-        return [self._mapper.map_model_to_dto(model_dto) for model_dto in saved_models]
+            return [self._mapper.map_model_to_dto(session, model) for model in new_models]
 
     def get_training_dataset_datapoint_amount(self, dataset_ids: list[int]) -> int:
         with self._data_manager.get_session() as session:
@@ -296,3 +317,10 @@ class ServiceManagerFacade(IServiceManager):
                     self._data_manager.get_dataset_by_id(session, dataset_id)[0])
 
             return self._openai_service.count_datapoints_in_dataset_list(datasets)
+
+    def get_training_run_by_id(self, training_run_id: int) -> list[TrainingRunDTO]:
+        with self._data_manager.get_session() as session:
+            training_runs: list[int] = self._data_manager.get_training_run_by_id(session,
+                                                                                 training_run_id)
+
+            return [self._mapper.map_training_run_to_dto(session, training_run) for training_run in training_runs]
