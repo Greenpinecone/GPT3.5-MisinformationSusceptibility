@@ -1,3 +1,4 @@
+from uuid import uuid4
 from sqlalchemy import ARRAY, Column, Integer, String, ForeignKey, Table, DateTime, Boolean, func, Enum, Float, JSON
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
@@ -199,7 +200,13 @@ class Model(Base):
     version = Column(String, default="0")
     created_at = Column(DateTime, default=func.now())
     # full id of the fine tuned model to retrieve it
-    fine_tuning_job_id = Column(String(), unique=True)
+    fine_tuning_job_id = Column(String)
+    # The fine tuning job id of the checkpoint model - if this is set it must be a checkpoint model
+    fine_tuning_checkpoint_job_id = Column(String)
+    # The id of the fine tuned model as you would use it to directly make api requests
+    fine_tuned_model_id = Column(String)
+    # A unique identifier independent from the model id, which can be used to identify any resources stored at openai
+    uuid = Column(String, default=lambda: str(uuid4()))
     # if the model is set global to choose
     is_global = Column(Boolean, nullable=False)
     # Is the model one of the checkpoint models, openai creates after each epoch training
@@ -211,19 +218,24 @@ class Model(Base):
     training_datasets = relationship(
         "Dataset",
         secondary=model_dataset_association,
-        back_populates="models"
+        back_populates="models",
     )
 
     # Many-to-many relationship to projects
     projects = relationship(
         "Project",
         secondary=project_model_link,
-        back_populates="models"
+        back_populates="models",
     )
+
+    # TODO: Could potentially be converted to a one to many relationship
     # Correctly setup for multiple training runs per model
+    # The training run is deleted if the associated model is deleted.
     training_run = relationship(
         "TrainingRun", back_populates="model", uselist=False)
+
     # Orm relationship for initial_datapoint
+    # TODO: Handle if a parent model is deleted (Which is not allowed at the moment) and its versioning etc if added
     parent_model = relationship("Model", remote_side=[
         id], backref="child_models", uselist=False)
 
@@ -266,6 +278,7 @@ class TrainingRun(Base):
     created_at = Column(DateTime, default=func.now())
     seed = Column(Integer)
     fine_tuning_model = Column(String)
+    # TODO: Could be updated to a one to many relationship - one training run, many models (for checkpoint models)
     # Back-populates to model.training_runs
     model = relationship("Model", back_populates="training_run", uselist=False)
 
