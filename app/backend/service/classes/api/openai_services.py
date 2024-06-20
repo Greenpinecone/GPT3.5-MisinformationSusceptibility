@@ -35,31 +35,38 @@ class OpenAIService:
             organization=self.organization, api_key=self.api_key)
 
     def check_and_upload_file(self, file_content: io.BytesIO, file_name: str):
-        files = self.client.files.list(purpose="fine-tune").data
-        for file in files:
-            if file.filename == file_name:
-                # If a file with the same name already exists, delete the existing file to avoid overwriting issues. E.g. What if the user decides to delete the database file. The model ids start again by 1 and overwrite the xisting files.
-                self.delete_file(file.id)
-        response = self.client.files.create(
-            file=(file_name, file_content),
-            purpose="fine-tune"
-        )
-        return response.id
+        try:
+            files = self.client.files.list(purpose="fine-tune").data
+            for file in files:
+                if file.filename == file_name:
+                    return file.id
+            response = self.client.files.create(
+                file=(file_name, file_content),
+                purpose="fine-tune"
+            )
+            return response.id
+        except Exception as e:
+            raise Exception(f"Error while uploading files: {e}")
 
-    def fine_tune_model(self, training_file_id, chosen_training_model: str, validation_file_id=None, hyperparameters=None, suffix=None):
-        params = {
-            "training_file": training_file_id,
-            "model": chosen_training_model,
-        }
-        if validation_file_id:
-            params["validation_file"] = validation_file_id
-        if hyperparameters:
-            params["hyperparameters"] = hyperparameters
-        if suffix:
-            params["suffix"] = suffix
+    def fine_tune_model(self, training_file_id: str, chosen_training_model: str, validation_file_id: str | None = None, hyperparameters: dict[str, str] | None = None, seed: int | None = None, suffix: str | None = None):
+        try:
+            params = {
+                "training_file": training_file_id,
+                "model": chosen_training_model,
+            }
+            if validation_file_id:
+                params["validation_file"] = validation_file_id
+            if hyperparameters:
+                params["hyperparameters"] = hyperparameters
+            if suffix:
+                params["suffix"] = suffix
+            if seed:
+                params["seed"] = seed
 
-        response = self.client.fine_tuning.jobs.create(**params)
-        return response
+            response = self.client.fine_tuning.jobs.create(**params)
+            return response
+        except Exception as e:
+            raise Exception(f"Error creating fine tuning job: {e}")
 
     def get_fine_tuning_status(self, fine_tuning_job_id: str) -> str | float:
         response = self.client.fine_tuning.jobs.retrieve(fine_tuning_job_id)
@@ -87,10 +94,19 @@ class OpenAIService:
 
             progress_message = last_event.message
 
-            # TODO: Add other params to Training Run DTO like train_loss, valid_loss, full_valid_loss, train_mean_token_accuracy, valid_mean_token_accuracy, full_valid_mean_token_accuracy
+        # TODO: Return other params + metrics file later for stats:
+            """  "train_loss": 0.478,
+    "train_mean_token_accuracy": 0.924,
+    "valid_loss": 10.112,
+    "valid_mean_token_accuracy": 0.145,
+    "full_valid_loss": 0.567,
+    "full_valid_mean_token_accuracy": 0.944"""
+
+        # response.seed, response.fine_tuned_model, response.trained_tokens
+        # response.result_files -> [] -> [0] -> metrics for the graph?
 
         # Return the current status if there is no progress information
-        return current_training_progress, response.status, progress_message, response.hyperparameters
+        return current_training_progress, response.status, progress_message, response.hyperparameters, response.seed, response.fine_tuned_model
 
     def get_checkpoints(self, fine_tuning_job_id):
         url = f"""https://api.openai.com/v1/fine_tuning/jobs/{
@@ -104,34 +120,62 @@ class OpenAIService:
         return response.get("data")
 
     def cancel_fine_tuning_job(self, fine_tuning_job_id: str):
-        # Step 1: Cancel the fine-tuning job
-        response = self.client.fine_tuning.jobs.cancel(fine_tuning_job_id)
+        try:
+            # Step 1: Get the details of the cancelled fine-tuning job
+            job_details = self.client.fine_tuning.jobs.retrieve(
+                fine_tuning_job_id)
 
-        # Step 2: Get the details of the cancelled fine-tuning job
-        job_details = self.client.fine_tuning.jobs.retrieve(fine_tuning_job_id)
+            # Extract the file IDs from the job details
+            training_file_id = job_details.training_file
+            validation_file_id = job_details.validation_file
 
-        # Extract the file IDs from the job details
-        training_file_id = job_details.training_file
-        validation_file_id = job_details.validation_file
+            response = None
+            # The job itself cannot be deleted from openai only cancelled and the model can be deleted if it exists.
+            # Delete the current fine tuning job if the job has already finished,
+            if job_details.status not in ['succeeded', 'failed', 'cancelled']:
+                # Proceed to cancel the job if it is still running
+                response = self.client.fine_tuning.jobs.cancel(
+                    fine_tuning_job_id)
+            else:
+                # Delete the fine tuned model if it already exists
+                if job_details.fine_tuned_model:
+                    response = self.delete_fine_tuned_model(
+                        job_details.fine_tuned_model)
 
-        # Step 3: Delete the training and validation files
-        if training_file_id:
-            self.delete_file(training_file_id)
-        if validation_file_id:
-            self.delete_file(validation_file_id)
+             # Step 3: Delete the training and validation files
+            if training_file_id:
+                self.delete_file(training_file_id)
+            if validation_file_id:
+                self.delete_file(validation_file_id)
 
-        return response
+            return response
+
+        except Exception as e:
+            raise Exception(
+                f"Fine tuning job could not be cancelled properly: {e}") from e
 
     def delete_file(self, file_id: str):
         try:
-            self.client.files.delete(file_id)
-            print(f"File {file_id} deleted successfully.")
+            response = self.client.files.delete(file_id)
+            return response
         except Exception as e:
-            print(f"Error deleting file {file_id}: {str(e)}")
+            # Files have already been deleted - Can happen due to streamlit reload functionality if an error occurs the first time
+            if e.status_code == 404:
+                pass
+            else:
+                raise Exception(f"Error deleting file {file_id}: {str(e)}")
 
-    def delete_fine_tuning_job(self, fine_tuning_job_id: str):
-        response = self.client.models.delete(fine_tuning_job_id)
-        return response
+    def delete_fine_tuned_model(self, fine_tuned_model_id: str):
+        try:
+            response = self.client.models.delete(fine_tuned_model_id)
+            return response
+        except Exception as e:
+            # Model has already been deleted
+            if e.status_code == 404:
+                pass
+            else:
+                raise Exception(
+                    f"Fine tuned model could not be deleted properly: {e}")
 
     def create_jsonl_string(self, datasets: list[Dataset]):
         jsonl_lines = []
@@ -147,17 +191,12 @@ class OpenAIService:
         # Convert file_content to bytes and create a BytesIO object
         return io.BytesIO(file_content.encode('utf-8'))
 
-    def generate_uuid_suffix(self, length: int = 18) -> str:
-        # Generate a UUID
-        generated_uuid = str(uuid4())
+    def shorten_uuid(self, uuid: str, length: int = 18) -> str:
 
-        # Ensure the length of the generated UUID suffix is at most the specified length
-        if length < 1 or length > len(generated_uuid):
-            raise ValueError(
-                "Length must be between 1 and the length of the UUID string.")
+        # Use shortuuid to generate a shorter unique ID
+        short_id = uuid[:length]
 
-        # Truncate the UUID to the desired length
-        return generated_uuid[:length]
+        return short_id
 
     def sort_datasets(self, model: Model) -> tuple[list[Dataset], list[Dataset]]:
         training_datasets: list[Dataset] = []
@@ -179,48 +218,53 @@ class OpenAIService:
         return count
 
     def create_fine_tuning_run(self, model: Model, training_run_dto: TrainingRunDTO):
+        try:
+            # Sort datasets into training and test datasets. Each training dataset can have 0-1 test datasets.
+            training_datasets, test_datasets = self.sort_datasets(model)
 
-        # Sort datasets into training and test datasets. Each training dataset can have 0-1 test datasets.
-        training_datasets, test_datasets = self.sort_datasets(model)
-
-        # Combine all training datasets into one dataset
-        training_dataset_content = self.create_jsonl_string(
-            training_datasets)
-        training_dataset_bytes = self.convert_string_to_bytes(
-            training_dataset_content)
-        # Upload the combined dataset
-        training_file_id = self.check_and_upload_file(
-            training_dataset_bytes, f"training_{model.id}.jsonl")
-
-        # Combine all test datasets into one dataset
-        validation_file_id = None
-        if test_datasets:
-            test_dataset_content = self.create_jsonl_string(test_datasets)
-            test_dataset_bytes = self.convert_string_to_bytes(
-                test_dataset_content)
+            # Combine all training datasets into one dataset
+            training_dataset_content = self.create_jsonl_string(
+                training_datasets)
+            training_dataset_bytes = self.convert_string_to_bytes(
+                training_dataset_content)
             # Upload the combined dataset
-            validation_file_id = self.check_and_upload_file(
-                test_dataset_bytes, f"test_{model.id}.jsonl")
+            training_file_id = self.check_and_upload_file(
+                training_dataset_bytes, f"training_{model.uuid}.jsonl")
 
-        # Create and start the fine-tuning job
-        suffix = self.generate_uuid_suffix()
+            # Combine all test datasets into one dataset
+            validation_file_id = None
+            if test_datasets:
+                test_dataset_content = self.create_jsonl_string(test_datasets)
+                test_dataset_bytes = self.convert_string_to_bytes(
+                    test_dataset_content)
+                # Upload the combined dataset
+                validation_file_id = self.check_and_upload_file(
+                    test_dataset_bytes, f"test_{model.uuid}.jsonl")
 
-        # set hyperparameters
-        hyperparameters = {
-            key: value for key, value in {
-                "n_epochs": training_run_dto.epochs,
-                "learning_rate_multiplier": training_run_dto.learning_rate_multiplier,
-                "batch_size": training_run_dto.batch_size,
-                "seed": training_run_dto.seed
-            }.items() if value is not None
-        }
+            # set hyperparameters
+            hyperparameters = {
+                key: value for key, value in {
+                    "n_epochs": training_run_dto.epochs,
+                    "learning_rate_multiplier": training_run_dto.learning_rate_multiplier,
+                    "batch_size": training_run_dto.batch_size,
+                }.items() if value is not None
+            }
 
-        fine_tuning_job = self.fine_tune_model(
-            training_file_id=training_file_id,
-            chosen_training_model=training_run_dto.fine_tuning_model,
-            validation_file_id=validation_file_id,
-            hyperparameters=hyperparameters,
-            suffix=suffix
-        )
+            # Create and start the fine-tuning job
+            suffix = self.shorten_uuid(model.uuid)
 
-        return fine_tuning_job.id
+            fine_tuning_job = self.fine_tune_model(
+                training_file_id=training_file_id,
+                chosen_training_model=training_run_dto.fine_tuning_model,
+                validation_file_id=validation_file_id,
+                hyperparameters=hyperparameters,
+                seed=training_run_dto.seed,
+                suffix=suffix
+            )
+
+            return fine_tuning_job.id
+
+            # You can get the error code via "response.error.code / message / param"
+        except Exception as e:
+            raise Exception(
+                f"Error during fine tuning run creation: {e}") from e
