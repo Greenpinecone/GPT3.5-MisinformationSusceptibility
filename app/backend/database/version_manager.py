@@ -30,9 +30,10 @@ class VersionManager:
                 project_model_link.c.project_id.in_(model_dto.project_ids),
                 Model.version != "0"
             ).all()
-            highest_version = max((int(v[0])
-                                  for v in sibling_versions), default=0)
-            return cls.increment_version(str(highest_version))
+            sibling_versions = [list(map(int, v[0].split('.')))
+                                for v in sibling_versions]
+            highest_version = max(sibling_versions, default=[0])
+            return cls.increment_version('.'.join(map(str, highest_version)))
 
         # Step 3: Hierarchical sub-version increment for models trained from non-base models
         current_version = parent_model.version
@@ -43,6 +44,14 @@ class VersionManager:
         ).all()
         if not child_versions:
             return cls.extend_version(current_version)
-        highest_sub_version = max(
-            (int(v[0]) for v in child_versions), default=int(current_version + ".0"))
-        return cls.increment_version(str(highest_sub_version))
+
+        # Parse child_versions to lists of integers
+        child_versions = [list(map(int, v[0].split('.')))
+                          for v in child_versions]
+
+        # Default value for highest_sub_version should be a parsed version of current_version + ".0"
+        default_sub_version = list(
+            map(int, (current_version + ".0").split('.')))
+        highest_sub_version = max(child_versions, default=default_sub_version)
+
+        return cls.increment_version('.'.join(map(str, highest_sub_version)))
