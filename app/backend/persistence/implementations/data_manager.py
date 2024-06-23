@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 from sqlalchemy import Engine, and_, create_engine, or_
-from sqlalchemy.orm import sessionmaker, Session, scoped_session, joinedload
+from sqlalchemy.orm import sessionmaker, Session, scoped_session, joinedload, aliased
 from sqlalchemy.orm.query import Query
 from pathlib import Path
 from typing import Generator
@@ -897,9 +897,12 @@ class DataManager(IDataManager):
     def get_datasets_by_model_id(self, session: Session, dataset_model_data: GetDatasetsByModelIdDTO) -> list[Dataset]:
         logger.debug(f"Dataset_model_data: {dataset_model_data}")
         try:
+            # Alias for the Model table
+            model_alias = aliased(Model)
+
             # Directly filtering datasets associated with the model_id
-            query: Query = session.query(Dataset).join(Model).filter(
-                Model.id == dataset_model_data.model_id)
+            query: Query = session.query(Dataset).select_from(model_alias).join(Dataset.models).filter(
+                model_alias.id == dataset_model_data.model_id)
 
             # Additional filters based on the provided dictionary
             if dataset_model_data.created_at:
