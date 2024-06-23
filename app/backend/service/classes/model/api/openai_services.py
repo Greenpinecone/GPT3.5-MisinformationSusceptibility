@@ -13,13 +13,14 @@ from uuid import uuid4
 from openai import OpenAI
 import json
 from app.backend.database.schema import Dataset, DatasetCategory, Model
-from app.backend.dtos.response import DataPointDTO, TrainingRunDTO
+from app.backend.dtos.response import ComplexDatasetDTO, ComplexModelDTO, DataPointDTO, TrainingRunDTO
 from sqlalchemy.orm import Session
 import requests
 from app.backend.persistence.interfaces.i_data_manager import IDataManager
+from app.backend.service.classes.model.api.interfaces.i_fine_tuning_service import IFineTuningService
 
 
-class OpenAIService:
+class OpenAIService(IFineTuningService):
     """
     Service class for interacting with OpenAI's API. Manages the process of
     fine-tuning GPT-3.5-Turbo, including request preparation and response handling.
@@ -177,8 +178,8 @@ class OpenAIService:
                 raise Exception(
                     f"Fine tuned model could not be deleted properly: {e}")
 
-    def create_jsonl_string(self, datasets: list[Dataset]):
-        jsonl_lines = []
+    def create_jsonl_string(self, datasets: list[ComplexDatasetDTO]):
+        jsonl_lines: list[str] = []
         for dataset in datasets:
             for datapoint in dataset.datapoints:
                 messages = datapoint.messages.get('messages')
@@ -198,73 +199,21 @@ class OpenAIService:
 
         return short_id
 
-    def sort_datasets(self, model: Model) -> tuple[list[Dataset], list[Dataset]]:
-        training_datasets: list[Dataset] = []
-        test_datasets: list[Dataset] = []
-        for dataset in model.training_datasets:
+    def sort_datasets(self, dataset_dtos: list[ComplexDatasetDTO]) -> tuple[list[ComplexDatasetDTO], list[ComplexDatasetDTO]]:
+        training_datasets: list[ComplexDatasetDTO] = []
+        test_datasets: list[ComplexDatasetDTO] = []
+        for dataset in dataset_dtos:
             if dataset.category == DatasetCategory.training:
                 training_datasets.append(dataset)
                 # Add all test datasets that have test datapoints since test datasets are not mandatory
                 if dataset.test_dataset and dataset.test_dataset.datapoints:
-                    test_datasets.append(dataset)
+                    test_datasets.append(dataset.test_dataset)
 
         return training_datasets, test_datasets
 
-    def count_datapoints_in_dataset_list(self, datasets: list[Dataset]) -> int:
+    def count_datapoints_in_dataset_list(self, datasets: list[ComplexDatasetDTO]) -> int:
         count = 0
         for dataset in datasets:
             count += len(dataset.datapoints)
 
         return count
-
-    def create_fine_tuning_run(self, model: Model, training_run_dto: TrainingRunDTO):
-        try:
-            # Sort datasets into training and test datasets. Each training dataset can have 0-1 test datasets.
-            training_datasets, test_datasets = self.sort_datasets(model)
-
-            # Combine all training datasets into one dataset
-            training_dataset_content = self.create_jsonl_string(
-                training_datasets)
-            training_dataset_bytes = self.convert_string_to_bytes(
-                training_dataset_content)
-            # Upload the combined dataset
-            training_file_id = self.check_and_upload_file(
-                training_dataset_bytes, f"training_{model.uuid}.jsonl")
-
-            # Combine all test datasets into one dataset
-            validation_file_id = None
-            if test_datasets:
-                test_dataset_content = self.create_jsonl_string(test_datasets)
-                test_dataset_bytes = self.convert_string_to_bytes(
-                    test_dataset_content)
-                # Upload the combined dataset
-                validation_file_id = self.check_and_upload_file(
-                    test_dataset_bytes, f"test_{model.uuid}.jsonl")
-
-            # set hyperparameters
-            hyperparameters = {
-                key: value for key, value in {
-                    "n_epochs": training_run_dto.epochs,
-                    "learning_rate_multiplier": training_run_dto.learning_rate_multiplier,
-                    "batch_size": training_run_dto.batch_size,
-                }.items() if value is not None
-            }
-
-            # Create and start the fine-tuning job
-            suffix = self.shorten_uuid(model.uuid)
-
-            fine_tuning_job = self.fine_tune_model(
-                training_file_id=training_file_id,
-                chosen_training_model=training_run_dto.fine_tuning_model,
-                validation_file_id=validation_file_id,
-                hyperparameters=hyperparameters,
-                seed=training_run_dto.seed,
-                suffix=suffix
-            )
-
-            return fine_tuning_job.id
-
-            # You can get the error code via "response.error.code / message / param"
-        except Exception as e:
-            raise Exception(
-                f"Error during fine tuning run creation: {e}") from e
