@@ -54,34 +54,41 @@ def create_text_divider(text: str = None, column_partitions: list[int] = [5, 1, 
 
 def display_dto(dto, attributes):
     """
-    This function takes in a DTO and a list of attribute name-key tuples. It retrieves the values
-    of these attributes from the DTO, forms a concatenated string of these values, and returns it.
+    This function takes in a DTO or dictionary and a list of attribute name-key tuples.
+    It retrieves the values of these attributes from the DTO or dictionary, forms a concatenated
+    string of these values, and returns it.
 
-    :param dto: The data transfer object (DTO) to retrieve values from.
+    :param dto: The data transfer object (DTO) or dictionary to retrieve values from.
     :param attributes: A list of tuples where the first value is the display name of the attribute
-                       and the second value is the actual attribute name in the DTO.
+                       and the second value is the actual attribute name in the DTO or dictionary.
     :return: A concatenated string of attribute values.
     """
     # Initialize a list to hold the formatted attribute values
     attribute_values = []
 
+    # Check if the input is a dictionary
+    is_dict = isinstance(dto, dict)
+
     # Iterate through the list of attribute name-key tuples
     for name, key in attributes:
-        # Check if the DTO has the attribute
-        if hasattr(dto, key):
-            # Retrieve the value of the attribute
-            value = getattr(dto, key)
-            if value or value is False or value is 0:
-                # Format the value with the name if provided
-                if name:
-                    formatted_value = f"{name}: {value}"
-                else:
-                    formatted_value = str(value)
-                # Append the formatted value to the list
-                attribute_values.append(formatted_value)
+        # Retrieve the value of the attribute from the dictionary
+        if is_dict:
+            value = dto.get(key, None)
+        # Retrieve the value of the attribute from the DTO
         else:
-            # If the attribute does not exist, throw a value error.
-            raise ValueError(f"DTO does not have attribute '{key}'.")
+            if hasattr(dto, key):
+                value = getattr(dto, key)
+            else:
+                raise ValueError(f"DTO does not have attribute '{key}'.")
+
+        if value or value is False or value == 0:
+            # Format the value with the name if provided
+            if name:
+                formatted_value = f"{name}: {value}"
+            else:
+                formatted_value = str(value)
+            # Append the formatted value to the list
+            attribute_values.append(formatted_value)
 
     # Form the concatenated string with spaces between values
     concatenated_string = " - ".join(attribute_values)

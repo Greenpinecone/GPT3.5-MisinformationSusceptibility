@@ -5,7 +5,7 @@ def apply_global_style() -> None:
     st.markdown("""
     <style>
     /* General styles for all widgets inside #root */
-    #root, #root .stButton, #root .stTextInput, #root .stDataFrame, #root .stPlotlyChart, #root .stAlert #root .stProgress {
+    #root, #root .stButton, #root .stTextInput, #root .stDataFrame, #root .stPlotlyChart, #root .stAlert, #root .stProgress {
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -15,13 +15,24 @@ def apply_global_style() -> None:
     }
     
     /* Make the Checkbox centered to the height and width of the outer container - TODO: Center vertically! */
-    #root .stCheckbox, #root .checkbox {
+    #root, #root .stTextLabelWrapper, #root .stText {
         display: flex;
         flex-direction: column;
         align-items: center;
         text-align: center;
         justify-content: center;
-        width: 100%;
+        height: 100%;
+        overflow-x: auto;  /* Enable horizontal scrolling */
+        white-space: nowrap;  /* Prevent text from wrapping to the next line */
+    }
+    
+    /*Specific style for text box - only center but do not increase width */
+    #root, #root .stTextLabelWrapper, #root .stText {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        justify-content: center;
         height: 100%
     }
     
