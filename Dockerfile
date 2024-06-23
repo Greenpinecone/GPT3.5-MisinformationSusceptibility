@@ -3,6 +3,9 @@ FROM python:3.12-slim
 # All subsequent commands will be executed in the context of the /app directory
 WORKDIR /app
 
+# Set PYTHONPATH to ensure modules can be found
+ENV PYTHONPATH=/app
+
 # Copies all current requirements (dependencies to the docker container)
 COPY requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
