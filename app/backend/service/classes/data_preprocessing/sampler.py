@@ -9,6 +9,12 @@ Classes:
 """
 
 
+from collections import defaultdict
+import random
+
+from app.backend.dtos.response import DataPointDTO
+
+
 class DataSampler:
     """Handles the sampling of data sets.
 
@@ -17,5 +23,42 @@ class DataSampler:
     for quality checks and evaluation purposes.
     """
 
-    def __init__(self):
-        pass
+    @classmethod
+    def get_augmentation_count(cls, datapoints: list[DataPointDTO] | int, percentages: list[float]) -> list[int]:
+        """ Returns the total count of datapoints provided and datapoints that will be augmented from this original datapoints list."""
+        if isinstance(datapoints, int):
+            total_datapoints = datapoints
+        else:
+            total_datapoints = len(datapoints)
+
+        augmentation_counts = [
+            int((percentage / 100) * total_datapoints) for percentage in percentages]
+        return augmentation_counts, total_datapoints
+
+    @classmethod
+    def get_augmentation_distribution(cls, datapoints: list[DataPointDTO], percentages: list[float]) -> defaultdict[int, list[int]]:
+        """ Returns a list of lists, were each list consists of indices, correpsonding to datapoints in the passed datapoints list. The amount of indices correlates to the percentages given, so that the result can be used to augment the correct datapoints and correct amount of datapoints for each percentage."""
+        augmentation_distribution: defaultdict[int, list[int]] = defaultdict(
+            list)
+
+        augmentation_counts, total_datapoints = cls.get_augmentation_count(
+            datapoints, percentages)
+
+        # Random shuffle datapoints to ensure even distribution of datapoints
+        indices = list(range(total_datapoints))
+        random.shuffle(indices)
+
+        current_index = 0
+        for i, count in enumerate(augmentation_counts):
+            while count > 0:
+                # Using round robin approach
+                augmentation_distribution[i].append(indices[current_index])
+                current_index = (current_index + 1) % total_datapoints
+                count -= 1
+
+        # Convert defaultdict to list of lists
+        return [indices for _, indices in sorted(augmentation_distribution.items())]
+
+    @classmethod
+    def sample_datapoints(cls, datapoints: list[str], percentages: list[float]) -> list[list[int]]:
+        return cls.get_augmentation_distribution(datapoints, percentages)
