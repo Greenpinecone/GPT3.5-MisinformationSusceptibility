@@ -10,12 +10,12 @@ from ...dtos.update_request import *
 from ..interfaces.i_service_manager import IServiceManager
 from ...persistence.interfaces.i_data_manager import IDataManager
 from ...persistence.implementations.data_manager import DataManager
-from ..classes.api.google_translate_services import GoogleTranslateService
-from ..classes.api.openai_services import OpenAIService
-from ..classes.data_preprocessing.augmenter import DataAugmenter
+from ..classes.model.api.google_translate_services import GoogleTranslateService
+from ..classes.model.api.openai_services import OpenAIService
+from ..classes.data_augmentation.augmenters.augmenter import DataAugmenter
 from ..classes.data_preprocessing.sampler import DataSampler
-from ..classes.model.evaluator import ModelEvaluator
-from ..classes.model.fine_tuner import FineTuner
+from ..classes.evaluation.evaluator import ModelEvaluator
+from ..classes.model.fine_tuner.fine_tuner import FineTuner
 from ...util.config import Config
 from ...util.logger import Logger
 from ...mapper.implementations.mappers_facade import MapperFacade
@@ -61,7 +61,8 @@ class ServiceManagerFacade(IServiceManager):
         self._fine_tuner = fine_tuner
         self._validator = validator
         self._mapper = mapper
-    # TODO: Implement service layer functions with request validation / convertion to DTOs through marshmallow and add them to interface
+
+    # TODO: Add and reuse service layer functions (like get_by_id) instead of always calling the persistence layer directly. Issue with sessions in sessions thoughh, all service layer functions should be updated to potentially receive a session, and if so, use this session instead of create a new one.
 
     def filter_projects(self, projects_data: GetProjectsDTO) -> list[ProjectDTO]:
         with self._data_manager.get_session() as session:
@@ -242,13 +243,23 @@ class ServiceManagerFacade(IServiceManager):
             return [self._mapper.map_datapoint_evaluation_to_dto(session, datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
 
     # TODO: Add validators
-    def create_fine_tuning_run(self, model_id: int, training_run_dto: TrainingRunDTO) -> ModelDTO:
+    def create_fine_tuning_run(self, model_id: int, fine_tuning_model: str) -> ModelDTO:
         with self._data_manager.get_session() as session:
             # Fetch the model entity
             model: Model = self._data_manager.get_model_by_id(session, model_id)[
                 0]
-            fine_tuning_job_id = self._openai_service.create_fine_tuning_run(
-                model, training_run_dto)
+
+            complex_model_dto: ComplexModelDTO = self._mapper.map_model_to_complex_dto(
+                session, model)
+
+            model_datasets: list[Dataset] = self._data_manager.get_datasets_by_model_id(
+                session, GetDatasetsByModelIdDTO(model_id=model_id))
+
+            model_dataset_dtos: list[ComplexDatasetDTO] = [self._mapper.map_dataset_to_complex_dto(
+                session, model_dataset) for model_dataset in model_datasets]
+
+            fine_tuning_job_id = self._fine_tuner.create_fine_tuning_run(
+                complex_model_dto, model_dataset_dtos, fine_tuning_model)
 
             # Assign fine tuning job id to model
             model.fine_tuning_job_id = fine_tuning_job_id
@@ -309,7 +320,7 @@ class ServiceManagerFacade(IServiceManager):
 
             return [self._mapper.map_model_to_dto(session, model) for model in new_models]
 
-    def get_training_dataset_datapoint_amount(self, dataset_ids: list[int]) -> int:
+    def get_datasets_datapoints_count(self, dataset_ids: list[int]) -> int:
         with self._data_manager.get_session() as session:
             datasets: list[Dataset] = []
             for dataset_id in dataset_ids:
@@ -324,3 +335,28 @@ class ServiceManagerFacade(IServiceManager):
                                                                                  training_run_id)
 
             return [self._mapper.map_training_run_to_dto(session, training_run) for training_run in training_runs]
+
+    def get_total_augmentation_amount(self, datapoint_count: int, percentages: list[float]) -> int:
+        augmentation_counts, _ = self._data_sampler.get_augmentation_count(
+            datapoint_count, percentages)
+
+        return sum(augmentation_counts)
+
+    def generate_augmented_data(self, model_id: list[int], augmentation_methods: list[str], augmentation_percentages: list[float]) -> list[tuple[DataPointDTO, DataPointEvaluationDTO]]:
+        with self._data_manager.get_session() as session:
+
+            model: Model = self._data_manager.get_model_by_id(
+                session, model_id)
+
+            total_training_datapoints: list[DataPoint] = []
+
+            for dataset in model.training_datasets:
+                total_training_datapoints.extend(dataset.datapoints)
+
+            total_training_datapoint_dtos = [self._mapper.map_datapoint_to_dto(
+                session, datapoint) for datapoint in total_training_datapoints]
+
+            augmented_datapoints: list[DataPointDTO] = self._data_augmenter.create_augmented_dataset(
+                augmentation_methods, augmentation_percentages, total_training_datapoint_dtos)
+
+            # TODO Finish implementation
