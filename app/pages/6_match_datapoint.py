@@ -7,7 +7,7 @@ from app.backend.dtos.response import *
 from app.backend.dtos.create_request import *
 from frontend.classes.toast_manager import ToastManager
 from frontend.custom_styles.global_styles import apply_global_style
-from frontend.custom_styles.individual_styles import center_elements_with_custom_span_in_column
+from frontend.custom_styles.individual_styles import center_checkboxes
 from frontend.classes.query_params_manager import QueryParamsManager
 from frontend.classes.page_navigator import PageNavigator
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
@@ -15,7 +15,7 @@ from app.frontend.classes.datapoint_matcher import DataPointMatcher
 from app.frontend.classes.datapoint_service import DataPointService
 
 apply_global_style()
-center_elements_with_custom_span_in_column()
+center_checkboxes()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 current_page = "match_datapoint"
@@ -46,6 +46,8 @@ with logger:
     service: ServiceManagerFacade = GlobalAppStateManager.get_service()
     current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
         service, current_page)
+    GlobalAppStateManager.update_current_project_data(service,
+                                                      UpdateCurrentProjectDataDTO(id=current_project_data.id, unfinished_progress=True))
     current_dataset: ComplexDatasetDTO = current_project_data.currently_modified_dataset
     QueryParamsManager.set_query_params_from_page(
         current_page)

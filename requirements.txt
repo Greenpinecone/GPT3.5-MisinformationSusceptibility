@@ -11,3 +11,4 @@ streamlit-extras==0.4.2
 openai==1.34.0
 torch==2.2.2
 sentence-transformers==3.0.1
+nltk==3.8.1
