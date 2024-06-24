@@ -9,3 +9,14 @@ class Message(TypedDict):
 
 class MessagesContainer(TypedDict):
     messages: list[Message]
+
+
+class EDAParams(TypedDict):
+    alpha_sr: float
+    alpha_ri: float
+    alpha_rs: float
+    alpha_rd: float
+
+
+class GoogleBTParams(TypedDict):
+    pass

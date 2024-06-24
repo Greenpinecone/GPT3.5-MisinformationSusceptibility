@@ -151,6 +151,33 @@ class DataPointSchema(BaseSchema):
         return DataPointDTO(**data)
 
 
+# Unlike the other datapoint schema, this schema does not get the directly related_datapoints as they have been set for test_datapoints, it gets the test datapoints related to a training datapoin instead.
+class TrainingDataPointSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    id = auto_field()
+    dataset_id = auto_field()
+    augmentation_type = CustomEnumConversionSchema(AugmentationType)
+    created_at = FlexibleDateTimeField()
+    messages = auto_field()
+    initial_datapoint_id = auto_field()
+
+    # Use a lambda to defer self-referencing
+    related_datapoints = fields.Nested(lambda: TrainingDataPointSchema(
+        many=True), exclude=('related_datapoints',), attribute='related_by', default=[])
+
+    class Meta:
+        model = DataPoint
+
+    @post_dump
+    def make_data_point_dto(self, data, **kwargs):
+        # When "related_datapoints" is excluded in nested fields.
+        if not data.get("related_datapoints"):
+            data["related_datapoints"] = []
+        return DataPointDTO(**data)
+
+
 class ModelSchema(BaseSchema):
     def __init__(self, session=None, *args, **kwargs):
         super().__init__(session, *args, **kwargs)
