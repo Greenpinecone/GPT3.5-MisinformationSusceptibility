@@ -6,8 +6,9 @@ from app.backend.service.classes.data_augmentation.augmentation_methods.interfac
 
 class GoogleBackTransaltion(IAugmentationMethod):
 
-    def __init__():
+    def __init__(self):
         pass
 
-    def augment_datapoints(datapoints: list[DataPointDTO], datapoint_indices: list[list[int]]) -> list[DataPointDTO]:
+    @classmethod
+    def augment_datapoints(cls, datapoints: list[DataPointDTO], datapoint_indices: list[list[int]]) -> list[DataPointDTO]:
         pass

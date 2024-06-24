@@ -7,10 +7,11 @@ Classes:
 """
 
 
+from app.backend.custom_types.typedicts import EDAParams, GoogleBTParams
 from app.backend.dtos.response import DataPointDTO
 from app.backend.service.classes.data_augmentation.augmentation_methods.interfaces.i_augmentation_methods import IAugmentationMethod
 from app.backend.util.config import DATA_AUGMENTATION_METHODS as augmentation_methods
-from app.backend.service.classes.data_augmentation.augmentation_methods.eda_easy_data_augmentation import EDA
+from app.backend.service.classes.data_augmentation.augmentation_methods.eda.eda_easy_data_augmentation import EDA
 from backend.service.classes.data_preprocessing.sampler import DataSampler
 
 
@@ -34,21 +35,23 @@ class DataAugmenter:
             return EDA()
 
     @classmethod
-    def create_augmented_dataset(cls, augmentation_methods: list[str], augmentation_percentages: list[float], datapoints: list[DataPointDTO]) -> None:
+    def create_augmented_datapoints(cls, augmentation_methods: list[str], augmentation_percentages: list[float], datapoints: list[DataPointDTO], augmentation_configurations: list[EDAParams | GoogleBTParams]) -> None:
 
         augmenter: IAugmentationMethod = None
         augmented_datapoints: list[DataPointDTO] = []
 
-        augmentation_indices_per_percentage: list[int] = DataSampler.sample_datapoints(
+        augmentation_indices_per_percentage: list[list[int]] = DataSampler.sample_datapoints(
             datapoints, augmentation_percentages)
 
-        for aug_method, datapoint_indices in zip(augmentation_methods, augmentation_indices_per_percentage):
+        for aug_method, configuration in zip(augmentation_methods, augmentation_configurations):
 
             # Choose the correct augmentation method
             augmenter = cls.select_augmentation_class(aug_method)
 
-            # Add augmented datapoints to list of all augmented datapoints
-            augmented_datapoints.append(
-                augmenter.augment_datapoints(datapoints, datapoint_indices))
+            for datapoint_indices in augmentation_indices_per_percentage:
+
+                # Add augmented datapoints to list of all augmented datapoints
+                augmented_datapoints.extend(
+                    augmenter.augment_datapoints(datapoints, datapoint_indices, configuration))
 
         return augmented_datapoints

@@ -2,6 +2,7 @@
 """
 
 
+from app.backend.custom_types.typedicts import EDAParams, GoogleBTParams
 from app.backend.database.schema import Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, CurrentProjectData
 from ...dtos.get_request import *
 from ...dtos.response import *
@@ -342,21 +343,22 @@ class ServiceManagerFacade(IServiceManager):
 
         return sum(augmentation_counts)
 
-    def generate_augmented_data(self, model_id: list[int], augmentation_methods: list[str], augmentation_percentages: list[float]) -> list[tuple[DataPointDTO, DataPointEvaluationDTO]]:
+    def generate_augmented_data(self, model_id: list[int], augmentation_methods: list[str], augmentation_percentages: list[float], augmentation_configurations: list[EDAParams | GoogleBTParams]) -> list[tuple[DataPointDTO, DataPointEvaluationDTO]]:
         with self._data_manager.get_session() as session:
 
             model: Model = self._data_manager.get_model_by_id(
-                session, model_id)
+                session, model_id)[0]
 
             total_training_datapoints: list[DataPoint] = []
 
             for dataset in model.training_datasets:
                 total_training_datapoints.extend(dataset.datapoints)
 
-            total_training_datapoint_dtos = [self._mapper.map_datapoint_to_dto(
+            # Get all training datapoints with their related test datapoints
+            total_training_datapoint_dtos = [self._mapper.map_datapoint_to_training_datapoint_dto(
                 session, datapoint) for datapoint in total_training_datapoints]
 
-            augmented_datapoints: list[DataPointDTO] = self._data_augmenter.create_augmented_dataset(
-                augmentation_methods, augmentation_percentages, total_training_datapoint_dtos)
+            augmented_datapoints: list[DataPointDTO] = self._data_augmenter.create_augmented_datapoints(
+                augmentation_methods, augmentation_percentages, total_training_datapoint_dtos, augmentation_configurations)
 
             # TODO Finish implementation

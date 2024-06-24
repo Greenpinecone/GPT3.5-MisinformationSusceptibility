@@ -36,7 +36,7 @@ class DataSampler:
         return augmentation_counts, total_datapoints
 
     @classmethod
-    def get_augmentation_distribution(cls, datapoints: list[DataPointDTO], percentages: list[float]) -> defaultdict[int, list[int]]:
+    def get_augmentation_distribution(cls, datapoints: list[DataPointDTO], percentages: list[float]) -> list[list[int]]:
         """ Returns a list of lists, were each list consists of indices, correpsonding to datapoints in the passed datapoints list. The amount of indices correlates to the percentages given, so that the result can be used to augment the correct datapoints and correct amount of datapoints for each percentage."""
         augmentation_distribution: defaultdict[int, list[int]] = defaultdict(
             list)
