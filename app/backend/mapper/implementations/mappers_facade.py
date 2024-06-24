@@ -32,6 +32,11 @@ class MapperFacade:
         schema = DataPointSchema(session=session)
         return schema.dump(datapoint_entity)
 
+    def map_datapoint_to_training_datapoint_dto(self, session: Session, datapoint_entity: DataPoint) -> DataPointDTO:
+        # Convert a DataPoint entity to DataPointDTO
+        schema = TrainingDataPointSchema(session=session)
+        return schema.dump(datapoint_entity)
+
     def map_model_to_dto(self, session: Session, model_entity: Model) -> ModelDTO:
         # Convert a Model entity to ModelDTO
         schema = ModelSchema(session=session)
