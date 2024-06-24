@@ -12,6 +12,7 @@ from app.backend.dtos.response import *
 from app.backend.dtos.create_request import *
 from app.backend.database.schema import DatasetCategory
 from frontend.custom_styles.global_styles import apply_global_style
+from frontend.custom_styles.individual_styles import center_checkboxes
 from frontend.classes.query_params_manager import QueryParamsManager
 from frontend.classes.page_navigator import PageNavigator
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
@@ -20,6 +21,7 @@ from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
 
 
 apply_global_style()
+center_checkboxes()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 current_page = "create_model"
