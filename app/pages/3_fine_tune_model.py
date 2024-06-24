@@ -5,6 +5,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly as pl
+from app.backend.custom_types.typedicts import EDAParams
 from app.backend.dtos.create_request import CreateModelDTO, CreateTrainingRunDTO
 from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO, UpdateModelDTO, UpdateTrainingRunDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
@@ -14,17 +15,20 @@ from frontend.util import utility_functions as frontend_uf
 from app.backend.dtos.get_request import *
 from app.backend.dtos.response import *
 from frontend.custom_styles.global_styles import apply_global_style
+from frontend.custom_styles.individual_styles import center_elements_with_custom_span_in_column
 from frontend.classes.query_params_manager import QueryParamsManager
 from frontend.classes.page_navigator import PageNavigator
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
 from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
 from backend.util.config import DATA_AUGMENTATION_METHODS as augmentation_methods
+from backend.util.config import SBERT_MODELS as sbert_models
 from app.backend.database.schema import FineTuningModelVersions
 from backend.util import utility_functions as backend_uf
-from backend.service.classes.api.openai_services import OpenAIService
 from frontend.classes.datapoint_service import DataPointService
 
 apply_global_style()
+center_augmentation_text = "center-augmentation-texts"
+center_elements_with_custom_span_in_column(center_augmentation_text)
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 current_page = "fine_tune_model"
@@ -36,7 +40,7 @@ with logger:
         service, current_page)
     QueryParamsManager.set_query_params_from_page(current_page)
 
-    def current_page_navigation_settings(current_step_counter: int, current_fine_tuning_model: ModelDTO, delete_model: bool = True, rerun: bool = False):
+    def current_page_navigation_settings(current_step_counter: int, current_fine_tuning_model: ModelDTO | None = None, delete_model: bool = True, rerun: bool = False):
         # TODO: Add model deletion logic (from this database with everything associated + from openai)
         # Previous step navigation
         if current_step_counter == 0:
@@ -48,16 +52,20 @@ with logger:
             if delete_model:
                 service.delete_models(
                     [current_fine_tuning_model.id])
+            updated_fine_tuning_setp_counter: int = max(
+                current_project_data.fine_tuning_step_counter-1, 0)
             update_current_project_data = UpdateCurrentProjectDataDTO(
-                id=current_project_data.id, fine_tuning_step_counter=current_project_data.fine_tuning_step_counter-1, unfinished_progress=False, current_fine_tuning_model_id=None)
+                id=current_project_data.id, fine_tuning_step_counter=updated_fine_tuning_setp_counter, unfinished_progress=False, current_fine_tuning_model_id=None)
             GlobalAppStateManager.update_current_project_data(
                 service, update_current_project_data)
         if current_step_counter == 2:
             if delete_model:
                 service.delete_models(
                     [current_fine_tuning_model.id])
+            updated_fine_tuning_setp_counter: int = max(
+                current_project_data.fine_tuning_step_counter-2, 0)
             update_current_project_data = UpdateCurrentProjectDataDTO(
-                id=current_project_data.id, fine_tuning_step_counter=current_project_data.fine_tuning_step_counter-2, fine_tuning_augmentation_methods=None, fine_tuning_augmentation_method_percentages=None, currently_modified_dataset_id=None, unfinished_progress=False,  current_fine_tuning_model_id=None)
+                id=current_project_data.id, fine_tuning_step_counter=updated_fine_tuning_setp_counter, fine_tuning_augmentation_methods=None, fine_tuning_augmentation_method_percentages=None, currently_modified_dataset_id=None, unfinished_progress=False,  current_fine_tuning_model_id=None)
             GlobalAppStateManager.update_current_project_data(
                 service, update_current_project_data)
 
@@ -66,7 +74,7 @@ with logger:
 
     if current_project_data.fine_tuning_step_counter == 0:
         PageNavigator.set_navbar(
-            "Go back", "home", "Return to the previous page", func=current_page_navigation_settings, args=[current_project_data.fine_tuning_step_counter, current_project_data.current_fine_tuning_model, False])
+            "Go back", "home", "Return to the previous page", func=current_page_navigation_settings, args=[current_project_data.fine_tuning_step_counter], current_fine_tuning_model=current_project_data.current_fine_tuning_model, delete_model=False)
 
     def find_training_run_dto_with_current_seed(training_run_dtos: list[SimpleTrainingRunDTO], current_model: ModelDTO | ComplexModelDTO) -> SimpleTrainingRunDTO:
 
@@ -180,7 +188,6 @@ with logger:
             st.session_state.simple_training_run_dto = st.session_state.get(
                 "simple_training_run_dto")
 
-        print(st.session_state.simple_training_run_dto)
         return training_run_dtos
 
     # Get the current training status every ten seconds
@@ -225,7 +232,7 @@ with logger:
                 if cancel_fine_tuning:
                     service.cancel_fine_tuning_run(fine_tuning_job_id)
                     current_page_navigation_settings(
-                        current_project_data.fine_tuning_step_counter,  current_project_data.current_fine_tuning_model, rerun=True)
+                        current_project_data.fine_tuning_step_counter,  current_fine_tuning_model=current_project_data.current_fine_tuning_model, rerun=True)
 
             with cols[3]:
                 label, help_text = ("Finish", "Finish the model and continue to train further models based on this base model") if selected_model.version == 0 else (
@@ -273,7 +280,7 @@ with logger:
                     ToastManager.add_global_toasts(
                         f"Something failed, please try again to fine tune a model: {e}", "error")
                     current_page_navigation_settings(
-                        current_project_data.fine_tuning_step_counter, current_fine_tuning_model, rerun=True)
+                        current_project_data.fine_tuning_step_counter, current_fine_tuning_model=current_fine_tuning_model, rerun=True)
 
         else:
             # if the user cancels the fine tuning run, go to the previous step
@@ -290,7 +297,7 @@ with logger:
                         f"Something failed during model cancellation please try again to fine tune a model: {e}", "error")
                 finally:
                     current_page_navigation_settings(
-                        current_project_data.fine_tuning_step_counter,  current_project_data.current_fine_tuning_model, rerun=True)
+                        current_project_data.fine_tuning_step_counter,  current_fine_tuning_model=current_project_data.current_fine_tuning_model, rerun=True)
 
     def create_new_model(chosen_fine_tuning_base_model: str, selected_model: ComplexModelDTO, is_global: bool, save_checkpoint_models: bool, epochs: int | None, learning_rate_multiplier: float | None,  batch_size: int | None, seed: int | None):
 
@@ -311,14 +318,14 @@ with logger:
                 model_name=model_name, project_ids=project_ids, parent_model_id=parent_model_id, is_global=is_global, training_dataset_ids=training_dataset_ids)])[0]
 
             # Create new models associated training run
-            training_run_dto: TrainingRunDTO = service.create_training_run_dtos([CreateTrainingRunDTO(
+            _ = service.create_training_run_dtos([CreateTrainingRunDTO(
                 model_id=model_dto.id, fine_tuning_model=fine_tuning_model, epochs=epochs, learning_rate_multiplier=learning_rate_multiplier, batch_size=batch_size, seed=seed)])[0]
 
             # If the parent / previous model is version 0 (untrained base model), the user may not add augmented data, since every model hierarchy should have at least one unaugmented base model trained.
             updated_model_dto = None
             if selected_model.version == "0":
                 updated_model_dto: ModelDTO = service.create_fine_tuning_run(
-                    model_dto.id, training_run_dto)[0]
+                    model_dto.id, chosen_fine_tuning_base_model)[0]
 
             # Update model to set new parameters
             GlobalAppStateManager.update_current_project_data(service,
@@ -328,7 +335,7 @@ with logger:
             ToastManager.add_global_toasts(
                 f"Something went wrong during model creation, please try again to fine tune a model: {e}")
             current_page_navigation_settings(
-                current_project_data.fine_tuning_step_counter,  current_project_data.current_fine_tuning_model)
+                current_project_data.fine_tuning_step_counter,  current_fine_tuning_model=current_project_data.current_fine_tuning_model)
 
     def load():
         current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
@@ -369,7 +376,7 @@ with logger:
                 service)
 
             # This is needed because openai the amount of datapoints must be >= the batch size. Meaning: batch_size = 32 -> available datapoints must be >= 32
-            total_amount_of_datapoints: int = service.get_training_dataset_datapoint_amount(
+            total_amount_of_datapoints: int = service.get_datasets_datapoints_count(
                 selected_model.training_dataset_ids)
 
             st.write("")  # Extra space
@@ -437,39 +444,144 @@ with logger:
             if current_project_data.fine_tuning_step_counter == 2:
 
                 @st.experimental_fragment
-                def data_augmentation_process():
+                def data_augmentation_process(total_amount_of_datapoints: int, selected_model_id: int):
+                    augmentation_configuration_base_key = "data_augmentation_configuration_"
+                    amount_base_key = f"data_augmentation_method_amount_"
+                    method_base_key = f"data_augmentation_method_"
+
+                    def show_data_augmentation_amount(total_amount_of_datapoints: int, augmentation_percentages: list[float], augmentation_method: str) -> None:
+                        total_augmentation_amount = service.get_total_augmentation_amount(
+                            total_amount_of_datapoints, augmentation_percentages)
+
+                        with st.columns(1)[0]:
+                            st.write(f"<span class='{center_augmentation_text}'></span>",
+                                     unsafe_allow_html=True)
+                            st.text(f"""{total_augmentation_amount} datapoints will be augmented via {
+                                    augmentation_method}.""")
+
+                    def show_augmentation_method_menus(index: int, augmentation_method: str):
+                        augmentation_configuration_key = f"{
+                            augmentation_configuration_base_key}{index}"
+
+                        if augmentation_method == augmentation_methods[augmentation_method]:
+                            pass  # Show google form
+                        if augmentation_method == augmentation_methods[augmentation_method]:
+                            # Show EDA form
+                            with st.container(border=True):
+                                columns = st.columns(2)
+                                with columns[0]:
+                                    st.number_input(label="Amount of synonym replacement in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_sr",
+                                                    help="Set the percentage of words per data point where synonym replacement should be applied.", placeholder="auto")
+                                with columns[1]:
+                                    st.number_input(label="Amount of random insertion in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_ri",
+                                                    help="Set the percentage of words per data point where random insertion should be applied.", placeholder="auto")
+                                columns = st.columns(2)
+                                with columns[0]:
+                                    st.number_input(label="Amount of random swap in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_rs",
+                                                    help="Set the percentage of words per data point where random swap should be applied.", placeholder="auto")
+                                with columns[1]:
+                                    st.number_input(label="Amount of random deletion in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_rd",
+                                                    help="Set the percentage of words per data point where random deletion should be applied.", placeholder="auto")
+
+                                # Save the configuration and norm it to a value between 0-1
+                                st.session_state[augmentation_configuration_key] = EDAParams(
+                                    alpha_sr=st.session_state.alpha_sr / 100, alpha_ri=st.session_state.alpha_ri / 100, alpha_rs=st.session_state.alpha_rs / 100, alpha_rd=st.session_state.alpha_rd / 100)
+
+                    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+                        service, current_page)
+
                     st.write("")  # Extra space
                     st.write("")  # Extra space
+
                     PageNavigator.set_navbar("Start over", current_page, nav_bar_cols_config=[
-                        1.2, 3, 1.2], help="Delete the currently fine tuned model and start again", func=current_page_navigation_settings, args=[current_project_data.fine_tuning_step_counter,  current_project_data.current_fine_tuning_model])
+                        1.2, 3, 1.2], help="Delete the currently fine tuned model and start again", func=current_page_navigation_settings, args=[current_project_data.fine_tuning_step_counter], current_fine_tuning_model=current_project_data.current_fine_tuning_model)
 
                     frontend_uf.create_text_divider(
                         f"##### Choose a data augmentation configuration", [0.4, 1, 0.4])
 
+                    with st.columns(1)[0]:
+                        st.write(f"<span class='{center_augmentation_text}'></span>",
+                                 unsafe_allow_html=True)
+                        st.text(f"""Current dataset size is {
+                                total_amount_of_datapoints} datapoints.""")
+
                     data_augmentation_cols = st.columns(2)
 
-                    with data_augmentation_cols[0]:
-                        first_data_augmentation_method_amount: int = st.number_input(label="Amount of augmented data in %", min_value=0.1, max_value=5000.0, step=0.1, value=None, key="first_data_augmentation_method_amount",
-                                                                                     help="Select the percentage of data you want to be augmented", placeholder="no augmentation", label_visibility="visible")
+                    # Number of augmentation methods to display
+                    num_methods = 2
 
-                        second_data_augmentation_method_amount: int = st.number_input(label="Amount of augmented data in %", min_value=0.1, max_value=5000.0, step=0.1, value=None, key="second_data_augmentation_method_amount",
-                                                                                      help="Select the percentage of data you want to be augmented", placeholder="no augmentation", label_visibility="visible")
+                    for i in range(1, num_methods + 1):
+                        data_augmentation_cols = st.columns(2)
 
-                    with data_augmentation_cols[1]:
-                        first_data_augmentation_method = st.selectbox(label="Select data augmentation method", options=augmentation_methods, key="first_data_augmentation_method",
-                                                                      help="Select one of the provided data augmentation methods.", placeholder="Chose a data augmentation option", label_visibility="hidden")
+                        amount_key = f"{amount_base_key}{i}"
+                        method_key = f"{method_base_key}{i}"
 
-                        second_data_augmentation_method = st.selectbox(label="Select data augmentation method", options=augmentation_methods, key="second_data_augmentation_method",
-                                                                       help="Select one of the provided data augmentation methods.", placeholder="Chose a data augmentation option", label_visibility="hidden")
+                        with data_augmentation_cols[0]:
+                            st.number_input(
+                                label=f"Amount of augmented data in %",
+                                min_value=0.1, max_value=1000.0, step=0.1,
+                                value=None, key=amount_key,
+                                help="Select the percentage of data you want to be augmented (0-1000)",
+                                placeholder="no augmentation", label_visibility="visible"
+                            )
+                        with data_augmentation_cols[1]:
+                            st.selectbox(
+                                label=f"Select data augmentation method",
+                                options=[list(augmentation_methods.values())[
+                                    i-1]],
+                                key=method_key,
+                                help="Select one of the provided data augmentation methods",
+                                placeholder="Chose a data augmentation option", label_visibility="hidden"
+                            )
+
+                        if st.session_state.get(amount_key):
+                            show_augmentation_method_menus(i,
+                                                           st.session_state.get(method_key))
+                            show_data_augmentation_amount(
+                                total_amount_of_datapoints,
+                                [st.session_state.get(
+                                    amount_key)],
+                                st.session_state.get(method_key)
+                            )
+
+                    coherence_score_calculation_model = st.selectbox(label="Coherence score models", options=sbert_models, key="coherence_score_calculation_model",
+                                                                     help="Select an original Sentence BERT (SBERT)  model to calculate the coherence score based on the vector representations of the input sentences of each datapoint compared to its augmented datapoint", placeholder="Choose a coherence score model", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["SBERT_MODELS"]), label_visibility="visible")
+
+                    # TODO Add selectbox for sentence similarity check models and add them to the model as parameters, so that it is clear which model has beend used to calculate the similarity check
 
                     if current_project_data.fine_tuning_step_counter == 2:
                         submit = st.button(
-                            label="Submit", key="submit", help="Submit the current fine tuning configuration", type="primary")
+                            label="Submit", key="submit", help="Create augmented datapoints preview to evaluate them. Can always be redone in case of low quality", type="primary")
                         if submit:
-                            pass
-                            # current_step_counter: int = update_step_counter(3)
+                            # Add the selected augmentation methods and corresponding percentages
+                            selected_augmentation_methods: list[str] = []
+                            selected_augmentation_percentages: list[float] = []
+                            augmentation_configurations: list[dict] = []
 
-                data_augmentation_process()
+                            for i in range(1, num_methods + 1):
+                                amount_key = f"{amount_base_key}{
+                                    i}"
+                                method_key = f"{method_base_key}{i}"
+                                params_key = f"{
+                                    augmentation_configuration_base_key}{i}"
+                                if st.session_state.get(amount_key):
+                                    selected_augmentation_methods.append(
+                                        st.session_state.get(method_key))
+                                    selected_augmentation_percentages.append(
+                                        st.session_state.get(amount_key))
+                                    augmentation_configurations.append(
+                                        st.session_state.get(params_key))
+
+                            # Create augmented datapoints
+                            augmented_datapoints: list[tuple[DataPointDTO, DataPointEvaluationDTO]] = service.generate_augmented_data(
+                                selected_model_id, selected_augmentation_methods, selected_augmentation_percentages, augmentation_configurations)
+
+                            # TODO: Call augmenter with list of tuples of augmentation methods and percentages
+
+                            pass
+
+                data_augmentation_process(
+                    total_amount_of_datapoints, selected_model.id)
 
             # if current_step_counter == 3:
             #             st.write("")  # Extra space
