@@ -317,8 +317,8 @@ class CurrentProjectDataSchema(BaseSchema):
 
     id = auto_field()
     created_at = FlexibleDateTimeField()
-    fine_tuning_augmentation_methods = auto_field()
-    fine_tuning_augmentation_method_percentages = auto_field()
+    augmentation_configurations = auto_field()
+    semantic_similarity_model = auto_field()
     unfinished_progress = auto_field()
     current_page = auto_field()
     save_checkpoint_models = auto_field()

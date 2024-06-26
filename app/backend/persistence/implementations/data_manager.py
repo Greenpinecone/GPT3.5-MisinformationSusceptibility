@@ -11,7 +11,7 @@ from ..interfaces.i_data_manager import IDataManager
 from datetime import datetime
 from app.backend.dtos.create_request import *
 from app.backend.dtos.get_request import *
-from app.backend.dtos.update_request import *
+from app.backend.dtos.update_request import SENTINEL, UpdateCurrentProjectDataDTO, UpdateDataPointDTO, UpdateDataPointEvaluationDTO, UpdateDatasetDTO, UpdateModelDTO, UpdateModelEvaluationDTO, UpdateProjectDTO, UpdateTrainingRunDTO
 from app.backend.dtos.response import *
 from app.backend.database.version_manager import VersionManager
 
@@ -89,12 +89,12 @@ class DataManager(IDataManager):
 
             # Define a dictionary for attribute mappings
             attribute_mapping = {
-                'fine_tuning_augmentation_methods': current_project_data.fine_tuning_augmentation_methods,
-                'fine_tuning_augmentation_method_percentages': current_project_data.fine_tuning_augmentation_method_percentages,
                 'fine_tuning_step_counter': current_project_data.fine_tuning_step_counter,
                 'unfinished_progress': current_project_data.unfinished_progress,
                 'current_page': current_project_data.current_page,
-                'save_checkpoint_models': current_project_data.save_checkpoint_models
+                'save_checkpoint_models': current_project_data.save_checkpoint_models,
+                'augmentation_configurations:': current_project_data.augmentation_configurations,
+                'semantic_similarity_model': current_project_data.semantic_similarity_model
             }
 
             # Update attributes if not SENTINEL

@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from app.backend.custom_types.typedicts import AugmentationConfiguration, EDAParams, GoogleBTParams
 from app.backend.dtos.response import ComplexDatasetDTO, ModelDTO, ProjectDTO, TrainingRunDTO
 from app.backend.database.schema import EvaluationType
 
@@ -72,9 +73,9 @@ class UpdateDataPointEvaluationDTO:
 @dataclass
 class UpdateCurrentProjectDataDTO:
     id: int
-    fine_tuning_augmentation_methods: list[str] | None = field(
+    semantic_similarity_model: dict | None = field(
         default_factory=lambda: SENTINEL)
-    fine_tuning_augmentation_method_percentages: list[float] | None = field(
+    augmentation_configurations: list[AugmentationConfiguration] | None = field(
         default_factory=lambda: SENTINEL)
     unfinished_progress: bool | None = field(default_factory=lambda: SENTINEL)
     current_page: str | None = field(default_factory=lambda: SENTINEL)
