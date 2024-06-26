@@ -20,3 +20,10 @@ class EDAParams(TypedDict):
 
 class GoogleBTParams(TypedDict):
     pass
+
+
+class AugmentationConfiguration(TypedDict):
+    selected_method: str | None = None
+    prev_method: str | None = None
+    augmentation_percentage: float | None = None
+    augmentation_config: EDAParams | GoogleBTParams | None = None
