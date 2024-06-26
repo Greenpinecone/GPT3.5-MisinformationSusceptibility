@@ -5,6 +5,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.schema import CheckConstraint, UniqueConstraint
 import enum
 
+from app.backend.custom_types.typedicts import AugmentationConfiguration
+
 
 # To differentiate whether a dataset is a training or a test dataset in the Datasets table
 class DatasetCategory(enum.Enum):
@@ -295,9 +297,10 @@ class CurrentProjectData(Base):
     current_page = Column(String)
     # Should checkpoint models also be saved if they are created
     save_checkpoint_models = Column(Boolean, default=False)
-    fine_tuning_augmentation_methods = Column(JSON(String), default=list)
-    fine_tuning_augmentation_method_percentages = Column(
-        JSON(Float), default=list)
+    # The currently selected model for semantic similarity score calculation
+    semantic_similarity_model = Column(SON(dict))
+    # A list of AugmentationConfigurations
+    augmentation_configurations = Column(JSON(dict), default=list)
     # The id of the currently created dataset
     currently_modified_dataset_id = Column(Integer, ForeignKey('datasets.id'))
     # The base model used for fine tuning the current fine tuning model

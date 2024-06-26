@@ -1,6 +1,7 @@
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional
+from app.backend.custom_types.typedicts import AugmentationConfiguration, EDAParams, GoogleBTParams
 from app.backend.database.schema import DatasetCategory, EvaluationType, AugmentationType, FineTuningCompany
 from ..dtos.create_request import MessagesContainer
 
@@ -161,13 +162,13 @@ class CurrentProjectDataDTO:
     id: int
     created_at: datetime = field(
         default_factory=lambda: datetime.now().astimezone())
-    fine_tuning_augmentation_methods: list[str] = field(default_factory=list)
-    fine_tuning_augmentation_method_percentages: list[float] = field(
+    augmentation_configurations: list[AugmentationConfiguration] = field(
         default_factory=list)
     unfinished_progress: bool = False
     current_page: str = ""
     save_checkpoint_models: bool = False
     fine_tuning_step_counter: int = 0
+    semantic_similarity_model: dict | None = None
     current_project: ProjectDTO | None = None
     current_fine_tuning_model: ModelDTO | None = None
     selected_model_for_fine_tuning: ComplexModelDTO | None = None
