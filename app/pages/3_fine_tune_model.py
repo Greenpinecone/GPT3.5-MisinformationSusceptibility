@@ -5,7 +5,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly as pl
-from app.backend.custom_types.typedicts import EDAParams
+from app.backend.custom_types.typedicts import AugmentationConfiguration, EDAParams
 from app.backend.dtos.create_request import CreateModelDTO, CreateTrainingRunDTO
 from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO, UpdateModelDTO, UpdateTrainingRunDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
@@ -448,10 +448,33 @@ with logger:
                     augmentation_configuration_base_key = "data_augmentation_configuration_"
                     amount_base_key = f"data_augmentation_method_amount_"
                     method_base_key = f"data_augmentation_method_"
+                    previous_method_base_key = f"previous_data_augmentation_method_"
 
-                    def show_data_augmentation_amount(total_amount_of_datapoints: int, augmentation_percentages: list[float], augmentation_method: str) -> None:
+                    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+                        service, current_page)
+
+                    def initialize_augmentation_state():
+
+                        # initialize session state data
+                        if 'augmentation_configurations_selected' not in st.session_state:
+                            st.session_state['augmentation_configurations_selected'] = current_project_data.augmentation_configurations
+
+                        augmentation_configurations_selected: list[
+                            AugmentationConfiguration] = st.session_state['augmentation_configurations_selected']
+
+                        if 'semantic_similarity_model' not in st.session_state:
+                            st.session_state['semantic_similarity_model'] = current_project_data.semantic_similarity_model
+
+                        return augmentation_configurations_selected
+
+                    augmentation_configurations_selected = initialize_augmentation_state()
+
+                    def show_data_augmentation_amount(total_amount_of_datapoints: int, augmentation_config: AugmentationConfiguration) -> None:
+                        augmentation_percentage = augmentation_config["augmentation_percentage"]
+                        augmentation_method = augmentation_config["selected_method"]
+
                         total_augmentation_amount = service.get_total_augmentation_amount(
-                            total_amount_of_datapoints, augmentation_percentages)
+                            total_amount_of_datapoints, augmentation_percentage)
 
                         with st.columns(1)[0]:
                             st.write(f"<span class='{center_augmentation_text}'></span>",
@@ -459,36 +482,48 @@ with logger:
                             st.text(f"""{total_augmentation_amount} datapoints will be augmented via {
                                     augmentation_method}.""")
 
-                    def show_augmentation_method_menus(index: int, augmentation_method: str):
-                        augmentation_configuration_key = f"{
-                            augmentation_configuration_base_key}{index}"
-
-                        if augmentation_method == augmentation_methods[augmentation_method]:
+                    def show_augmentation_method_menus(augmentation_config: AugmentationConfiguration):
+                        augmentation_method = augmentation_config["selected_method"]
+                        if augmentation_method == augmentation_methods["google_translate"]:
                             pass  # Show google form
-                        if augmentation_method == augmentation_methods[augmentation_method]:
+                        if augmentation_method == augmentation_methods["EDA_Easy_Data_Augmentation"]:
                             # Show EDA form
                             with st.container(border=True):
                                 columns = st.columns(2)
                                 with columns[0]:
                                     st.number_input(label="Amount of synonym replacement in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_sr",
-                                                    help="Set the percentage of words per data point where synonym replacement should be applied.", placeholder="auto")
+                                                    help="Set the percentage of words per data point where synonym replacement should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto")
                                 with columns[1]:
                                     st.number_input(label="Amount of random insertion in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_ri",
-                                                    help="Set the percentage of words per data point where random insertion should be applied.", placeholder="auto")
+                                                    help="Set the percentage of words per data point where random insertion should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto")
                                 columns = st.columns(2)
                                 with columns[0]:
                                     st.number_input(label="Amount of random swap in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_rs",
-                                                    help="Set the percentage of words per data point where random swap should be applied.", placeholder="auto")
+                                                    help="Set the percentage of words per data point where random swap should be applied. As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto")
                                 with columns[1]:
                                     st.number_input(label="Amount of random deletion in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_rd",
-                                                    help="Set the percentage of words per data point where random deletion should be applied.", placeholder="auto")
+                                                    help="Set the percentage of words per data point where random deletion should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto")
 
                                 # Save the configuration and norm it to a value between 0-1
-                                st.session_state[augmentation_configuration_key] = EDAParams(
+                                augmentation_config["augmentation_config"] = EDAParams(
                                     alpha_sr=st.session_state.alpha_sr / 100, alpha_ri=st.session_state.alpha_ri / 100, alpha_rs=st.session_state.alpha_rs / 100, alpha_rd=st.session_state.alpha_rd / 100)
 
-                    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
-                        service, current_page)
+                    def update_methods(augmentation_config: AugmentationConfiguration, new_method_key: str):
+                        old_method = augmentation_config["prev_method"]
+                        # Fetch the current session state value. Cannot be passed directly to "on_change" function since the value is set on creation time - else there would also be issues with the correct augmentation config, so this is probably the best approach.
+                        new_method = st.session_state[new_method_key]
+                        if new_method is None:
+                            augmentation_configurations_selected.remove(
+                                augmentation_config)
+                        else:
+                            augmentation_config["selected_method"] = new_method
+                            if old_method is None and old_method != new_method:
+                                augmentation_config["prev_method"] = new_method
+                                augmentation_configurations_selected.append(
+                                    augmentation_config)
+
+                    def update_augmentation_percentage(augmentation_config: AugmentationConfiguration, new_augmentation_percentage_key: str | None) -> None:
+                        augmentation_config["augmentation_percentage"] = st.session_state[new_augmentation_percentage_key]
 
                     st.write("")  # Extra space
                     st.write("")  # Extra space
@@ -505,47 +540,75 @@ with logger:
                         st.text(f"""Current dataset size is {
                                 total_amount_of_datapoints} datapoints.""")
 
-                    data_augmentation_cols = st.columns(2)
+                    def render_augmentation_fields():
+                        for i in range(len(augmentation_configurations_selected) + 1):
+                            available_methods = [method for method in augmentation_methods
+                                                 if method not in [aug_method["selected_method"] for aug_method in augmentation_configurations_selected]]
 
-                    # Number of augmentation methods to display
-                    num_methods = 2
+                            amount_key = f"{amount_base_key}{i}"
+                            method_key = f"{method_base_key}{i}"
+                            previous_method_key = f"{
+                                previous_method_base_key}{i}"
 
-                    for i in range(1, num_methods + 1):
-                        data_augmentation_cols = st.columns(2)
+                            augmentation_config: AugmentationConfiguration = None
+                            if i < len(augmentation_configurations_selected):
+                                augmentation_config = augmentation_configurations_selected[i]
+                                st.session_state[amount_key] = augmentation_config["augmentation_percentage"]
+                                st.session_state[method_key] = augmentation_config["selected_method"]
+                                st.session_state[previous_method_key] = augmentation_config["selected_method"]
+                            elif available_methods:
+                                augmentation_config = AugmentationConfiguration(
+                                    selected_method=None, prev_method=None, augmentation_percentage=None)
+                                st.session_state[method_key] = augmentation_config["augmentation_percentage"]
+                                st.session_state[amount_key] = augmentation_config["selected_method"]
+                                st.session_state[previous_method_key] = augmentation_config["selected_method"]
 
-                        amount_key = f"{amount_base_key}{i}"
-                        method_key = f"{method_base_key}{i}"
+                            if augmentation_config:
+                                # Add the currently selected method to the available method options for this selectbox to avoid issues where selectbox key method cannot be found in available methods list.
+                                if augmentation_config["selected_method"]:
+                                    available_methods.append(
+                                        augmentation_config["selected_method"])
 
-                        with data_augmentation_cols[0]:
-                            st.number_input(
-                                label=f"Amount of augmented data in %",
-                                min_value=0.1, max_value=1000.0, step=0.1,
-                                value=None, key=amount_key,
-                                help="Select the percentage of data you want to be augmented (0-1000)",
-                                placeholder="no augmentation", label_visibility="visible"
-                            )
-                        with data_augmentation_cols[1]:
-                            st.selectbox(
-                                label=f"Select data augmentation method",
-                                options=[list(augmentation_methods.values())[
-                                    i-1]],
-                                key=method_key,
-                                help="Select one of the provided data augmentation methods",
-                                placeholder="Chose a data augmentation option", label_visibility="hidden"
-                            )
+                                data_augmentation_cols = st.columns(2)
 
-                        if st.session_state.get(amount_key):
-                            show_augmentation_method_menus(i,
-                                                           st.session_state.get(method_key))
-                            show_data_augmentation_amount(
-                                total_amount_of_datapoints,
-                                [st.session_state.get(
-                                    amount_key)],
-                                st.session_state.get(method_key)
-                            )
+                                with data_augmentation_cols[0]:
+                                    st.number_input(
+                                        label=f"Amount of augmented data in %",
+                                        min_value=0.1, max_value=1000.0, step=0.1,
+                                        value=None,
+                                        key=amount_key,
+                                        on_change=update_augmentation_percentage,
+                                        args=(augmentation_config, amount_key),
+                                        help="Select the percentage of data you want to be augmented (0-1000)",
+                                        placeholder="no augmentation"
+                                    )
 
-                    coherence_score_calculation_model = st.selectbox(label="Coherence score models", options=sbert_models, key="coherence_score_calculation_model",
-                                                                     help="Select an original Sentence BERT (SBERT)  model to calculate the coherence score based on the vector representations of the input sentences of each datapoint compared to its augmented datapoint", placeholder="Choose a coherence score model", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["SBERT_MODELS"]), label_visibility="visible")
+                                with data_augmentation_cols[1]:
+                                    # if st.session_state[method_key]:
+                                    #     available_methods.append(
+                                    #         st.session_state[method_key])
+
+                                    st.selectbox(
+                                        label=f"Select data augmentation method",
+                                        options=available_methods,
+                                        index=None,
+                                        key=method_key,
+                                        help="Select one of the provided data augmentation methods",
+                                        on_change=update_methods,
+                                        args=(augmentation_config, method_key)
+                                    )
+
+                                if st.session_state.get(amount_key):
+                                    show_augmentation_method_menus(
+                                        augmentation_config)
+                                    show_data_augmentation_amount(
+                                        total_amount_of_datapoints,
+                                        augmentation_config
+                                    )
+                    render_augmentation_fields()
+
+                    semantic_similarity_model = st.selectbox(label="Coherence score models", options=sbert_models, index=None, key="semantic_similarity_model",
+                                                             help="Select an original Sentence BERT (SBERT)  model to calculate the coherence score based on the vector representations of the input sentences of each datapoint compared to its augmented datapoint. The first usage may take a while since the model has to be downloaded.", placeholder="Choose a coherence score model", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["SBERT_MODELS"]), label_visibility="visible")
 
                     # TODO Add selectbox for sentence similarity check models and add them to the model as parameters, so that it is clear which model has beend used to calculate the similarity check
 
@@ -553,28 +616,12 @@ with logger:
                         submit = st.button(
                             label="Submit", key="submit", help="Create augmented datapoints preview to evaluate them. Can always be redone in case of low quality", type="primary")
                         if submit:
-                            # Add the selected augmentation methods and corresponding percentages
-                            selected_augmentation_methods: list[str] = []
-                            selected_augmentation_percentages: list[float] = []
-                            augmentation_configurations: list[dict] = []
-
-                            for i in range(1, num_methods + 1):
-                                amount_key = f"{amount_base_key}{
-                                    i}"
-                                method_key = f"{method_base_key}{i}"
-                                params_key = f"{
-                                    augmentation_configuration_base_key}{i}"
-                                if st.session_state.get(amount_key):
-                                    selected_augmentation_methods.append(
-                                        st.session_state.get(method_key))
-                                    selected_augmentation_percentages.append(
-                                        st.session_state.get(amount_key))
-                                    augmentation_configurations.append(
-                                        st.session_state.get(params_key))
+                            GlobalAppStateManager.update_current_project_data(service,
+                                                                              UpdateCurrentProjectDataDTO(id=current_project_data.id, augmentation_configurations=augmentation_configurations_selected, semantic_similarity_model=semantic_similarity_model))
 
                             # Create augmented datapoints
                             augmented_datapoints: list[tuple[DataPointDTO, DataPointEvaluationDTO]] = service.generate_augmented_data(
-                                selected_model_id, selected_augmentation_methods, selected_augmentation_percentages, augmentation_configurations)
+                                selected_model_id, augmentation_configurations_selected, semantic_similarity_model)
 
                             # TODO: Call augmenter with list of tuples of augmentation methods and percentages
 
