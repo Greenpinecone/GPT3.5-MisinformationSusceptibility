@@ -16,7 +16,7 @@ class EDA(IAugmentationMethod):
 
     @classmethod
     def augment_datapoints(cls, datapoints: list[DataPointDTO], datapoint_indices: list[int], configuration: EDAParams) -> list[CreateDataPointDTO]:
-        augmented_datapoints = []
+        augmented_datapoints: list[CreateDataPointDTO] = []
 
         for idx in datapoint_indices:
             original_dp = datapoints[idx]
