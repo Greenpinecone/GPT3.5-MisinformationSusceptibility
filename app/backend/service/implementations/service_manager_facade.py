@@ -4,6 +4,7 @@
 
 from app.backend.custom_types.typedicts import EDAParams, GoogleBTParams
 from app.backend.database.schema import Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, CurrentProjectData
+from app.backend.service.classes.evaluation.semantic_similarity_calculator import SemanticSimilarityCalculator
 from ...dtos.get_request import *
 from ...dtos.response import *
 from ...dtos.create_request import *
@@ -30,7 +31,7 @@ class ServiceManagerFacade(IServiceManager):
     def __init__(self, data_manager: IDataManager = None, google_translate_service: GoogleTranslateService = None,
                  openai_service: OpenAIService = None, data_augmenter: DataAugmenter = None,
                  data_sampler: DataSampler = None, model_evaluator: ModelEvaluator = None,
-                 fine_tuner: FineTuner = None, validator: ValidatorFacade = None, mapper: MapperFacade = None, config: Config = None):
+                 fine_tuner: FineTuner = None, validator: ValidatorFacade = None, mapper: MapperFacade = None, config: Config = None, semantic_similarity_score_calculator: SemanticSimilarityCalculator = None):
 
         if config is None:
             config = Config()
@@ -52,6 +53,8 @@ class ServiceManagerFacade(IServiceManager):
             fine_tuner = FineTuner()
         if validator is None:
             validator = ValidatorFacade()
+        if semantic_similarity_score_calculator is None:
+            semantic_similarity_score_calculator = SemanticSimilarityCalculator()
 
         self._data_manager = data_manager
         self._google_translate_service = google_translate_service
@@ -62,6 +65,7 @@ class ServiceManagerFacade(IServiceManager):
         self._fine_tuner = fine_tuner
         self._validator = validator
         self._mapper = mapper
+        self._semantic_similarity_score_calculator = semantic_similarity_score_calculator
 
     # TODO: Add and reuse service layer functions (like get_by_id) instead of always calling the persistence layer directly. Issue with sessions in sessions thoughh, all service layer functions should be updated to potentially receive a session, and if so, use this session instead of create a new one.
 
@@ -337,13 +341,13 @@ class ServiceManagerFacade(IServiceManager):
 
             return [self._mapper.map_training_run_to_dto(session, training_run) for training_run in training_runs]
 
-    def get_total_augmentation_amount(self, datapoint_count: int, percentages: list[float]) -> int:
-        augmentation_counts, _ = self._data_sampler.get_augmentation_count(
-            datapoint_count, percentages)
+    def get_total_augmentation_amount(self, datapoint_count: int, percentage: float) -> int:
+        augmentation_count, _ = self._data_sampler.get_augmentation_count(
+            datapoint_count, percentage)
 
-        return sum(augmentation_counts)
+        return augmentation_count
 
-    def generate_augmented_data(self, model_id: list[int], augmentation_methods: list[str], augmentation_percentages: list[float], augmentation_configurations: list[EDAParams | GoogleBTParams]) -> list[tuple[DataPointDTO, DataPointEvaluationDTO]]:
+    def generate_augmented_data(self, model_id: list[int], augmentation_configurations: list[AugmentationConfiguration], semantic_similarity_model: dict) -> list[tuple[DataPointDTO, DataPointEvaluationDTO]]:
         with self._data_manager.get_session() as session:
 
             model: Model = self._data_manager.get_model_by_id(
@@ -351,6 +355,7 @@ class ServiceManagerFacade(IServiceManager):
 
             total_training_datapoints: list[DataPoint] = []
 
+            # Get all training datapoints
             for dataset in model.training_datasets:
                 total_training_datapoints.extend(dataset.datapoints)
 
@@ -358,7 +363,24 @@ class ServiceManagerFacade(IServiceManager):
             total_training_datapoint_dtos = [self._mapper.map_datapoint_to_training_datapoint_dto(
                 session, datapoint) for datapoint in total_training_datapoints]
 
-            augmented_datapoints: list[DataPointDTO] = self._data_augmenter.create_augmented_datapoints(
-                augmentation_methods, augmentation_percentages, total_training_datapoint_dtos, augmentation_configurations)
+            # Get all augmented datapoints
+            augmented_datapoints: list[CreateDataPointDTO] = self._data_augmenter.create_augmented_datapoints(
+                total_training_datapoint_dtos, augmentation_configurations)
+
+            # Define the list to hold tuples of CreateDataPointDTO and CreateDataPointEvaluationDTO
+            datapoint_evaluation_pairs: list[tuple[CreateDataPointDTO,
+                                                   CreateDataPointEvaluationDTO]] = []
+
+            # Iterate over augmented_datapoints and create tuples to append to the list
+            for augmented_datapoint in augmented_datapoints:
+                datapoint_evaluation = CreateDataPointEvaluationDTO(
+                    datapoint_id=-1, model_id=-1)
+                datapoint_evaluation_pairs.append(
+                    (augmented_datapoint, datapoint_evaluation))
+
+            augmented_datapoint_evaluation_pairs_with_similarity_score: list[tuple[CreateDataPointDTO, CreateDataPointEvaluationDTO]] = self._semantic_similarity_score_calculator.calculate_datapoints_semantic_similarity_score(
+                total_training_datapoint_dtos, datapoint_evaluation_pairs, semantic_similarity_model)
+
+            print(augmented_datapoint_evaluation_pairs_with_similarity_score)
 
             # TODO Finish implementation
