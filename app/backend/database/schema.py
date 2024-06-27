@@ -67,12 +67,14 @@ datapoint_relationships = Table(
     Column('target_datapoint_id', Integer, ForeignKey(
         'datapoints.id'), primary_key=True)
 )
-# project_model_link = Table(
-#     'project_model_link',  # Table name
-#     Base.metadata,
-#     Column('project_id', Integer, ForeignKey('projects.id'), primary_key=True),
-#     Column('model_id', Integer, ForeignKey('models.id'), primary_key=True)
-# )
+
+initial_dataset_association = Table(
+    'initial_dataset_association', Base.metadata,
+    Column('initial_dataset_id', Integer, ForeignKey(
+        'datasets.id'), primary_key=True),
+    Column('augmented_dataset_id', Integer,
+           ForeignKey('datasets.id'), primary_key=True),
+)
 
 # Ensure that each model can only occure once per project with the same model_name and version to avoid confusion with simillar named models.
 project_model_link = Table(
@@ -125,19 +127,19 @@ class Dataset(Base):
     fine_tuning_model = Column(String, nullable=False)
     # What formatting was used for the dataset datapoints - are the datapoints formatted for openai, google etc. (roles, content)
     fine_tuning_formatting = Column(String, nullable=False)
-    # Foreign key for the initial dataset (self-referencing)
-    initial_dataset_id = Column(
-        Integer, ForeignKey('datasets.id'))
+    projects = relationship(
+        "Project", secondary=project_dataset_link, back_populates="datasets")
     # Foreign key for the test dataset (self-referencing)
     test_dataset_id = Column(
         Integer, ForeignKey('datasets.id'))
-    projects = relationship(
-        "Project", secondary=project_dataset_link, back_populates="datasets")
-
     # Relationship to the initial dataset from which this dataset was augmented (if any)
-    initial_dataset = relationship("Dataset", remote_side=[id],
-                                   foreign_keys=[initial_dataset_id],
-                                   backref="augmented_datasets", uselist=False)
+    initial_datasets = relationship(
+        'Dataset',
+        secondary=initial_dataset_association,
+        primaryjoin=id == initial_dataset_association.c.augmented_dataset_id,
+        secondaryjoin=id == initial_dataset_association.c.initial_dataset_id,
+        backref='augmented_datasets'
+    )
 
     # Relationship to the test dataset associated with this dataset
     test_dataset = relationship("Dataset", remote_side=[id],
@@ -179,7 +181,7 @@ class DataPoint(Base):
     # Orm relationship for initial_datapoint
     initial_datapoint = relationship("DataPoint", remote_side=[
                                      id], backref="derived_datapoints", uselist=False)
-    # Self-referencing many-to-many relationship for related datapoints
+    # Self-referencing many-to-many relationship for related datapoints -> needs multiple initial dataset if
     related_datapoints = relationship(
         "DataPoint",
         secondary=datapoint_relationships,
@@ -298,7 +300,7 @@ class CurrentProjectData(Base):
     # Should checkpoint models also be saved if they are created
     save_checkpoint_models = Column(Boolean, default=False)
     # The currently selected model for semantic similarity score calculation
-    semantic_similarity_model = Column(SON(dict))
+    semantic_similarity_model = Column(JSON(dict))
     # A list of AugmentationConfigurations
     augmentation_configurations = Column(JSON(dict), default=list)
     # The id of the currently created dataset

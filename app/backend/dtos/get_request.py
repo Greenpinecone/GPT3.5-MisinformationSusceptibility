@@ -24,7 +24,7 @@ class GetDatasetsDTO:
     dataset_name: str | None = None
     augmented: bool | None = None
     category: DatasetCategory | None = None
-    initial_dataset_id: int | None = None
+    initial_dataset_ids: list[int] | None = None
     project_id: int | None = None
     is_global: bool | None = None
     exlude_project_id: int | None = None

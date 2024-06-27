@@ -36,18 +36,21 @@ class DataManager(IDataManager):
         self.Session = scoped_session(self.session_factory)
 
     @contextmanager
-    def get_session(self) -> Generator[Session, None, None]:
+    def get_session(self, session: Session = None) -> Generator[Session, None, None]:
         """Provide a transactional scope around a series of operations."""
-        session: Session = self.Session()
-        try:
+        if session:
             yield session
-            session.commit()
-        except Exception as e:
-            session.rollback()
-            logger.error(f"Session rollback due to exception: {e}")
-            raise
-        finally:
-            self.Session.remove()  # Remove the session to ensure it is properly closed
+        else:
+            session: Session = self.Session()
+            try:
+                yield session
+                session.commit()
+            except Exception as e:
+                session.rollback()
+                logger.error(f"Session rollback due to exception: {e}")
+                raise
+            finally:
+                self.Session.remove()  # Remove the session to ensure it is properly closed
 
     def get_or_create_current_project_data(self, session: Session) -> list[CurrentProjectData]:
         try:
@@ -93,7 +96,7 @@ class DataManager(IDataManager):
                 'unfinished_progress': current_project_data.unfinished_progress,
                 'current_page': current_project_data.current_page,
                 'save_checkpoint_models': current_project_data.save_checkpoint_models,
-                'augmentation_configurations:': current_project_data.augmentation_configurations,
+                'augmentation_configurations': current_project_data.augmentation_configurations,
                 'semantic_similarity_model': current_project_data.semantic_similarity_model
             }
 
@@ -250,6 +253,14 @@ class DataManager(IDataManager):
             raise Exception(
                 "Failed to save or update datasets due to error.") from e
 
+    def _update_training_datasets(self, session: Session, dataset_dto: CreateDatasetDTO, dataset: Dataset):
+        # Handling initial dataset relationships
+        if dataset_dto.initial_dataset_ids:
+            for initial_dataset_id in dataset_dto.initial_dataset_ids:
+                initial_dataset = session.get(Dataset, initial_dataset_id)
+                if initial_dataset:
+                    dataset.initial_datasets.append(initial_dataset)
+
     # For creating or updating a dataset
     def create_datasets(self, session: Session, datasets_data: list[CreateDatasetDTO]) -> list[Dataset]:
         saved_datasets: list[Dataset] = []
@@ -267,15 +278,15 @@ class DataManager(IDataManager):
                 dataset.fine_tuning_formatting = dataset_dto.fine_tuning_formatting
                 dataset.fine_tuning_model = dataset_dto.fine_tuning_model
 
+                # flush session to generate dataset id
+                session.flush()
+
                 # Handling initial and test dataset relationships
-                if dataset_dto.initial_dataset_id:
-                    initial_dataset = session.get(Dataset,
-                                                  dataset_dto.initial_dataset_id)
-                    dataset.initial_dataset = initial_dataset
+                self._update_training_datasets(session, dataset_dto, dataset)
 
                 if dataset_dto.test_dataset_id:
-                    test_dataset = session.get(Dataset,
-                                               dataset_dto.test_dataset_id)
+                    test_dataset = session.get(
+                        Dataset, dataset_dto.test_dataset_id)
                     dataset.test_dataset = test_dataset
 
                 # Handling project relationships
@@ -761,7 +772,7 @@ class DataManager(IDataManager):
             dataset_name: str = dataset_data.dataset_name
             augmented: bool = dataset_data.augmented
             category: DatasetCategory = dataset_data.category
-            initial_dataset_id: int = dataset_data.initial_dataset_id
+            initial_dataset_ids: int = dataset_data.initial_dataset_ids
             project_id: int = dataset_data.project_id
             is_global: bool = dataset_data.is_global
             excluded_project_id: int = dataset_data.exlude_project_id
@@ -775,9 +786,12 @@ class DataManager(IDataManager):
             if category:
                 query = query.filter(
                     Dataset.category == category)
-            if initial_dataset_id or initial_dataset_id is None:
+            if initial_dataset_ids:
+                # Filter for datasets that have any of the provided initial_dataset_ids
                 query = query.filter(
-                    Dataset.initial_dataset_id == initial_dataset_id)
+                    Dataset.initial_datasets.any(
+                        Dataset.id.in_(initial_dataset_ids))
+                )
             if project_id:
                 query = query.filter(
                     Dataset.projects.any(Project.id == project_id)
