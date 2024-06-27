@@ -28,7 +28,7 @@ class EDA(IAugmentationMethod):
             new_dp = CreateDataPointDTO(
                 messages=copied_messages,
                 dataset_id=None,
-                related_datapoint_ids=[],
+                related_datapoint_ids=None,
                 augmentation_type=AugmentationType.EDA,
                 initial_datapoint_id=original_dp.id
             )

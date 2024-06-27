@@ -1,3 +1,4 @@
+from typing import Any
 import streamlit as st
 from streamlit.delta_generator import DeltaGenerator
 from uuid import uuid4
@@ -13,7 +14,7 @@ class Paginator:
     def get_total_pages(self, num_items: int) -> int:
         return math.ceil(num_items / self.items_per_page)
 
-    def get_paginated_items(self, items: list) -> list:
+    def get_paginated_items(self, items: list[Any]) -> list:
         start_index = (self.current_page - 1) * self.items_per_page
         end_index = start_index + self.items_per_page
         return items[start_index:end_index]
