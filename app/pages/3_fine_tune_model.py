@@ -15,7 +15,7 @@ from frontend.util import utility_functions as frontend_uf
 from app.backend.dtos.get_request import *
 from app.backend.dtos.response import *
 from frontend.custom_styles.global_styles import apply_global_style
-from frontend.custom_styles.individual_styles import center_elements_with_custom_span_in_column
+from frontend.custom_styles.individual_styles import center_elements_with_custom_span_in_column, custom_style_span
 from frontend.classes.query_params_manager import QueryParamsManager
 from frontend.classes.page_navigator import PageNavigator
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
@@ -206,7 +206,7 @@ with logger:
         progress = round(current_training_progress,
                          3) if current_training_progress is not None else 0.0
         progress_text = f"""{progress_message} - {
-            progress*100}%""" if progress_message else f"""Fine tuning in progress. Please wait. - {progress*100}%"""
+            round(progress*100, 2)}%""" if progress_message else f"""Fine tuning in progress. Please wait. - {round(progress*100, 2)}%"""
 
         status_messages = {
             "cancelled": "Fine tuning has been cancelled!",
@@ -214,10 +214,12 @@ with logger:
             "succeeded": "Finished!"
         }
 
-        if status in status_messages:
-            progress_text = status_messages[status]
+        if progress_message:
+            if status in status_messages:
+                progress_text = status_messages[status]
+
             # Progress must be between 0.0 and 1.0
-            progress = 1.0 if status == "succeeded" else progress
+            progress = 1.0 if status == "succeeded" or progress_message == 'The job has successfully completed' else progress
 
         st.progress(progress, text=progress_text)
 
@@ -453,6 +455,9 @@ with logger:
                     current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
                         service, current_page)
 
+                    # GlobalAppStateManager.update_current_project_data(service,
+                    #                                                   UpdateCurrentProjectDataDTO(id=current_project_data.id, augmentation_configurations=[]))
+
                     def initialize_augmentation_state():
 
                         # initialize session state data
@@ -477,36 +482,46 @@ with logger:
                             total_amount_of_datapoints, augmentation_percentage)
 
                         with st.columns(1)[0]:
-                            st.write(f"<span class='{center_augmentation_text}'></span>",
-                                     unsafe_allow_html=True)
+                            custom_style_span(center_augmentation_text)
                             st.text(f"""{total_augmentation_amount} datapoints will be augmented via {
                                     augmentation_method}.""")
+
+                    def update_augmentation_config(augmentation_config: AugmentationConfiguration, session_key: str):
+                        new_val = st.session_state[session_key]
+                        augmentation_config["augmentation_config"][session_key] = new_val
 
                     def show_augmentation_method_menus(augmentation_config: AugmentationConfiguration):
                         augmentation_method = augmentation_config["selected_method"]
                         if augmentation_method == augmentation_methods["google_translate"]:
                             pass  # Show google form
                         if augmentation_method == augmentation_methods["EDA_Easy_Data_Augmentation"]:
+                            # Set config values if exist
+                            if not augmentation_config["augmentation_config"]:
+                                augmentation_config[
+                                    "augmentation_config"] = EDAParams(alpha_sr=10.0, alpha_ri=10.0, alpha_rs=10.0, alpha_rd=10.0)
+
                             # Show EDA form
                             with st.container(border=True):
                                 columns = st.columns(2)
                                 with columns[0]:
-                                    st.number_input(label="Amount of synonym replacement in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_sr",
-                                                    help="Set the percentage of words per data point where synonym replacement should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto")
+                                    st.number_input(label="Amount of synonym replacement in %", min_value=0.0, max_value=100.0, value=augmentation_config[
+                                        "augmentation_config"]["alpha_sr"], key="alpha_sr",
+                                        help="Set the percentage of words per data point where synonym replacement should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_augmentation_config, args=(augmentation_config, "alpha_sr"))
                                 with columns[1]:
-                                    st.number_input(label="Amount of random insertion in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_ri",
-                                                    help="Set the percentage of words per data point where random insertion should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto")
+                                    st.number_input(label="Amount of random insertion in %", min_value=0.0, max_value=100.0, value=augmentation_config[
+                                        "augmentation_config"]["alpha_ri"], key="alpha_ri",
+                                        help="Set the percentage of words per data point where random insertion should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_augmentation_config, args=(augmentation_config, "alpha_ri"))
                                 columns = st.columns(2)
                                 with columns[0]:
-                                    st.number_input(label="Amount of random swap in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_rs",
-                                                    help="Set the percentage of words per data point where random swap should be applied. As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto")
+                                    st.number_input(label="Amount of random swap in %", min_value=0.0, max_value=100.0, value=augmentation_config["augmentation_config"]["alpha_rs"], key="alpha_rs",
+                                                    help="Set the percentage of words per data point where random swap should be applied. As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_augmentation_config, args=(augmentation_config, "alpha_rs"))
                                 with columns[1]:
-                                    st.number_input(label="Amount of random deletion in %", min_value=0.0, max_value=100.0, value=10.0, key="alpha_rd",
-                                                    help="Set the percentage of words per data point where random deletion should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto")
+                                    st.number_input(label="Amount of random deletion in %", min_value=0.0, max_value=100.0, value=augmentation_config["augmentation_config"]["alpha_rd"], key="alpha_rd",
+                                                    help="Set the percentage of words per data point where random deletion should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_augmentation_config, args=(augmentation_config, "alpha_rd"))
 
                                 # Save the configuration and norm it to a value between 0-1
-                                augmentation_config["augmentation_config"] = EDAParams(
-                                    alpha_sr=st.session_state.alpha_sr / 100, alpha_ri=st.session_state.alpha_ri / 100, alpha_rs=st.session_state.alpha_rs / 100, alpha_rd=st.session_state.alpha_rd / 100)
+                                # augmentation_config["augmentation_config"] = EDAParams(
+                                #     alpha_sr=st.session_state.alpha_sr / 100, alpha_ri=st.session_state.alpha_ri / 100, alpha_rs=st.session_state.alpha_rs / 100, alpha_rd=st.session_state.alpha_rd / 100)
 
                     def update_methods(augmentation_config: AugmentationConfiguration, new_method_key: str):
                         old_method = augmentation_config["prev_method"]
@@ -535,8 +550,7 @@ with logger:
                         f"##### Choose a data augmentation configuration", [0.4, 1, 0.4])
 
                     with st.columns(1)[0]:
-                        st.write(f"<span class='{center_augmentation_text}'></span>",
-                                 unsafe_allow_html=True)
+                        custom_style_span(center_augmentation_text)
                         st.text(f"""Current dataset size is {
                                 total_amount_of_datapoints} datapoints.""")
 
@@ -558,7 +572,7 @@ with logger:
                                 st.session_state[previous_method_key] = augmentation_config["selected_method"]
                             elif available_methods:
                                 augmentation_config = AugmentationConfiguration(
-                                    selected_method=None, prev_method=None, augmentation_percentage=None)
+                                    selected_method=None, prev_method=None, augmentation_percentage=None, augmentation_config=None)
                                 st.session_state[method_key] = augmentation_config["augmentation_percentage"]
                                 st.session_state[amount_key] = augmentation_config["selected_method"]
                                 st.session_state[previous_method_key] = augmentation_config["selected_method"]
@@ -616,16 +630,14 @@ with logger:
                         submit = st.button(
                             label="Submit", key="submit", help="Create augmented datapoints preview to evaluate them. Can always be redone in case of low quality", type="primary")
                         if submit:
-                            GlobalAppStateManager.update_current_project_data(service,
-                                                                              UpdateCurrentProjectDataDTO(id=current_project_data.id, augmentation_configurations=augmentation_configurations_selected, semantic_similarity_model=semantic_similarity_model))
-
                             # Create augmented datapoints
-                            augmented_datapoints: list[tuple[DataPointDTO, DataPointEvaluationDTO]] = service.generate_augmented_data(
-                                selected_model_id, augmentation_configurations_selected, semantic_similarity_model)
+                            # Use this id to fetch
+                            datapoint_evaluation_ids: list[int] = service.generate_augmented_data(
+                                selected_model_id, augmentation_configurations_selected, semantic_similarity_model, current_project_data.current_project.id)
+                            GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
+                                id=current_project_data.id, augmentation_configurations=augmentation_configurations_selected, semantic_similarity_model=semantic_similarity_model))
 
-                            # TODO: Call augmenter with list of tuples of augmentation methods and percentages
-
-                            pass
+                            print(datapoint_evaluation_ids)
 
                 data_augmentation_process(
                     total_amount_of_datapoints, selected_model.id)
