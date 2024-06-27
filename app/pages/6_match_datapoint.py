@@ -1,6 +1,7 @@
 import streamlit as st
 from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
+from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
 from backend.util.logger import StreamlitLogger
 from app.backend.dtos.get_request import *
 from app.backend.dtos.response import *

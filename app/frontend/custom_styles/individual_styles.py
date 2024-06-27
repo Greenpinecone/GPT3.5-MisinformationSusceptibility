@@ -36,3 +36,9 @@ def center_checkboxes():
     }
         </style>
         """, unsafe_allow_html=True)
+
+
+def custom_style_span(custom_style: str):
+    st.markdown(f"""
+    <span class='{custom_style}'></span>
+    """, unsafe_allow_html=True)

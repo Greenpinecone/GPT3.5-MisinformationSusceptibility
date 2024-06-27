@@ -12,7 +12,7 @@ from app.backend.dtos.response import *
 from app.backend.dtos.create_request import *
 from app.backend.database.schema import DatasetCategory
 from frontend.custom_styles.global_styles import apply_global_style
-from frontend.custom_styles.individual_styles import center_checkboxes
+from frontend.custom_styles.individual_styles import center_checkboxes, center_elements_with_custom_span_in_column, custom_style_span
 from frontend.classes.query_params_manager import QueryParamsManager
 from frontend.classes.page_navigator import PageNavigator
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
@@ -22,6 +22,8 @@ from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
 
 apply_global_style()
 center_checkboxes()
+custom_style = "create-model-style"
+center_elements_with_custom_span_in_column(custom_style)
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 current_page = "create_model"
@@ -56,13 +58,13 @@ with logger:
                                            placeholder="The name of your model...", key="model_name_input", label_visibility="hidden")
 
                 training_datasets: list[DatasetDTO] = service.filter_datasets(GetDatasetsDTO(
-                    category=DatasetCategory.training, project_id=current_project.id))
+                    category=DatasetCategory.training, augmented=False, project_id=current_project.id))
 
                 selected_training_dataset = st.selectbox(label="Select a training dataset", options=training_datasets, index=None, key="training_dataset_selectbox",
                                                          label_visibility="collapsed" if training_datasets else "visible", placeholder="Choose a training dataset" if training_datasets else "No options available", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["DATASETDTO_SIMPLE"]))
 
                 corresponding_test_dataset = None
-                if selected_training_dataset:
+                if selected_training_dataset and selected_training_dataset.test_dataset_id:
                     corresponding_test_dataset = service.get_dataset_by_id(
                         selected_training_dataset.test_dataset_id)[0]
 
@@ -72,7 +74,11 @@ with logger:
                         st.write(frontend_uf.display_dto(
                             corresponding_test_dataset, formattings["DATASETDTO_SIMPLE"]) or None)
                 else:
-                    None
+                    with st.container(border=True):
+                        with st.columns(1)[0]:
+                            custom_style_span(custom_style)
+                            st.text(
+                                "This model has no associated test data")
 
                 is_global = st.checkbox(label="Make the model globally available", value=False, key="globalize_model_checkbox",
                                         help="Globalized models can be selected in the list of available models when creating a new project", label_visibility="visible")

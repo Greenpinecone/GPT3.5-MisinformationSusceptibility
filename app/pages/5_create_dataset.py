@@ -236,15 +236,15 @@ with logger:
                 disabled=not all_dataset_editors[0].datapoints
             )
             if submit_button:
-                saved_dataset_dtos: ComplexDatasetDTO = DatasetService.process_and_create_dataset(
+                saved_dataset_dto: ComplexDatasetDTO = DatasetService.process_and_create_dataset(
                     all_dataset_editors, GlobalAppStateManager.get_or_create_session_state("globalize_dataset_checkbox", None), GlobalAppStateManager.get_or_create_session_state("dataset_name_input", None), current_project.id, service)[0]
-                if saved_dataset_dtos:
+                if saved_dataset_dto:
                     ToastManager.add_global_toasts(
                         "Dataset has been successfully created.", "success")
                     # Match training and test datapoints if a test dataset has been uploaded
-                    if saved_dataset_dtos.test_dataset.datapoints:
+                    if saved_dataset_dto.test_dataset:
                         GlobalAppStateManager.update_current_project_data(service,
-                                                                          UpdateCurrentProjectDataDTO(id=current_project_data.id, currently_modified_dataset_id=saved_dataset_dtos.id))
+                                                                          UpdateCurrentProjectDataDTO(id=current_project_data.id, currently_modified_dataset_id=saved_dataset_dto.id))
                         GlobalAppStateManager.clear_session_state()
                         PageNavigator.navigate_to_page("match_datapoint")
                     else:
