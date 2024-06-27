@@ -22,6 +22,7 @@ from ...util.config import Config
 from ...util.logger import Logger
 from ...mapper.implementations.mappers_facade import MapperFacade
 from ..validators.implementations.validators_facade import ValidatorFacade
+from sqlalchemy.orm import Session
 
 logger = Logger(__name__)
 
@@ -112,18 +113,22 @@ class ServiceManagerFacade(IServiceManager):
     def create_dataset_with_datapoints(self, trainings_dataset_dto: CreateDatasetDTO, trainings_datapoint_dtos: list[CreateDataPointDTO], test_dataset_dto: CreateDatasetDTO, test_datapoint_dtos: list[CreateDataPointDTO]) -> ComplexDatasetDTO:
         with self._data_manager.get_session() as session:
             # Save test dataset first to then add it to the training dataset
-            self._validator.validate_create_datasets(
-                session, self._data_manager, [test_dataset_dto])
-            test_dataset: list[Dataset] = self._data_manager.create_datasets(session, [test_dataset_dto])[
-                0]
+            test_dataset: Dataset = None
+            if test_datapoint_dtos:
+                self._validator.validate_create_datasets(
+                    session, self._data_manager, [test_dataset_dto])
+                test_dataset: list[Dataset] = self._data_manager.create_datasets(session, [test_dataset_dto])[
+                    0]
 
-            # Save test dataset datapoints (are directly accessibly by the test dataset through ORM)
-            for datapoint_dto in test_datapoint_dtos:
-                datapoint_dto.dataset_id = test_dataset.id
-            self._validator.validate_create_datapoints(
-                session, self._data_manager, test_datapoint_dtos)
-            test_datapoints: list[DataPoint] = self._data_manager.create_datapoints(
-                session, test_datapoint_dtos)
+                # Save test dataset datapoints (are directly accessibly by the test dataset through ORM)
+                for datapoint_dto in test_datapoint_dtos:
+                    datapoint_dto.dataset_id = test_dataset.id
+                self._validator.validate_create_datapoints(
+                    session, self._data_manager, test_datapoint_dtos)
+                test_datapoints: list[DataPoint] = self._data_manager.create_datapoints(
+                    session, test_datapoint_dtos)
+
+                test_dataset_ids = [test_dataset.id]
 
             # Save trainings dataset with test dataset id set
             self._validator.validate_create_datasets(
@@ -131,7 +136,7 @@ class ServiceManagerFacade(IServiceManager):
             trainings_dataset: Dataset = self._data_manager.create_datasets(session, [trainings_dataset_dto])[
                 0]
 
-            # Set test dataset for trainings dataset
+            # Set test dataset ids if exist
             trainings_dataset.test_dataset = test_dataset
 
             # Save training datapoints
@@ -347,9 +352,9 @@ class ServiceManagerFacade(IServiceManager):
 
         return augmentation_count
 
-    def generate_augmented_data(self, model_id: list[int], augmentation_configurations: list[AugmentationConfiguration], semantic_similarity_model: dict) -> list[tuple[DataPointDTO, DataPointEvaluationDTO]]:
+    def generate_augmented_data(self, model_id: list[int], augmentation_configurations: list[AugmentationConfiguration], semantic_similarity_model: dict, current_project_id: int) -> list[int]:
         with self._data_manager.get_session() as session:
-
+            # TODO: Add validation
             model: Model = self._data_manager.get_model_by_id(
                 session, model_id)[0]
 
@@ -363,24 +368,82 @@ class ServiceManagerFacade(IServiceManager):
             total_training_datapoint_dtos = [self._mapper.map_datapoint_to_training_datapoint_dto(
                 session, datapoint) for datapoint in total_training_datapoints]
 
-            # Get all augmented datapoints
-            augmented_datapoints: list[CreateDataPointDTO] = self._data_augmenter.create_augmented_datapoints(
+            # Get all augmented datapoints - set the augmented message and the original datapoint id
+            augmented_datapoint_dtos: list[CreateDataPointDTO] = self._data_augmenter.create_augmented_datapoints(
                 total_training_datapoint_dtos, augmentation_configurations)
 
-            # Define the list to hold tuples of CreateDataPointDTO and CreateDataPointEvaluationDTO
-            datapoint_evaluation_pairs: list[tuple[CreateDataPointDTO,
-                                                   CreateDataPointEvaluationDTO]] = []
+            # Get the first training dataset, since it is always an unaugmented dataset and the augmented datasets rely on this information
+            first_training_dataset: Dataset = model.training_datasets[0]
 
-            # Iterate over augmented_datapoints and create tuples to append to the list
-            for augmented_datapoint in augmented_datapoints:
-                datapoint_evaluation = CreateDataPointEvaluationDTO(
-                    datapoint_id=-1, model_id=-1)
-                datapoint_evaluation_pairs.append(
-                    (augmented_datapoint, datapoint_evaluation))
+            # # Create dataset DTO
+            create_dataset_dto: CreateDatasetDTO = CreateDatasetDTO(
+                dataset_name=f"""{first_training_dataset.dataset_name}_{len(model.training_datasets)}""", category=DatasetCategory.training, augmented=True, fine_tuning_company=first_training_dataset.fine_tuning_company, fine_tuning_model=first_training_dataset.fine_tuning_model, fine_tuning_formatting=first_training_dataset.fine_tuning_formatting, project_ids=[current_project_id], initial_dataset_ids=[dataset.id for dataset in model.training_datasets], test_dataset_id=first_training_dataset.test_dataset_id)
 
-            augmented_datapoint_evaluation_pairs_with_similarity_score: list[tuple[CreateDataPointDTO, CreateDataPointEvaluationDTO]] = self._semantic_similarity_score_calculator.calculate_datapoints_semantic_similarity_score(
-                total_training_datapoint_dtos, datapoint_evaluation_pairs, semantic_similarity_model)
+            # Create augmented dataset
+            augmented_dataset: Dataset = self._data_manager.create_datasets(
+                session, [create_dataset_dto])[0]
 
-            print(augmented_datapoint_evaluation_pairs_with_similarity_score)
+            # Save the datapoint evaluation dtos
+            datapoint_evaluation_dtos: list[DataPointEvaluationDTO] = []
 
-            # TODO Finish implementation
+            # Iterate over augmented_datapoints, add dataset_id and create tuples to append to the list
+            for augmented_datapoint_dto in augmented_datapoint_dtos:
+                augmented_datapoint_dto.dataset_id = augmented_dataset.id
+                datapoint_evaluation_dto: CreateDataPointEvaluationDTO = CreateDataPointEvaluationDTO(
+                    datapoint_id=-1, model_id=model.id)
+                datapoint_evaluation_dtos.append(datapoint_evaluation_dto)
+
+            augmented_datapoint_dtos, datapoint_evaluation_dtos = self._semantic_similarity_score_calculator.calculate_datapoints_semantic_similarity_score(
+                total_training_datapoint_dtos, augmented_datapoint_dtos, datapoint_evaluation_dtos, semantic_similarity_model)
+
+            # Save augmented datapoints
+            augmented_datapoints: list[DataPoint] = self._data_manager.create_datapoints(
+                session, augmented_datapoint_dtos)
+
+            # Get the first test dataset since all datasets of the model have the same test dataset
+            first_test_datapoints: list[DataPoint] = first_training_dataset.test_dataset.datapoints
+
+            # Add the new augmented training datapoints to the test datapoints that are related to the original training datapoints from which the datapoints are augmented from.
+            # TODO: Check if this correctly adds the new augmented training datapoint to the test datpoint relations
+            self._add_augmented_datapoints_to_test_datapoint_relations(
+                first_test_datapoints, augmented_datapoints, session)
+
+            # Set the datapoint ids for the datapoint evaluations
+            for datapoint, datapoint_evaluation in zip(augmented_datapoints, datapoint_evaluation_dtos):
+                datapoint_evaluation.datapoint_id = datapoint.id
+
+            # Create the datapoint evaluations
+            datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.create_datapoint_evaluations(
+                session, datapoint_evaluation_dtos)
+
+            # Return a list of evaluation ids which can be used on demand to fetch complex evaluation dtos for the initial and augmented datapoint and the augmented datapoints evaluation
+            return [evaluation.id for evaluation in datapoint_evaluations]
+
+    def _add_augmented_datapoints_to_test_datapoint_relations(self, test_datapoints: list[DataPoint], augmented_datapoints: list[DataPoint], session: Session):
+        # Pre-fetch all related datapoints
+        training_to_test_map: dict[int, list[DataPoint]] = self._create_test_to_trainings_datapoints_mapping(
+            test_datapoints, session)
+
+        for augmented_dp in augmented_datapoints:
+            # Get the initial training datapoint ID
+            initial_training_id: int = augmented_dp.initial_datapoint_id
+
+            # Find and associate the augmented datapoint with related test datapoints
+            if initial_training_id in training_to_test_map:
+                related_test_dps: list[DataPoint] = training_to_test_map[initial_training_id]
+                for test_dp in related_test_dps:
+                    test_dp.related_datapoints.append(augmented_dp)
+
+            # Add the augmented datapoint
+            session.add(augmented_dp)
+
+    def _create_test_to_trainings_datapoints_mapping(self, test_datapoints: list[DataPoint], session: Session) -> dict[int, list[DataPoint]]:
+        # Create a dictionary to map training datapoints to their related test datapoints
+        training_to_test_map: dict[int, list[DataPoint]] = {}
+        for test_dp in test_datapoints:
+            for related_dp in test_dp.related_datapoints:
+                if related_dp.id not in training_to_test_map:
+                    training_to_test_map[related_dp.id] = []
+                training_to_test_map[related_dp.id].append(test_dp)
+
+        return training_to_test_map
