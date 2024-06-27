@@ -200,16 +200,22 @@ class OpenAIService(IFineTuningService):
         return short_id
 
     def sort_datasets(self, dataset_dtos: list[ComplexDatasetDTO]) -> tuple[list[ComplexDatasetDTO], list[ComplexDatasetDTO]]:
-        training_datasets: list[ComplexDatasetDTO] = []
-        test_datasets: list[ComplexDatasetDTO] = []
-        for dataset in dataset_dtos:
-            if dataset.category == DatasetCategory.training:
-                training_datasets.append(dataset)
-                # Add all test datasets that have test datapoints since test datasets are not mandatory
-                if dataset.test_dataset and dataset.test_dataset.datapoints:
-                    test_datasets.append(dataset.test_dataset)
+        all_training_datasets: list[ComplexDatasetDTO] = []
+        all_test_datasets: list[ComplexDatasetDTO] = []
+        seen_test_ids: set[int] = set()
 
-        return training_datasets, test_datasets
+        for dataset in dataset_dtos:
+            # No duplicates here
+            if dataset.category == DatasetCategory.training:
+                all_training_datasets.append(dataset)
+                # Add all test datasets that have test datapoints since test datasets are not mandatory
+                # For the same model, all datasets reference the same test dataset
+                if dataset.test_dataset and dataset.test_dataset.datapoints:
+                    if dataset.test_dataset.id not in seen_test_ids:
+                        all_test_datasets.append(dataset.test_dataset)
+                        seen_test_ids.add(dataset.test_dataset.id)
+
+        return all_training_datasets, all_test_datasets
 
     def count_datapoints_in_dataset_list(self, datasets: list[ComplexDatasetDTO]) -> int:
         count = 0

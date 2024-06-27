@@ -105,9 +105,9 @@ class SemanticSimilarityCalculator:
     @classmethod
     def calculate_datapoints_semantic_similarity_score(cls,
                                                        datapoints: list[CreateDataPointDTO],
-                                                       augmented_datapoint_evaluation_pairs: list[tuple[CreateDataPointDTO, CreateDataPointEvaluationDTO]],
+                                                       augmented_datapoints: list[CreateDataPointDTO], datapoint_evaluations: list[CreateDataPointEvaluationDTO],
                                                        semantic_similarity_model: dict
-                                                       ) -> list[tuple[CreateDataPointDTO, CreateDataPointEvaluationDTO]]:
+                                                       ) -> tuple[list[CreateDataPointDTO], list[CreateDataPointEvaluationDTO]]:
 
         model: SentenceTransformer = cls.initialize_model(
             semantic_similarity_model)
@@ -116,7 +116,7 @@ class SemanticSimilarityCalculator:
         original_datapoints_dict: dict[int, DataPointDTO] = {
             dp.id: dp for dp in datapoints}
 
-        for augmented_dp, evaluation_dto in augmented_datapoint_evaluation_pairs:
+        for augmented_dp, evaluation_dto in zip(augmented_datapoints, datapoint_evaluations):
             original_dp = original_datapoints_dict.get(
                 augmented_dp.initial_datapoint_id)
 
@@ -154,4 +154,4 @@ class SemanticSimilarityCalculator:
             # Assign similarity score to datapoint evaluation dto
             evaluation_dto.semantic_similarity_score = scaled_similarity
 
-        return augmented_datapoint_evaluation_pairs
+        return augmented_datapoints, datapoint_evaluations
