@@ -68,6 +68,12 @@ def gen_eda(sentence, alpha_sr, alpha_ri, alpha_rs, alpha_rd, num_aug=1):
     #     label = parts[0]
     #     sentence = parts[1]
 
+    # * Add: Convert percantage values to 0-1 *
+    alpha_sr = alpha_sr / 100
+    alpha_rs = alpha_rs / 100
+    alpha_ri = alpha_ri / 100
+    alpha_rd = alpha_rd / 100
+
     # * Added - As previously described. *
     if alpha_sr == alpha_ri == alpha_rs == alpha_rd == 0:
         raise ValidationError('At least one alpha must be greater than zero.')

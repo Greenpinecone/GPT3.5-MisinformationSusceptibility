@@ -16,9 +16,9 @@ class DataPointMatcher:
     def set_current_datapoint(self, current_datapoint: int):
         self.current_test_datapoint = current_datapoint
 
-    def load(self):
+    def load(self, matching_items_per_page=5):
         trainings_dataset_paginator: Paginator = GlobalAppStateManager.get_or_create_session_state(
-            "training_paginator", default_value=Paginator, items_per_page=5
+            "training_paginator", default_value=Paginator, items_per_page=matching_items_per_page
         )
         test_dataset_paginator: Paginator = GlobalAppStateManager.get_or_create_session_state(
             "test_paginator", default_value=Paginator, items_per_page=1

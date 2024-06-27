@@ -58,6 +58,7 @@ class DataFrameWidgetProvider:
             args=(simple_datapoint_dto,)
         )
 
+    # Automatically updates the test datapoint when the training datapoint is checked
     @staticmethod
     def create_dataframe_with_checkbox(datapoint_dto: DataPointDTO, current_test_datapoint: DataPointDTO):
 
@@ -82,6 +83,7 @@ class DataFrameWidgetProvider:
                 DataPointService.add_or_remove(
                     current_test_datapoint, datapoint_dto)
 
+            # Check if datapoint exists in list of test related datapoints and if so, set the "checked" value to True.
             value = DataPointService.is_present(
                 current_test_datapoint.related_datapoints, datapoint_dto)
 
