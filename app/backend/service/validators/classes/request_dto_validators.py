@@ -212,18 +212,18 @@ class CreateDatasetSchema(Schema):
             'invalid': 'Each project ID must exist and be greater than 0.'
         }
     )
-    initial_dataset_id = fields.Int(
-        validate=lambda n: n > 0, allow_none=True,
-        error_messages={
-            'invalid': 'Initial dataset ID must exist and be greater than 0.'
-        }
+    initial_dataset_ids = fields.List(fields.Int(
+        validate=lambda n: n > 0, error_messages={
+            'invalid': 'Initial dataset IDs must exist and be greater than 0.'
+        }),
+        allow_none=True,
     )
     test_dataset_id = fields.Int(
-        validate=lambda n: n > 0, allow_none=True,
+        validate=lambda n: n > 0,
         error_messages={
-            'required': 'Test dataset ID is required.',
             'invalid': 'Test dataset ID must exist and be greater than 0.'
-        }
+        },
+        allow_none=True
     )
     datapoint_ids = fields.List(
         fields.Int(validate=lambda n: n > 0), allow_none=True,
@@ -274,27 +274,32 @@ class CreateDatasetSchema(Schema):
             raise ValidationError(f"""Projects with IDs {
                 missing_projects} do not exist.""")
 
-    @validates('initial_dataset_id')
-    def validate_initial_dataset(self, initial_dataset_id: int):
+    @validates('initial_dataset_ids')
+    def validate_initial_dataset(self, dataset_ids: list[int]):
 
-        if initial_dataset_id:
-            try:
-                self.data_manager.get_dataset_by_id(
-                    self.session, initial_dataset_id)[0]
-            except NoResultFound:
-                raise ValidationError(f"""Initial dataset with ID {
-                    initial_dataset_id} does not exist.""")
+        if dataset_ids:
+            missing_dataset_ids: list[int] = []
+            for dataset_id in dataset_ids:
+                try:
+                    self.data_manager.get_dataset_by_id(
+                        self.session, dataset_id)[0]
+                except NoResultFound:
+                    missing_dataset_ids.append(dataset_id)
+
+            if missing_dataset_ids:
+                raise ValidationError(f"""Initial datasets with ID {
+                    missing_dataset_ids} does not exist.""")
 
     @validates('test_dataset_id')
-    def validate_test_dataset(self, test_dataset_id: int):
+    def validate_initial_dataset(self, dataset_id: int):
 
-        if test_dataset_id:
+        if dataset_id:
             try:
                 self.data_manager.get_dataset_by_id(
-                    self.session, test_dataset_id)[0]
+                    self.session, dataset_id)[0]
             except NoResultFound:
-                raise ValidationError(f"""Test dataset with ID {
-                    test_dataset_id} does not exist.""")
+                raise ValidationError(f"""Test datasets with ID {
+                    dataset_id} does not exist.""")
 
     @validates('datapoint_ids')
     def validate_datapoints(self, datapoint_ids: list[int]):
@@ -947,11 +952,12 @@ class GetDatasetsSchema(Schema):
             'invalid': 'Invalid category. Must be one of: {0}.'.format(", ".join([e.value for e in DatasetCategory]))
         }
     )
-    initial_dataset_id = fields.Int(validate=lambda n: n >= 1,
-                                    allow_none=True,
-                                    error_messages={
-                                        'invalid': 'Initial dataset id must be an Integer >= 1.'
-                                    })
+    initial_dataset_ids = fields.List(fields.Int(
+        validate=lambda n: n > 0, error_messages={
+            'invalid': 'Initial dataset IDs must exist and be greater than 0.'
+        }),
+        allow_none=True
+    )
     project_id = fields.Int(validate=lambda n: n >= 1,
                             allow_none=True,
                             error_messages={
@@ -991,16 +997,21 @@ class GetDatasetsSchema(Schema):
                 raise ValidationError(
                     f"Project with ID {project_id} does not exist.")
 
-    @validates('initial_dataset_id')
-    def validate_dataset_exists(self, initial_dataset_id: int):
+    @validates('initial_dataset_ids')
+    def validate_initial_dataset(self, dataset_ids: list[int]):
 
-        if initial_dataset_id:
-            try:
-                self.data_manager.get_dataset_by_id(
-                    self.session, initial_dataset_id)[0]
-            except NoResultFound:
-                raise ValidationError(
-                    f"Dataset with ID {initial_dataset_id} does not exist.")
+        if dataset_ids:
+            missing_dataset_ids: list[int] = []
+            for dataset_id in dataset_ids:
+                try:
+                    self.data_manager.get_dataset_by_id(
+                        self.session, dataset_id)[0]
+                except NoResultFound:
+                    missing_dataset_ids.append(dataset_id)
+
+            if missing_dataset_ids:
+                raise ValidationError(f"""Initial datasets with ID {
+                    missing_dataset_ids} does not exist.""")
 
 
 class GetModelsByProjectIdSchema(Schema):
