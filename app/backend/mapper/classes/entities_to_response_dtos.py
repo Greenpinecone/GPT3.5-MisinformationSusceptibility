@@ -74,8 +74,10 @@ class DatasetSchema(BaseSchema):
     augmented = auto_field()
     category = CustomEnumConversionSchema(DatasetCategory)
     created_at = FlexibleDateTimeField()
-    initial_dataset_id = auto_field()
-    test_dataset_id = auto_field()
+    initial_dataset_ids = fields.Function(
+        serialize=lambda obj: [dataset.id for dataset in obj.initial_datasets])
+    test_dataset_id = fields.Function(
+        serialize=lambda obj: obj.test_dataset.id if obj.test_dataset else None)
     fine_tuning_company = auto_field()
     fine_tuning_model = auto_field()
     fine_tuning_formatting = auto_field()
@@ -104,7 +106,8 @@ class ComplexDatasetSchema(BaseSchema):
     augmented = auto_field()
     category = CustomEnumConversionSchema(DatasetCategory)
     created_at = FlexibleDateTimeField()
-    initial_dataset_id = auto_field()
+    initial_datasets = fields.List(fields.Nested(
+        lambda: ComplexDatasetSchema(), default=None))
     fine_tuning_company = auto_field()
     fine_tuning_model = auto_field()
     fine_tuning_formatting = auto_field()
@@ -176,6 +179,26 @@ class TrainingDataPointSchema(BaseSchema):
         if not data.get("related_datapoints"):
             data["related_datapoints"] = []
         return DataPointDTO(**data)
+
+
+class DataPointWithInitialDataPointSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    id = auto_field()
+    dataset_id = auto_field()
+    augmentation_type = CustomEnumConversionSchema(AugmentationType)
+    created_at = FlexibleDateTimeField()
+    messages = auto_field()
+    initial_datapoint = fields.Nested(
+        lambda: DataPointWithInitialDataPointSchema())
+
+    class Meta:
+        model = DataPoint
+
+    @post_dump
+    def make_data_point_dto(self, data, **kwargs):
+        return DataPointWithInitialDataPointDTO(**data)
 
 
 class ModelSchema(BaseSchema):
@@ -355,3 +378,24 @@ class DataPointEvaluationSchema(BaseSchema):
     @post_dump
     def make_training_run_dto(self, data, **kwargs):
         return DataPointEvaluationDTO(**data)
+
+
+# For easy data access when evaluating augmented datapoints
+class ComplexDataPointEvaluationSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    datapoint = fields.Nested(
+        lambda: DataPointWithInitialDataPointSchema())
+    model_id = auto_field()
+    coherence_score = auto_field()
+    relevance_score = auto_field()
+    semantic_similarity_score = auto_field()
+    created_at = auto_field()
+
+    class Meta(BaseSchema.Meta):
+        model = DataPointEvaluation
+
+    @post_dump
+    def make_training_run_dto(self, data, **kwargs):
+        return ComplexDataPointEvaluationDTO(**data)

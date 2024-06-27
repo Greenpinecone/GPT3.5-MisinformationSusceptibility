@@ -29,10 +29,10 @@ class DatasetDTO:
     # The formatting of the underlying fine tuning data based on the company you want to fine tune with.
     fine_tuning_formatting: str
     is_global: bool = False
+    test_dataset_id: int | None = None
     created_at: datetime = field(
         default_factory=lambda: datetime.now().astimezone())
-    initial_dataset_id: int | None = None
-    test_dataset_id: int | None = None
+    initial_dataset_ids: list[int] = field(default_factory=list)
     model_ids: list[int] = field(default_factory=list)
     project_ids: list[int] = field(default_factory=list)
     datapoint_ids: list[int] = field(default_factory=list)
@@ -51,13 +51,24 @@ class DataPointDTO:
 
 
 @dataclass
+class DataPointWithInitialDataPointDTO:
+    id: int
+    messages: MessagesContainer
+    dataset_id: int
+    augmentation_type: AugmentationType
+    initial_datapoint: 'DataPointWithInitialDataPointDTO'
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
+
+
+@dataclass
 class DataPointEvaluationDTO:
     id: int
     datapoint_id: int
     model_id: int
-    coherence_score: int
-    relevance_score: int
     semantic_similarity_score: float
+    coherence_score: int | None = None
+    relevance_score: int | None = None
     created_at: datetime = field(
         default_factory=lambda: datetime.now().astimezone())
 
@@ -73,10 +84,10 @@ class ComplexDatasetDTO:
     # The formatting of the underlying fine tuning data based on the company you want to fine tune with.
     fine_tuning_formatting: str
     is_global: bool = False
+    test_dataset: list[Optional['ComplexDatasetDTO']] | None = None
     created_at: datetime = field(
         default_factory=lambda: datetime.now().astimezone())
-    initial_dataset_id: int | None = None
-    test_dataset: Optional['ComplexDatasetDTO'] = None
+    initial_datasets: list['ComplexDatasetDTO'] = field(default_factory=list)
     model_ids: list[int] = field(default_factory=list)
     project_ids: list[int] = field(default_factory=list)
     datapoints: list[DataPointDTO] = field(default_factory=list)
@@ -100,6 +111,18 @@ class ModelDTO:
     training_run_id: int | None = None
     is_checkpoint_model: bool | None = None
     checkpoint_step: int | None = None
+
+
+@dataclass
+class ComplexDataPointEvaluationDTO:
+    id: int
+    datapoint: DataPointWithInitialDataPointDTO
+    model_id: int
+    coherence_score: int
+    relevance_score: int
+    semantic_similarity_score: float
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
 
 
 @dataclass
