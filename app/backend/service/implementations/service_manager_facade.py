@@ -128,8 +128,6 @@ class ServiceManagerFacade(IServiceManager):
                 test_datapoints: list[DataPoint] = self._data_manager.create_datapoints(
                     session, test_datapoint_dtos)
 
-                test_dataset_ids = [test_dataset.id]
-
             # Save trainings dataset with test dataset id set
             self._validator.validate_create_datasets(
                 session, self._data_manager, [trainings_dataset_dto])
@@ -313,6 +311,8 @@ class ServiceManagerFacade(IServiceManager):
                     fine_tuning_checkpoint_job_id=checkpoint['id'],
                     fine_tuned_model_id=checkpoint['fine_tuned_model_checkpoint'],
                     parent_model_id=current_fine_tuning_model.parent_model_id,
+                    semantic_similarity_model=current_fine_tuning_model.semantic_similarity_model,
+                    augmentation_configurations=current_fine_tuning_model.augmentation_configurations,
                     is_global=current_fine_tuning_model.is_global,
                     is_checkpoint_model=True,
                     checkpoint_step=checkpoint['step_number']
@@ -354,9 +354,17 @@ class ServiceManagerFacade(IServiceManager):
 
     def generate_augmented_data(self, model_id: list[int], augmentation_configurations: list[AugmentationConfiguration], semantic_similarity_model: dict, current_project_id: int) -> list[int]:
         with self._data_manager.get_session() as session:
+
             # TODO: Add validation
+            # Get the model that been created based on the selected model for fine tuning
             model: Model = self._data_manager.get_model_by_id(
                 session, model_id)[0]
+
+            # Set augmentation configurations
+            model.augmentation_configurations = augmentation_configurations
+
+            # Add semantic similarity model
+            model.semantic_similarity_model = semantic_similarity_model["model_name"]
 
             total_training_datapoints: list[DataPoint] = []
 
@@ -377,11 +385,14 @@ class ServiceManagerFacade(IServiceManager):
 
             # # Create dataset DTO
             create_dataset_dto: CreateDatasetDTO = CreateDatasetDTO(
-                dataset_name=f"""{first_training_dataset.dataset_name}_{len(model.training_datasets)}""", category=DatasetCategory.training, augmented=True, fine_tuning_company=first_training_dataset.fine_tuning_company, fine_tuning_model=first_training_dataset.fine_tuning_model, fine_tuning_formatting=first_training_dataset.fine_tuning_formatting, project_ids=[current_project_id], initial_dataset_ids=[dataset.id for dataset in model.training_datasets], test_dataset_id=first_training_dataset.test_dataset_id)
+                dataset_name=f"""{first_training_dataset.dataset_name}_Aug_{model.version}""", category=DatasetCategory.training, augmented=True, fine_tuning_company=first_training_dataset.fine_tuning_company, fine_tuning_model=first_training_dataset.fine_tuning_model, fine_tuning_formatting=first_training_dataset.fine_tuning_formatting, project_ids=[current_project_id], initial_dataset_ids=[dataset.id for dataset in model.training_datasets], test_dataset_id=first_training_dataset.test_dataset_id)
 
             # Create augmented dataset
             augmented_dataset: Dataset = self._data_manager.create_datasets(
                 session, [create_dataset_dto])[0]
+
+            # Add new augmented dataset to current fine tuning model so that the dataset is included for the fine tuning process
+            model.training_datasets.append(augmented_dataset)
 
             # Save the datapoint evaluation dtos
             datapoint_evaluation_dtos: list[DataPointEvaluationDTO] = []
@@ -419,10 +430,10 @@ class ServiceManagerFacade(IServiceManager):
             # Return a list of evaluation ids which can be used on demand to fetch complex evaluation dtos for the initial and augmented datapoint and the augmented datapoints evaluation
             return [evaluation.id for evaluation in datapoint_evaluations]
 
-    def _add_augmented_datapoints_to_test_datapoint_relations(self, test_datapoints: list[DataPoint], augmented_datapoints: list[DataPoint], session: Session):
+    def _add_augmented_datapoints_to_test_datapoint_relations(self, test_datapoints: list[DataPoint], augmented_datapoints: list[DataPoint], existing_session: Session):
         # Pre-fetch all related datapoints
         training_to_test_map: dict[int, list[DataPoint]] = self._create_test_to_trainings_datapoints_mapping(
-            test_datapoints, session)
+            test_datapoints, existing_session)
 
         for augmented_dp in augmented_datapoints:
             # Get the initial training datapoint ID
@@ -435,9 +446,9 @@ class ServiceManagerFacade(IServiceManager):
                     test_dp.related_datapoints.append(augmented_dp)
 
             # Add the augmented datapoint
-            session.add(augmented_dp)
+            existing_session.add(augmented_dp)
 
-    def _create_test_to_trainings_datapoints_mapping(self, test_datapoints: list[DataPoint], session: Session) -> dict[int, list[DataPoint]]:
+    def _create_test_to_trainings_datapoints_mapping(self, test_datapoints: list[DataPoint], existing_session: Session) -> dict[int, list[DataPoint]]:
         # Create a dictionary to map training datapoints to their related test datapoints
         training_to_test_map: dict[int, list[DataPoint]] = {}
         for test_dp in test_datapoints:
@@ -447,3 +458,51 @@ class ServiceManagerFacade(IServiceManager):
                 training_to_test_map[related_dp.id].append(test_dp)
 
         return training_to_test_map
+
+    def update_datapoint_evaluations(self, evaluations_data: list[UpdateDataPointEvaluationDTO], existing_session: Session | None = None):
+        with self._data_manager.get_session(existing_session) as session:
+            self._validator.validate_update_datapoint_evaluations(
+                session, self._data_manager, evaluations_data)
+            updated_evaluations: list[DataPointEvaluation] = self._data_manager.update_datapoint_evaluations(
+                session, evaluations_data)
+
+            return [self._mapper.map_datapoint_evaluation_to_complex_dto(session, evaluation) for evaluation in updated_evaluations]
+
+    def get_complex_datapoint_evaluation_by_id(self, data_point_evalaution_id: int, existing_session: Session | None = None) -> list[DataPointEvaluation]:
+        with self._data_manager.get_session(existing_session) as session:
+
+            datapoint_evalaution: DataPoint = self._data_manager.get_datapoint_evaluation_by_id(
+                session, data_point_evalaution_id)[0]
+
+            return [self._mapper.map_datapoint_evaluation_to_complex_dto(session, datapoint_evalaution)]
+
+    def calculate_datapoint_evaluation_scores(self, filter_data: GetDataPointEvaluationsDTO, existing_session: Session | None = None) -> tuple[float, float, float]:
+        with self._data_manager.get_session(existing_session) as session:
+            self._validator.validate_get_datapoint_evaluation(
+                session, self._data_manager, filter_data)
+            datapoint_evalautions: list[DataPointEvaluation] = self._data_manager.get_all_datapoint_evaluations(
+                session, filter_data)
+
+            coherence_scores: list[int] = []
+            relevance_scores: list[int] = []
+            semantic_similarity_scores: list[int] = []
+            for evaluation in datapoint_evalautions:
+                if evaluation.coherence_score:
+                    coherence_scores.append(evaluation.coherence_score)
+                if evaluation.relevance_score:
+                    relevance_scores.append(evaluation.relevance_score)
+                semantic_similarity_scores.append(
+                    evaluation.semantic_similarity_score)
+
+            # Return the average scores for the model evaluations
+            # Return the average scores for the model evaluations
+            return (self._calculate_average(coherence_scores), self._calculate_average(relevance_scores), self._calculate_average(semantic_similarity_scores))
+
+    def _calculate_average(self, scores: list[int | float]) -> float:
+        if len(scores) == 0:
+            return 0.0
+        return sum(scores) / len(scores)
+
+    def delete_only_datasets(self, dataset_ids: list[int], existing_session: Session | None = None):
+        with self._data_manager.get_session(existing_session) as session:
+            self._data_manager.delete_only_datasets(session, dataset_ids)
