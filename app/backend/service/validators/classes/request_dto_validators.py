@@ -9,6 +9,7 @@ from ....dtos.update_request import *
 from ....dtos.response import DatasetDTO, ModelDTO
 from sqlalchemy.orm import Session
 from app.backend.database.schema import DatasetCategory, MessageKeys, UploadFormats, EvaluationType, AugmentationType, FineTuningCompany, FineTuningModelVersions, MessageKeys, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun
+from app.backend.util.config import SBERT_MODELS as semantic_similarity_models
 
 
 class BaseUpdateSchema(Schema):
@@ -490,6 +491,10 @@ class CreateModelSchema(Schema):
         'invalid': 'Model must be associated to at least one training dataset.'
     }
     )
+    augmentation_configurations = fields.List(fields.Dict(), allow_none=True)
+    semantic_similarity_model = fields.Str(allow_none=True, error_messages={
+        'invalid': 'Semantic similarity model must be of type string.'
+    })
     training_run_id = fields.Int(
         allow_none=True,
         error_messages={
@@ -550,6 +555,14 @@ class CreateModelSchema(Schema):
             raise ValidationError(f"""Projects with IDs {
                 missing_projects} do not exist.""")
 
+    @validates('semantic_similarity_model')
+    def validate_semantic_similarity_model(self, semantic_similarity_model: str):
+        if semantic_similarity_model:
+            if not any(model["model_name"] == semantic_similarity_model for model in semantic_similarity_models):
+                raise ValidationError(f"""Semantic similarity model "{
+                    semantic_similarity_model}" does not exist.""")
+            return semantic_similarity_model
+
     @validates('training_dataset_ids')
     def validate_datasets_exist(self, dataset_ids: list[int]):
         missing_dataset_ids: list[int] = []
@@ -597,34 +610,31 @@ class CreateModelEvaluationSchema(Schema):
     evaluation_type = CustomEnumValidationField(
         EvaluationType,
         by_value=True,
-        required=True,
+        allow_none=True,
         error_messages={
-            'required': 'Evaluation type is required.',
             'invalid': 'Invalid evaluation type. Must be one of: {0}.'.format(", ".join(e.name for e in EvaluationType))
         }
     )
     helpful_score = fields.Int(
-        required=True,
-        validate=lambda n: 1 <= n <= 10,
+        validate=lambda n: 0 <= n <= 10,
+        allow_none=True,
         error_messages={
             'required': 'Helpful score is required.',
-            'invalid': 'Helpful score must be an integer between 1 and 10.',
+            'invalid': 'Helpful score must be an integer between 0 and 10.',
         }
     )
     honest_score = fields.Int(
-        required=True,
-        validate=lambda n: 1 <= n <= 10,
+        validate=lambda n: 0 <= n <= 10,
+        allow_none=True,
         error_messages={
-            'required': 'Honest score is required.',
-            'invalid': 'Honest score must be an integer between 1 and 10.',
+            'invalid': 'Honest score must be an integer between 0 and 10.',
         }
     )
     harmless_score = fields.Int(
-        required=True,
-        validate=lambda n: 1 <= n <= 10,
+        validate=lambda n: 0 <= n <= 10,
+        allow_none=True,
         error_messages={
-            'required': 'Harmless score is required.',
-            'invalid': 'Harmless score must be an integer between 1 and 10.',
+            'invalid': 'Harmless score must be an integer between 0 and 10.',
         }
     )
 
@@ -739,19 +749,20 @@ class CreateDataPointEvaluationSchema(BaseUpdateSchema):
         }
     )
     coherence_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        validate=lambda n: 0 <= n <= 10, allow_none=True,
         error_messages={
-            'invalid': 'Coherence score must be an integer between 1 and 10.',
+            'invalid': 'Coherence score must be an integer between 0 and 10.',
         }
     )
     relevance_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        validate=lambda n: 0 <= n <= 10, allow_none=True,
         error_messages={
-            'invalid': 'Relevance score must be an integer between 1 and 10.',
+            'invalid': 'Relevance score must be an integer between 0 and 10.',
         }
     )
     semantic_similarity_score = fields.Float(
         allow_none=True,
+        validate=lambda n: 0.0 <= n <= 100.0,
         error_messages={
             'invalid': 'Semantic similarity score must be a float.'
         }
@@ -791,6 +802,11 @@ class GetTrainingRunsSchema(Schema):
                               'invalid': 'Model ID must be a positive integer.'
                           }
                           )
+    project_id = fields.Int(allow_none=True,
+                            error_messages={
+                                'invalid': 'Project ID must be a positive integer.'
+                            }
+                            )
     epochs = fields.Int(allow_none=True, validate=lambda n: n >= 1 and n <= 10,
                         error_messages={
                             'invalid': 'Number of epochs must be greater than 0 and smaller than 11.'
@@ -822,13 +838,23 @@ class GetTrainingRunsSchema(Schema):
         self.data_manager: IDataManager = data_manager
 
     @validates('model_id')
-    def validate_model_id(self, model_id):
+    def validate_model_id(self, model_id: int | None):
         if model_id:
             try:
                 self.data_manager.get_model_by_id(self.session, model_id)[0]
             except NoResultFound:
                 raise ValidationError(
                     f"Model with ID {model_id} does not exist.")
+
+    @validates('project_id')
+    def validate_model_id(self, project_id: int | None):
+        if project_id:
+            try:
+                self.data_manager.get_project_by_id(
+                    self.session, project_id)[0]
+            except NoResultFound:
+                raise ValidationError(
+                    f"Project with ID {project_id} does not exist.")
 
     @validates('fine_tuning_model')
     def validate_fine_tuning_model(self, value: str):
@@ -887,6 +913,9 @@ class GetModelsSchema(Schema):
                          allow_none=True,
                          error_messages={
                              'invalid': 'Model version must be a string with len() > 0.'
+    })
+    is_checkpoint_model = fields.Boolean(allow_none=True, error_messages={
+        'invalid': 'Is_checkpoint_model must be either True or False.'
     })
 
     project_id = fields.Int(validate=lambda n: n >= 1,
@@ -1147,33 +1176,33 @@ class GetDatapointsByDatasetIdSchema(Schema):
         return GetDatapointsByDatasetIdDTO(**data)
 
 
-class GetDataPointEvaluationSchema(BaseUpdateSchema):
-    datapoint_id = fields.Int(
-        validate=lambda n: n > 0, required=True, error_messages={
-            'required': 'Datapoint id is required.',
-            'invalid': 'Datapoint id must be an integer > 0.'
-        }
-    )
+class GetDataPointEvaluationSchema(Schema):
     model_id = fields.Int(
         validate=lambda n: n > 0, required=True, error_messages={
             'required': 'Model id is required.',
             'invalid': 'Model id must be an integer > 0.'
         }
     )
+    datapoint_id = fields.Int(
+        validate=lambda n: n > 0, allow_none=True, error_messages={
+            'invalid': 'Datapoint id must be an integer > 0.'
+        }
+    )
     coherence_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        validate=lambda n: 0 <= n <= 10, allow_none=True,
         error_messages={
-            'invalid': 'Coherence score must be an integer between 1 and 10.',
+            'invalid': 'Coherence score must be an integer between 0 and 10.',
         }
     )
     relevance_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        validate=lambda n: 0 <= n <= 10, allow_none=True,
         error_messages={
-            'invalid': 'Relevance score must be an integer between 1 and 10.',
+            'invalid': 'Relevance score must be an integer between 0 and 10.',
         }
     )
     semantic_similarity_score = fields.Float(
         allow_none=True,
+        validate=lambda n: 0.0 <= n <= 100.0,
         error_messages={
             'invalid': 'Semantic similarity score must be a float.'
         }
@@ -1185,19 +1214,21 @@ class GetDataPointEvaluationSchema(BaseUpdateSchema):
         self.data_manager: IDataManager = data_manager
 
     @validates('datapoint_id')
-    def validate_datapoint_id(self, datapoint_id: int) -> None:
-        try:
-            self.data_manager.get_datapoint_by_id(
-                self.session, datapoint_id)[0]
-        except:
-            raise ValidationError(f"""No datapoint with the id {
-                                  datapoint_id} found.""")
+    def validate_datapoint_id(self, datapoint_id: int | None = None) -> None:
+        if datapoint_id:
+            try:
+                self.data_manager.get_datapoint_by_id(
+                    self.session, datapoint_id)[0]
+            except:
+                raise ValidationError(f"""No datapoint with the id {
+                    datapoint_id} found.""")
 
     @validates('model_id')
     def validate_datapoint_id(self, model_id: int) -> None:
         try:
-            self.data_manager.get_model_by_id(
+            model = self.data_manager.get_model_by_id(
                 self.session, model_id)[0]
+            print(model)
         except:
             raise ValidationError(f"""No model with the id {
                                   model_id} found.""")
@@ -1369,6 +1400,8 @@ class UpdateModelSchema(BaseUpdateSchema):
             'invalid': 'Each project ID must exist and be greater than 0.'
         }
     )
+    augmentation_configurations = fields.List(fields.Dict(), allow_none=True)
+
     training_dataset_ids = fields.List(fields.Int(validate=lambda n: n > 0, error_messages={
         'invalid': 'All associated training dataset ids must be > 0.'
     }),
@@ -1383,7 +1416,10 @@ class UpdateModelSchema(BaseUpdateSchema):
                                    'invalid': 'Is_global must be either True or False.'
                                }
                                )
-    fine_tuning_job_id = fields.Str(allow_none=True, validate=lambda n: len(n) > 0, error_messages={
+    semantic_similarity_model = fields.Str(allow_none=True, error_messages={
+        'invalid': 'Semantic similarity model must be of type string.'
+    })
+    fine_tuning_job_id = fields.Str(allow_none=True, error_messages={
         'invalid': 'Model fine tuning job id must be of type string.'
     })
     fine_tuning_checkpoint_job_id = fields.Str(allow_none=True, validate=lambda n: len(n) > 0, error_messages={
@@ -1427,6 +1463,14 @@ class UpdateModelSchema(BaseUpdateSchema):
             raise ValidationError(f"""Datasets with ID {
                 missing_dataset_ids} do not exist.""")
 
+    @validates('semantic_similarity_model')
+    def validate_semantic_similarity_model(self, semantic_similarity_model: str):
+        if semantic_similarity_model:
+            if not any(model["model_name"] == semantic_similarity_model for model in semantic_similarity_models):
+                raise ValidationError(f"""Semantic similarity model "{
+                    semantic_similarity_model}" does not exist.""")
+            return semantic_similarity_model
+
     @validates_schema(pass_original=True)
     def validate_fine_tuning_job_id(self, data: dict[str, Any], original_data: dict[str, Any], **kwargs):
         model_id = data.get("id")
@@ -1449,34 +1493,30 @@ class UpdateModelEvaluationSchema(BaseUpdateSchema):
     evaluation_type = CustomEnumValidationField(
         EvaluationType,
         by_value=True,
-        required=True,
+        allow_none=True,
         error_messages={
-            'required': 'Evaluation type is required.',
             'invalid': 'Invalid evaluation type. Must be one of: {0}.'.format(", ".join(e.name for e in EvaluationType))
         }
     )
     helpful_score = fields.Int(
-        required=True,
-        validate=lambda n: 1 <= n <= 10,
+        allow_none=True,
+        validate=lambda n: 0 <= n <= 10,
         error_messages={
-            'required': 'Helpful score is required.',
-            'invalid': 'Helpful score must be an integer between 1 and 10.',
+            'invalid': 'Helpful score must be an integer between 0 and 10.',
         }
     )
     honest_score = fields.Int(
-        required=True,
-        validate=lambda n: 1 <= n <= 10,
+        allow_none=True,
+        validate=lambda n: 0 <= n <= 10,
         error_messages={
-            'required': 'Honest score is required.',
-            'invalid': 'Honest score must be an integer between 1 and 10.',
+            'invalid': 'Honest score must be an integer between 0 and 10.',
         }
     )
     harmless_score = fields.Int(
-        required=True,
-        validate=lambda n: 1 <= n <= 10,
+        allow_none=True,
+        validate=lambda n: 0 <= n <= 10,
         error_messages={
-            'required': 'Harmless score is required.',
-            'invalid': 'Harmless score must be an integer between 1 and 10.',
+            'invalid': 'Harmless score must be an integer between 0 and 10.',
         }
     )
 
@@ -1532,19 +1572,20 @@ class UpdateTrainingRunSchema(BaseUpdateSchema):
 class UpdateDataPointEvaluationSchema(BaseUpdateSchema):
 
     coherence_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        validate=lambda n: 0 <= n <= 10, allow_none=True,
         error_messages={
-            'invalid': 'Coherence score must be an integer between 1 and 10.',
+            'invalid': 'Coherence score must be an integer between 0 and 10.',
         }
     )
     relevance_score = fields.Int(
-        validate=lambda n: 1 <= n <= 10, allow_none=True,
+        validate=lambda n: 0 <= n <= 10, allow_none=True,
         error_messages={
-            'invalid': 'Relevance score must be an integer between 1 and 10.',
+            'invalid': 'Relevance score must be an integer between 0 and 10.',
         }
     )
     semantic_similarity_score = fields.Float(
         allow_none=True,
+        validate=lambda n: 0.0 <= n <= 100.0,
         error_messages={
             'invalid': 'Semantic similarity score must be a float.'
         }
