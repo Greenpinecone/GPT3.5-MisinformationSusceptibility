@@ -33,7 +33,7 @@ class FineTuner:
     def select_fine_tuning_class(cls, fine_tuning_company: str, model_dto: ComplexModelDTO, model_dataset_dtos: list[ComplexDatasetDTO]):
         fine_tuner: IFineTuningService = None
         if fine_tuning_company == FineTuningCompany.openai.value:
-            fine_tuner = OpenAIService()
+            fine_tuner: OpenAIService = OpenAIService()
             return cls.create_openai_fine_tuning_run(
                 fine_tuner, model_dto, model_dataset_dtos)
         if fine_tuning_company == FineTuningCompany.google.value:
