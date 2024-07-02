@@ -67,8 +67,8 @@ class DataPointEvaluationDTO:
     datapoint_id: int
     model_id: int
     semantic_similarity_score: float
-    coherence_score: int | None = None
-    relevance_score: int | None = None
+    coherence_score: int
+    relevance_score: int
     created_at: datetime = field(
         default_factory=lambda: datetime.now().astimezone())
 
@@ -101,6 +101,9 @@ class ModelDTO:
     project_ids: list[int]
     training_dataset_ids: list[int]
     uuid: str
+    augmentation_configurations: list[AugmentationConfiguration] = field(
+        default_factory=list)
+    semantic_similarity_model: str | None = None
     fine_tuning_checkpoint_job_id: str | None = None
     fine_tuned_model_id: str | None = None
     is_global: bool = False
@@ -159,6 +162,9 @@ class ComplexModelDTO:
     project_ids: list[int]
     training_dataset_ids: list[int]
     uuid: str
+    augmentation_configurations: list[AugmentationConfiguration] = field(
+        default_factory=list)
+    semantic_similarity_model: str | None = None
     fine_tuning_checkpoint_job_id: str | None = None
     fine_tuned_model_id: str | None = None
     is_global: bool = False
@@ -185,7 +191,11 @@ class CurrentProjectDataDTO:
     id: int
     created_at: datetime = field(
         default_factory=lambda: datetime.now().astimezone())
-    augmentation_configurations: list[AugmentationConfiguration] = field(
+    current_augmented_datapoint_evaluation_ids: list[int] = field(
+        default_factory=list)
+    current_augmentation_configurations: list[AugmentationConfiguration] = field(
+        default_factory=list)
+    generated_checkpoint_model_ids: list[int] = field(
         default_factory=list)
     unfinished_progress: bool = False
     current_page: str = ""

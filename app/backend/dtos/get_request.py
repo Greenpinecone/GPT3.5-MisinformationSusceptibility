@@ -17,6 +17,7 @@ class GetModelsDTO:
     project_id: int | None = None
     is_global: bool | None = None
     exlude_project_id: int | None = None
+    is_checkpoint_model: bool | None = None
 
 
 @dataclass
@@ -60,12 +61,13 @@ class GetTrainingRunsDTO:
     learning_rate_multiplier: float | None = None
     batch_size: int | None = None
     fine_tuning_model: str | None = None
+    project_id: int | None = None
 
 
 @dataclass
 class GetDataPointEvaluationsDTO:
-    datapoint_id: int
     model_id: int
+    datapoint_id: int | None = None
     coherence_score: int | None = None
     relevance_score: int | None = None
     semantic_similarity_score: float | None = None
