@@ -1,11 +1,11 @@
 from contextlib import contextmanager
-from sqlalchemy import Engine, and_, create_engine, or_
+from sqlalchemy import Engine, and_, create_engine, func, or_, event, text
 from sqlalchemy.orm import sessionmaker, Session, scoped_session, joinedload, aliased
 from sqlalchemy.orm.query import Query
 from pathlib import Path
 from typing import Generator
 from sqlalchemy.exc import SQLAlchemyError, MultipleResultsFound, NoResultFound
-from app.backend.database.schema import CurrentProjectData, DataPointEvaluation, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun, project_model_link, Base
+from app.backend.database.schema import CurrentProjectData, DataPointEvaluation, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun, project_model_link, project_dataset_link, Base
 from ...util.logger import Logger
 from ..interfaces.i_data_manager import IDataManager
 from datetime import datetime
@@ -30,10 +30,41 @@ class DataManager(IDataManager):
         db_path: Path = parent_dir / dest_directory / db_filename
         # Use the 'sqlite:///' prefix and the absolute path to create the engine
         self.engine: Engine = create_engine(f'sqlite:///{db_path}', echo=True)
+
+        # Ensure PRAGMA foreign_keys is ON for the SQLite engine
+        # self.set_sqlite_pragma()
+
+        event.listen(self.engine, 'connect', lambda c,
+                     _: c.execute('pragma foreign_keys=on'))
+
         Base.metadata.create_all(self.engine)
         # Use scoped_session for thread-local sessions
         self.session_factory = sessionmaker(bind=self.engine)
         self.Session = scoped_session(self.session_factory)
+
+        if not self.check_foreign_keys_enabled():
+            raise Exception("Foreign key support is not enabled!")
+
+        # Check SQLite version
+        self.check_sqlite_version()
+
+    # def set_sqlite_pragma(self):
+    #     @event.listens_for(self.engine, "connect")
+    #     def enable_foreign_keys(dbapi_connection, connection_record):
+    #         cursor = dbapi_connection.cursor()
+    #         cursor.execute("PRAGMA foreign_keys=ON")
+    #         cursor.close()
+
+    def check_sqlite_version(self):
+        with self.engine.connect() as connection:
+            result = connection.execute(
+                text("SELECT sqlite_version();")).fetchone()
+            print(f"SQLite version: {result[0]}")
+
+    def check_foreign_keys_enabled(self):
+        with self.engine.connect() as connection:
+            result = connection.execute(text("PRAGMA foreign_keys")).fetchone()
+            return result[0] == 1
 
     @contextmanager
     def get_session(self, session: Session = None) -> Generator[Session, None, None]:
@@ -82,7 +113,8 @@ class DataManager(IDataManager):
         try:
             data = None
             if getattr(current_project_data, 'id', None):
-                data = session.get(CurrentProjectData, current_project_data.id)
+                data: CurrentProjectData = session.get(
+                    CurrentProjectData, current_project_data.id)
                 if not data:
                     raise ValueError(f"""Current project data with ID {
                                      current_project_data.id} not found.""")
@@ -96,8 +128,8 @@ class DataManager(IDataManager):
                 'unfinished_progress': current_project_data.unfinished_progress,
                 'current_page': current_project_data.current_page,
                 'save_checkpoint_models': current_project_data.save_checkpoint_models,
-                'augmentation_configurations': current_project_data.augmentation_configurations,
-                'semantic_similarity_model': current_project_data.semantic_similarity_model
+                'semantic_similarity_model': current_project_data.semantic_similarity_model,
+                'current_augmentation_configurations': current_project_data.current_augmentation_configurations,
             }
 
             # Update attributes if not SENTINEL
@@ -134,6 +166,16 @@ class DataManager(IDataManager):
                     data.currently_modified_dataset = self.get_dataset_by_id(
                         session, current_project_data.currently_modified_dataset_id)[0]
 
+            if current_project_data.current_augmented_datapoint_evaluation_ids is not SENTINEL:
+                # Fetch DataPointEvaluation entries by their IDs
+                evaluations = session.query(DataPointEvaluation).filter(
+                    DataPointEvaluation.id.in_(
+                        current_project_data.current_augmented_datapoint_evaluation_ids)
+                ).all()
+
+                # Set them to the current_augmented_datapoint_evaluations relationship
+                data.current_augmented_datapoint_evaluations = evaluations
+
             saved_data.append(data)
 
             # Must be flushed to create primary key / datetime etc.
@@ -145,7 +187,145 @@ class DataManager(IDataManager):
             raise Exception(
                 "Failed to save or update project data due to error.") from e
 
-    # CREATE / UPDATE
+    def _get_unoriginal_project_models(self, session: Session, project_id: int) -> list[Model]:
+        # INFO: # This is necessary to fetch only all models that are not associated to the project currently updated, since it should only be possible to add or remove "global" models from other projects. Therefore we have to filter the associations table by creation data to fetch only those models, that where not originally (earliest creation date in the association table) associated with this project (do not belong to it)
+        # Create the subquery to find the earliest project associated with each model
+        subquery = (
+            session.query(
+                project_model_link.c.model_id,
+                project_model_link.c.project_id,
+                func.row_number().over(
+                    partition_by=project_model_link.c.model_id,
+                    order_by=project_model_link.c.created_at  # Order by creation time
+                ).label('row_num')
+            ).subquery()
+        )
+
+        # Alias the subquery to use it in the join
+        subquery_alias = aliased(subquery)
+
+        # Main query to fetch models that need to be updated
+        query = (
+            session.query(Model)
+            .join(subquery_alias, Model.id == subquery_alias.c.model_id)
+            # Ensure it's the first project
+            .filter(subquery_alias.c.row_num == 1)
+            # Exclude models originally added to the current project
+            .filter(subquery_alias.c.project_id != project_id)
+            # Include models currently associated with the current project
+            .filter(Model.projects.any(Project.id == project_id))
+        )
+
+        # Execute the query and fetch results
+        return query.all()
+
+    def _update_project_model_associations(self, session: Session, project: Project, project_dto: ProjectDTO):
+        if project_dto.model_ids is not None:
+            # Step 1: Retrieve current model IDs associated with the project
+            current_model_ids = self._get_unoriginal_project_models(
+                session, project.id)
+            # Flatten the list of tuples
+            current_model_ids = [model.id for model in current_model_ids]
+
+            # Step 2: Compare with new model IDs
+            new_model_ids = set(project_dto.model_ids)
+            current_model_ids_set = set(current_model_ids)
+
+            # Models to delete (present in current but not in new)
+            models_to_delete = current_model_ids_set - new_model_ids
+
+            # Models to add (present in new but not in current)
+            models_to_add = new_model_ids - current_model_ids_set
+
+            # Step 3: Delete associations not in new model IDs
+            if models_to_delete:
+                session.execute(
+                    project_model_link.delete().where(
+                        and_(
+                            project_model_link.c.project_id == project.id,
+                            project_model_link.c.model_id.in_(models_to_delete)
+                        )
+                    )
+                )
+
+            # Step 4: Add new associations
+            if models_to_add:
+                models_to_add_objects = session.query(Model).filter(
+                    Model.id.in_(models_to_add)
+                ).all()
+                for model in models_to_add_objects:
+                    project_model_association = {
+                        'model_id': model.id,
+                        'project_id': project.id,
+                        'model_name': model.model_name,
+                        'version': model.version,
+                    }
+                    session.execute(project_model_link.insert().values(
+                        project_model_association))
+
+    def _update_project_datasets(self, session: Session, project_dto: ProjectDTO):
+        # INFO: This is necessary to fetch only all datasets that are not associated to the project currently updated, since it should only be possible to add or remove "global" datasest from other projects. Therefore we have to filter the associations table by creation data to fetch only those datasets, that where not originally (earliest creation date in the association table) associated with this project (do not belong to it)
+        # Step 2: Get all "unoriginal" datasets
+        subquery = (
+            session.query(
+                project_dataset_link.c.dataset_id,
+                project_dataset_link.c.project_id,
+                func.row_number().over(
+                    partition_by=project_dataset_link.c.dataset_id,
+                    order_by=project_dataset_link.c.created_at
+                ).label('row_num')
+            )
+            .subquery()
+        )
+
+        subquery_alias = aliased(subquery)
+
+        unoriginal_datasets = session.query(Dataset).join(
+            project_dataset_link,
+            project_dataset_link.c.dataset_id == Dataset.id
+        ).join(
+            subquery_alias,
+            and_(
+                project_dataset_link.c.dataset_id == subquery_alias.c.dataset_id,
+                project_dataset_link.c.project_id == subquery_alias.c.project_id,
+                subquery_alias.c.row_num != 1  # Exclude the first association
+            )
+        ).filter(
+            project_dataset_link.c.project_id == project_dto.id
+        ).all()
+
+        unoriginal_dataset_ids = [
+            dataset.id for dataset in unoriginal_datasets]
+
+        # Step 3: Compare and update associations
+        new_dataset_ids = set(project_dto.dataset_ids)
+        current_dataset_ids_set = set(unoriginal_dataset_ids)
+
+        datasets_to_add = new_dataset_ids - current_dataset_ids_set
+        datasets_to_remove = current_dataset_ids_set - new_dataset_ids
+
+        # Remove datasets
+        for dataset_id in datasets_to_remove:
+            session.execute(
+                project_dataset_link.delete().where(
+                    and_(
+                        project_dataset_link.c.project_id == project_dto.id,
+                        project_dataset_link.c.dataset_id == dataset_id
+                    )
+                )
+            )
+
+        # Add new datasets
+        for dataset_id in datasets_to_add:
+            if dataset_id not in unoriginal_dataset_ids:
+                session.execute(
+                    project_dataset_link.insert().values(
+                        project_id=project_dto.id,
+                        dataset_id=dataset_id
+                    )
+                )
+
+    # CREATE / UPDATE´
 
     def update_projects(self, session: Session, projects_data: list[UpdateProjectDTO]) -> list[Project]:
         saved_projects: list[Project] = []
@@ -165,14 +345,12 @@ class DataManager(IDataManager):
                     project.description = project_dto.description
 
                 if project_dto.model_ids is not None:
-                    models = session.query(Model).filter(
-                        Model.id.in_(project_dto.model_ids)).all()
-                    project.models = models
+                    self._update_project_model_associations(
+                        session, project, project_dto)
 
                 if project_dto.dataset_ids is not None:
-                    datasets = session.query(Dataset).filter(
-                        Dataset.id.in_(project_dto.dataset_ids)).all()
-                    project.datasets = datasets
+                    self._update_project_datasets(
+                        session, project_dto)
 
                 saved_projects.append(project)
 
@@ -198,10 +376,20 @@ class DataManager(IDataManager):
                 project.project_name = project_dto.project_name
                 project.description = project_dto.description
 
+                session.flush()
+
                 if project_dto.model_ids:
                     models = session.query(Model).filter(
                         Model.id.in_(project_dto.model_ids)).all()
-                    project.models = models
+                    for model in models:
+                        project_model_association = {
+                            'model_id': model.id,
+                            'project_id': project.id,
+                            'model_name': model.model_name,
+                            'version': model.version,
+                        }
+                        session.execute(project_model_link.insert().values(
+                            project_model_association))
 
                 if project_dto.dataset_ids:
                     datasets = session.query(Dataset).filter(
@@ -383,6 +571,12 @@ class DataManager(IDataManager):
                 model.model_name = model_dto.model_name
                 model.is_global = model_dto.is_global
 
+                if model_dto.augmentation_configurations:
+                    model.augmentation_configurations = model_dto.augmentation_configurations
+
+                if model_dto.semantic_similarity_model:
+                    model.semantic_similarity_model = model_dto.semantic_similarity_model
+
                 if model_dto.fine_tuning_checkpoint_job_id:
                     model.fine_tuning_checkpoint_job_id = model_dto.fine_tuning_checkpoint_job_id
 
@@ -442,19 +636,19 @@ class DataManager(IDataManager):
         # TODO: it might be possible to configure the database ORM relations directly to correctly de-associate but this is simple and effective
         try:
             for model_id in model_ids:
-                model: Model = session.query(Model).get(model_id)
+                model: Model = session.get(Model, model_id)
                 if model:
-                    # Remove the model from related projects
-                    for project in model.projects:
-                        project.models.remove(model)
+                    # # Remove the model from related projects
+                    # for project in model.projects:
+                    #     project.models.remove(model)
 
-                    # Remove the model from related datasets
-                    for dataset in model.training_datasets:
-                        dataset.models.remove(model)
+                    # # Remove the model from related datasets
+                    # for dataset in model.training_datasets:
+                    #     dataset.models.remove(model)
 
-                    # Remove the model from parent model's child models if any
-                    if model.parent_model:
-                        model.parent_model.child_models.remove(model)
+                    # # Remove the model from parent model's child models if any
+                    # if model.parent_model:
+                    #     model.parent_model.child_models.remove(model)
 
                     # Remove the model's training run without deleting related objects
                     if model.training_run:
@@ -473,7 +667,65 @@ class DataManager(IDataManager):
             logger.exception(f"Failed to delete models due to error: {e}")
             raise Exception("Failed to delete models due to error.") from e
 
+    def delete_only_datasets(self, session: Session, dataset_ids: list[int]) -> None:
+        """Careful with using this function, since it only deletes a dataset. its datapoints and their datapoint evaluations as configured in the SQLA Tables in the database schema. This is because sometimes only a newly augmented dataset should be deleted without removing its models.
+        Args:
+            session (Session): _description_
+            dataset_ids (list[int]): _description_
+
+        Raises:
+            Exception: _description_
+        """
+        try:
+            for dataset_id in dataset_ids:
+                dataset: Dataset = session.get(Dataset, dataset_id)
+                if dataset:
+                    session.delete(dataset)
+        except Exception as e:
+            logger.exception(f"Failed to delete datasets due to error: {e}")
+            raise Exception("Failed to delete datasets due to error.") from e
+
+    def _get_current_project_ids(self, session, model_id):
+        current_projects = session.query(Project).join(project_model_link).filter(
+            project_model_link.c.model_id == model_id).all()
+        current_project_ids = {project.id for project in current_projects}
+        return current_project_ids
+
+    def _determine_project_changes(self, current_project_ids, new_project_ids):
+        new_project_ids_set = set(new_project_ids)
+
+        projects_to_add = new_project_ids_set - current_project_ids
+        projects_to_remove = current_project_ids - new_project_ids_set
+
+        return projects_to_add, projects_to_remove
+
+    def _update_project_associations(self, session, model_id, new_project_ids):
+        current_project_ids = self._get_current_project_ids(session, model_id)
+        projects_to_add, projects_to_remove = self._determine_project_changes(
+            current_project_ids, new_project_ids)
+
+        # Remove old associations
+        if projects_to_remove:
+            session.execute(
+                project_model_link.delete().where(
+                    project_model_link.c.model_id == model_id,
+                    project_model_link.c.project_id.in_(projects_to_remove)
+                )
+            )
+
+        # Add new associations
+        for project_id in projects_to_add:
+            project_model_association = {
+                'model_id': model_id,
+                'project_id': project_id,
+                'model_name': session.query(Model.model_name).filter(Model.id == model_id).scalar(),
+                'version': session.query(Model.version).filter(Model.id == model_id).scalar()
+            }
+            session.execute(project_model_link.insert().values(
+                project_model_association))
+
     # For updating a model
+
     def update_models(self, session: Session, models_data: list[UpdateModelDTO]) -> list[Model]:
         saved_models: list[Model] = []
         try:
@@ -482,6 +734,16 @@ class DataManager(IDataManager):
                 if not model:
                     raise ValueError(f"""Model with ID {
                         model_dto.id} not found.""")
+
+                if model_dto.augmentation_configurations:
+                    model.augmentation_configurations = model_dto.augmentation_configurations
+                if model_dto.augmentation_configurations == []:
+                    model.augmentation_configurations = []
+
+                if model_dto.semantic_similarity_model:
+                    model.semantic_similarity_model = model_dto.semantic_similarity_model
+                if model_dto.semantic_similarity_model == "":
+                    model.semantic_similarity_model = None
 
                 if model_dto.model_name:
                     model.model_name = model_dto.model_name
@@ -494,9 +756,8 @@ class DataManager(IDataManager):
 
                 # A model can only belong to multiple projects if it is a global model
                 if model_dto.project_ids is not None:
-                    projects = session.query(Project).filter(
-                        Project.id.in_(model_dto.project_ids)).all()
-                    model.projects = projects
+                    self._update_project_associations(
+                        session, model_dto.id, model_dto.project_ids)
 
                 # Update the corresponding training datasets
                 if model_dto.training_dataset_ids is not None:
@@ -509,6 +770,8 @@ class DataManager(IDataManager):
 
                 if model_dto.fine_tuning_job_id:
                     model.fine_tuning_job_id = model_dto.fine_tuning_job_id
+                if model_dto.fine_tuning_job_id == "":
+                    model.fine_tuning_job_id = None
 
                 saved_models.append(model)
 
@@ -653,10 +916,11 @@ class DataManager(IDataManager):
             query = session.query(Model)
             model_name: str = model_data.model_name
             created_at: datetime = model_data.created_at
-            version: int = model_data.version
+            version: str = model_data.version
             project_id: int = model_data.project_id
             is_global: bool = model_data.is_global
             excluded_project_id: int = model_data.exlude_project_id
+            is_checkpoint_model: bool = model_data.is_checkpoint_model
 
             if model_name:
                 query = query.filter(
@@ -666,29 +930,88 @@ class DataManager(IDataManager):
                 query = query.filter(
                     Model.created_at >= created_at)
             if version:
+                query = query.filter(Model.version == version)
+            if is_checkpoint_model is not None:
                 query = query.filter(
-                    or_(
-                        Model.version >= version,
-                        and_(Model.version.like(
-                            f"{version}.%"), Model.version >= version)
-                    ))
+                    Model.is_checkpoint_model == is_checkpoint_model)
             if project_id:
-                query = query.filter(
-                    Model.projects.any(Project.id == project_id)
+                # Create the subquery to find all models associated with the given project_id
+                subquery = (
+                    session.query(
+                        project_model_link.c.model_id
+                    )
+                    .filter(project_model_link.c.project_id == project_id)
+                    .subquery()
                 )
+
+                # Alias the subquery to use it in the join
+                subquery_alias = aliased(subquery)
+
+                query = query.join(subquery_alias, Model.id ==
+                                   subquery_alias.c.model_id)
+
+                # Fetch all original models of a project (earliest entry in the model assocaition table with a project)
+                """
+                # Step 1: Create a Subquery to Identify the First Project for Each Model Based on created_at
+                subquery = (
+                    session.query(
+                        project_model_link.c.model_id,
+                        project_model_link.c.project_id,
+                        func.row_number().over(
+                            partition_by=project_model_link.c.model_id,
+                            order_by=project_model_link.c.created_at  # Order by creation time
+                        ).label('row_num')
+                    ).subquery()
+                )
+
+                # Alias the subquery to use it in the join
+                subquery_alias = aliased(subquery)
+
+                # Step 2: Join the Subquery with the Main Query
+                query = (
+                    session.query(Model)
+                    .join(subquery_alias, and_(
+                        Model.id == subquery_alias.c.model_id,
+                        subquery_alias.c.row_num == 1  # Ensure it's the first project
+                    ))
+                    # Step 3: Apply the Filter to Match the Specific project_id
+                    .filter(subquery_alias.c.project_id == project_id)
+                )
+                """
+
             if is_global is not None:
                 query = query.filter(
                     Model.is_global == is_global)
 
-            models: list[Model] = query.all()
-
             # Apply additional filtering based on excluded_project_id
             # Only returns models that do not directly belong to the excluded project id (meaning, the first project in their projects list (the one added when they were created) is not equal to the excluded project)
             if excluded_project_id is not None:
-                models = [
-                    model for model in models
-                    if model.projects[0].id != excluded_project_id
-                ]
+                # Create a subquery to find all models where the first project association is not the excluded_project_id (by date)
+                exclusion_subquery = (
+                    session.query(
+                        project_model_link.c.model_id,
+                        func.row_number().over(
+                            partition_by=project_model_link.c.model_id,
+                            order_by=project_model_link.c.created_at
+                        ).label('row_num'),
+                        project_model_link.c.project_id
+                    )
+                    .subquery()
+                )
+
+                exclusion_subquery_alias = aliased(exclusion_subquery)
+
+                # Filter out models whose first project association is the excluded_project_id
+                query = query.join(
+                    exclusion_subquery_alias,
+                    and_(
+                        Model.id == exclusion_subquery_alias.c.model_id,
+                        exclusion_subquery_alias.c.row_num == 1,
+                        exclusion_subquery_alias.c.project_id != excluded_project_id
+                    )
+                )
+
+            models: list[Model] = query.all()
 
             return models
         except SQLAlchemyError as e:
@@ -712,7 +1035,6 @@ class DataManager(IDataManager):
             session.flush()  # Ensure IDs are generated
             return saved_evaluations
         except SQLAlchemyError as e:
-            session.rollback()
             logger.exception("Failed to create datapoint evaluations")
             raise SQLAlchemyError(
                 "Failed to create datapoint evaluations") from e
@@ -736,28 +1058,36 @@ class DataManager(IDataManager):
             session.flush()  # Commit the changes
             return updated_evaluations
         except SQLAlchemyError as e:
-            session.rollback()
             logger.exception("Failed to update datapoint evaluations")
             raise SQLAlchemyError(
                 "Failed to update datapoint evaluations") from e
 
-    def get_datapoint_evaluations(self, session: Session, filter_data: GetDataPointEvaluationsDTO) -> list[DataPointEvaluation]:
+    def get_all_datapoint_evaluations(self, session: Session, filter_data: GetDataPointEvaluationsDTO) -> list[DataPointEvaluation]:
         try:
-            query = session.query(DataPointEvaluation).filter_by(
-                datapoint_id=filter_data.datapoint_id,
-                model_id=filter_data.model_id
+            # Start with the base query
+            query = session.query(DataPointEvaluation).filter(
+                DataPointEvaluation.model_id == filter_data.model_id
             )
 
+            # Add optional filters
+            if filter_data.datapoint_id is not None:
+                query = query.filter(
+                    DataPointEvaluation.datapoint_id >= filter_data.datapoint_id
+                )
             if filter_data.coherence_score is not None:
                 query = query.filter(
-                    DataPointEvaluation.coherence_score == filter_data.coherence_score)
+                    DataPointEvaluation.coherence_score >= filter_data.coherence_score
+                )
             if filter_data.relevance_score is not None:
                 query = query.filter(
-                    DataPointEvaluation.relevance_score == filter_data.relevance_score)
+                    DataPointEvaluation.relevance_score >= filter_data.relevance_score
+                )
             if filter_data.semantic_similarity_score is not None:
                 query = query.filter(
-                    DataPointEvaluation.semantic_similarity_score == filter_data.semantic_similarity_score)
+                    DataPointEvaluation.semantic_similarity_score >= filter_data.semantic_similarity_score
+                )
 
+            # Execute the query and return the results
             evaluations: list[DataPointEvaluation] = query.all()
             return evaluations
         except SQLAlchemyError as e:
@@ -800,15 +1130,35 @@ class DataManager(IDataManager):
                 query = query.filter(
                     Dataset.is_global == is_global)
 
-            datasets: list[Dataset] = query.all()
-
             # Apply additional filtering based on excluded_project_id
-            # Only returns models that do not directly belong to the excluded project id (meaning, the first project in their projects list (the one added when they were created) is not equal to the excluded project)
+            # Only returns models that do not directly belong to the excluded project id (meaning, the entries where the datasets have been initially associated to this project (by creatuion date) are excluded) - Must be excluded via first creation date because order is not viable
             if excluded_project_id is not None:
-                datasets = [
-                    dataset for dataset in datasets
-                    if dataset.projects[0].id != excluded_project_id
-                ]
+                # Create a subquery to find all datasets where the first project association is not the excluded_project_id
+                exclusion_subquery = (
+                    session.query(
+                        project_dataset_link.c.dataset_id,
+                        func.row_number().over(
+                            partition_by=project_dataset_link.c.dataset_id,
+                            order_by=project_dataset_link.c.created_at
+                        ).label('row_num'),
+                        project_dataset_link.c.project_id
+                    )
+                    .subquery()
+                )
+
+                exclusion_subquery_alias = aliased(exclusion_subquery)
+
+                # Filter out datasets whose first project association is the excluded_project_id
+                query = query.join(
+                    exclusion_subquery_alias,
+                    and_(
+                        Dataset.id == exclusion_subquery_alias.c.dataset_id,
+                        exclusion_subquery_alias.c.row_num == 1,
+                        exclusion_subquery_alias.c.project_id != excluded_project_id
+                    )
+                )
+
+            datasets: list[Dataset] = query.all()
 
             return datasets
         except SQLAlchemyError as e:
@@ -839,6 +1189,24 @@ class DataManager(IDataManager):
             if training_run_data.fine_tuning_model is not None:
                 query = query.filter(
                     TrainingRun.fine_tuning_model == training_run_data.fine_tuning_model)
+            # Create a subquery to find all model IDs associated with the given project_id
+            if training_run_data.project_id is not None:
+                project_id = training_run_data.project_id
+                subquery = (
+                    session.query(
+                        project_model_link.c.model_id
+                    )
+                    .filter(project_model_link.c.project_id == project_id)
+                    .subquery()
+                )
+
+                # Alias the subquery to use it in the join
+                subquery_alias = aliased(subquery)
+
+                # Join the TrainingRun table with the Model table using the subquery
+                query = query.join(Model, TrainingRun.model_id == Model.id).join(
+                    subquery_alias, Model.id == subquery_alias.c.model_id
+                )
 
             training_runs: list[TrainingRun] = query.all()
             return training_runs
@@ -1130,3 +1498,26 @@ class DataManager(IDataManager):
                 "A database error occurred while trying to retrieve a model evaluation.")
             raise SQLAlchemyError(
                 "A database orccured while trying to retrieve model evaluation by ID.") from e
+
+    def get_datapoint_evaluation_by_id(self, session: Session, datapoint_evlauation_id: int) -> list[DataPointEvaluation]:
+        logger.debug(f"Datapoint evaluation id: {datapoint_evlauation_id}")
+        """Retrieve a datapoint evaluation by its ID."""
+        try:
+            model_evaluation: DataPointEvaluation = session.query(DataPointEvaluation).filter_by(
+                id=datapoint_evlauation_id).one()
+            return [model_evaluation]
+        except MultipleResultsFound as e:
+            logger.exception(
+                "Too many datapoints found when trying to get model evaluation by id.")
+            raise MultipleResultsFound(
+                "Multiple datapoint evaluations found. Expected only one.") from e
+        except NoResultFound as e:
+            logger.exception(
+                "No datapoint evaluation found when trying to get model evaluation by id.")
+            raise NoResultFound(
+                "No datapoint evaluation found for the given ID.") from e
+        except SQLAlchemyError as e:
+            logger.exception(
+                "A database error occurred while trying to retrieve a datapoint evaluation.")
+            raise SQLAlchemyError(
+                "A database orccured while trying to retrieve datapoint evaluation by ID.") from e
