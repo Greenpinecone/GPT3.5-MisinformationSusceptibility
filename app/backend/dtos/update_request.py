@@ -38,10 +38,12 @@ class UpdateModelDTO:
     project_ids: list[int] | None = None
     is_global: bool | None = None
     training_dataset_ids: list[int] | None = None
+    semantic_similarity_model: str | None = None
     # Can only be updated if no values has been set already
     fine_tuning_job_id: str | None = None
     fine_tuning_checkpoint_job_id: str | None = None
     fine_tuned_model_id: str | None = None
+    augmentation_configurations: list[AugmentationConfiguration] | None = None
 
 
 @dataclass
@@ -62,6 +64,7 @@ class UpdateTrainingRunDTO:
     seed: int | None = None
 
 
+@dataclass
 class UpdateDataPointEvaluationDTO:
     id: int
     coherence_score: int | None = None
@@ -75,7 +78,9 @@ class UpdateCurrentProjectDataDTO:
     id: int
     semantic_similarity_model: dict | None = field(
         default_factory=lambda: SENTINEL)
-    augmentation_configurations: list[AugmentationConfiguration] | None = field(
+    current_augmented_datapoint_evaluation_ids: list[int] | None = field(
+        default_factory=lambda: SENTINEL)
+    current_augmentation_configurations: list[AugmentationConfiguration] | None = field(
         default_factory=lambda: SENTINEL)
     unfinished_progress: bool | None = field(default_factory=lambda: SENTINEL)
     current_page: str | None = field(default_factory=lambda: SENTINEL)

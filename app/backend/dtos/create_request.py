@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from app.backend.database.schema import DatasetCategory, AugmentationType, EvaluationType, FineTuningCompany
-from ..custom_types.typedicts import MessagesContainer
+from ..custom_types.typedicts import AugmentationConfiguration, MessagesContainer
 
 
 @dataclass
@@ -42,6 +42,8 @@ class CreateModelDTO:
     model_name: str
     project_ids: list[int]
     training_dataset_ids: list[int]
+    augmentation_configurations: list[AugmentationConfiguration] | None = None
+    semantic_similarity_model: str | None = None
     fine_tuning_job_id: str | None = None
     fine_tuning_checkpoint_job_id: str | None = None
     fine_tuned_model_id: str | None = None

@@ -212,6 +212,8 @@ class ModelSchema(BaseSchema):
     created_at = FlexibleDateTimeField()
     is_global = auto_field()
     uuid = auto_field()
+    augmentation_configurations = auto_field()
+    semantic_similarity_model = auto_field()
     fine_tuning_checkpoint_job_id = auto_field()
     fine_tuned_model_id = auto_field()
     is_checkpoint_model = auto_field()
@@ -315,6 +317,8 @@ class ComplexModelSchema(BaseSchema):
     is_checkpoint_model = auto_field()
     checkpoint_step = auto_field()
     uuid = auto_field()
+    augmentation_configurations = auto_field()
+    semantic_similarity_model = auto_field()
     fine_tuning_checkpoint_job_id = auto_field()
     fine_tuned_model_id = auto_field()
     project_ids = fields.Function(
@@ -340,10 +344,10 @@ class CurrentProjectDataSchema(BaseSchema):
 
     id = auto_field()
     created_at = FlexibleDateTimeField()
-    augmentation_configurations = auto_field()
     semantic_similarity_model = auto_field()
     unfinished_progress = auto_field()
     current_page = auto_field()
+    current_augmentation_configurations = auto_field()
     save_checkpoint_models = auto_field()
     fine_tuning_step_counter = auto_field()
     current_project = fields.Nested(lambda: ProjectSchema(), default=None)
@@ -353,6 +357,8 @@ class CurrentProjectDataSchema(BaseSchema):
         lambda: ComplexModelSchema(), default=None)
     currently_modified_dataset = fields.Nested(
         lambda: ComplexDatasetSchema(), default=None)
+    current_augmented_datapoint_evaluation_ids = fields.Function(
+        serialize=lambda obj: [evaluation.id for evaluation in obj.current_augmented_datapoint_evaluations])
 
     class Meta(BaseSchema.Meta):
         model = CurrentProjectData
