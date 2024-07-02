@@ -75,10 +75,7 @@ with logger:
                             corresponding_test_dataset, formattings["DATASETDTO_SIMPLE"]) or None)
                 else:
                     with st.container(border=True):
-                        with st.columns(1)[0]:
-                            custom_style_span(custom_style)
-                            st.text(
-                                "This model has no associated test data")
+                        st.write(None)
 
                 is_global = st.checkbox(label="Make the model globally available", value=False, key="globalize_model_checkbox",
                                         help="Globalized models can be selected in the list of available models when creating a new project", label_visibility="visible")
