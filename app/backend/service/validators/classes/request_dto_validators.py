@@ -637,6 +637,13 @@ class CreateModelEvaluationSchema(Schema):
             'invalid': 'Harmless score must be an integer between 0 and 10.',
         }
     )
+    messages = MessagesContainerField(required=True,
+                                      error_messages={
+                                          'required': 'The "messages" field is required.',
+                                          'invalid': 'The structure of "messages" is invalid.'
+                                      })
+    semantic_similarity_score = fields.Int(allow_none=True, validate=lambda n: 0.0 <= n <= 100.0, error_messages={
+                                           'invalid': 'Semantic similarity score must be between 0.0 and 100.0.'})
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1223,6 +1230,68 @@ class GetDataPointEvaluationSchema(Schema):
                 raise ValidationError(f"""No datapoint with the id {
                     datapoint_id} found.""")
 
+
+class GetModelEvaluationSchema(Schema):
+    model_id = fields.Int(
+        validate=lambda n: n > 0, required=True, error_messages={
+            'required': 'Model id is required.',
+            'invalid': 'Model id must be an integer > 0.'
+        }
+    )
+    datapoint_id = fields.Int(
+        validate=lambda n: n > 0, allow_none=True, error_messages={
+            'invalid': 'Datapoint id must be an integer > 0.'
+        }
+    )
+    evaluation_type = CustomEnumValidationField(
+        EvaluationType,
+        by_value=True,
+        allow_none=True,
+        error_messages={
+            'invalid': 'Invalid evaluation type. Must be one of: {0}.'.format(", ".join(e.name for e in EvaluationType))
+        }
+    )
+    helpful_score = fields.Int(
+        validate=lambda n: 0 <= n <= 10, allow_none=True,
+        error_messages={
+            'invalid': 'Helpful score must be an integer between 0 and 10.',
+        }
+    )
+    honest_score = fields.Int(
+        validate=lambda n: 0 <= n <= 10, allow_none=True,
+        error_messages={
+            'invalid': 'Honest score must be an integer between 0 and 10.',
+        }
+    )
+    harmless_score = fields.Int(
+        validate=lambda n: 0 <= n <= 10, allow_none=True,
+        error_messages={
+            'invalid': 'Harmless score score must be an integer between 0 and 10.',
+        }
+    )
+    semantic_similarity_score = fields.Float(
+        allow_none=True,
+        validate=lambda n: 0.0 <= n <= 100.0,
+        error_messages={
+            'invalid': 'Semantic similarity score must be a float.'
+        }
+    )
+
+    def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session: Session = session
+        self.data_manager: IDataManager = data_manager
+
+    @validates('datapoint_id')
+    def validate_datapoint_id(self, datapoint_id: int | None = None) -> None:
+        if datapoint_id:
+            try:
+                self.data_manager.get_datapoint_by_id(
+                    self.session, datapoint_id)[0]
+            except:
+                raise ValidationError(f"""No datapoint with the id {
+                    datapoint_id} found.""")
+
     @validates('model_id')
     def validate_datapoint_id(self, model_id: int) -> None:
         try:
@@ -1231,11 +1300,11 @@ class GetDataPointEvaluationSchema(Schema):
             print(model)
         except:
             raise ValidationError(f"""No model with the id {
-                                  model_id} found.""")
+                model_id} found.""")
 
     @post_load
     def make_create_training_run_dto(self, data, **kwargs):
-        return GetDataPointEvaluationsDTO(**data)
+        return GetModelEvalautionsDTO(**data)
 
 
 class UpdateProjectSchema(BaseUpdateSchema):
@@ -1425,7 +1494,7 @@ class UpdateModelSchema(BaseUpdateSchema):
     fine_tuning_checkpoint_job_id = fields.Str(allow_none=True, validate=lambda n: len(n) > 0, error_messages={
         'invalid': 'Model checkpoint job id must be of type string.'
     })
-    fine_tuned_model_id = fields.Str(allow_none=True, validate=lambda n: len(n) > 0, error_messages={
+    fine_tuned_model_id = fields.Str(allow_none=True, error_messages={
         'invalid': 'Full fine tuned model id must be of type string.'
     })
 
@@ -1519,6 +1588,8 @@ class UpdateModelEvaluationSchema(BaseUpdateSchema):
             'invalid': 'Harmless score must be an integer between 0 and 10.',
         }
     )
+    semantic_similarity_score = fields.Int(allow_none=True, validate=lambda n: 0.0 <= n <= 100.0, error_messages={
+                                           'invalid': 'Semantic similarity score must be between 0.0 and 100.0.'})
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
