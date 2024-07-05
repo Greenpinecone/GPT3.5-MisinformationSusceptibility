@@ -2,8 +2,9 @@
 """
 
 
+import copy
 from app.backend.custom_types.typedicts import EDAParams, GoogleBTParams
-from app.backend.database.schema import Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, CurrentProjectData
+from app.backend.database.schema import ModelEvaluation, Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, CurrentProjectData
 from app.backend.service.classes.evaluation.semantic_similarity_calculator import SemanticSimilarityCalculator
 from ...dtos.get_request import *
 from ...dtos.response import *
@@ -16,13 +17,14 @@ from ..classes.model.api.google_translate_services import GoogleTranslateService
 from ..classes.model.api.openai_services import OpenAIService
 from ..classes.data_augmentation.augmenters.augmenter import DataAugmenter
 from ..classes.data_preprocessing.sampler import DataSampler
-from ..classes.evaluation.evaluator import ModelEvaluator
+from ..classes.evaluation.model_metrics_evaluator import ModelMetricsEvaluator
 from ..classes.model.fine_tuner.fine_tuner import FineTuner
 from ...util.config import Config
 from ...util.logger import Logger
 from ...mapper.implementations.mappers_facade import MapperFacade
 from ..validators.implementations.validators_facade import ValidatorFacade
 from sqlalchemy.orm import Session
+from app.backend.util.config import SBERT_MODELS as semantic_similarity_models
 
 logger = Logger(__name__)
 
@@ -31,7 +33,7 @@ class ServiceManagerFacade(IServiceManager):
 
     def __init__(self, data_manager: IDataManager = None, google_translate_service: GoogleTranslateService = None,
                  openai_service: OpenAIService = None, data_augmenter: DataAugmenter = None,
-                 data_sampler: DataSampler = None, model_evaluator: ModelEvaluator = None,
+                 data_sampler: DataSampler = None, model_evaluator: ModelMetricsEvaluator = None,
                  fine_tuner: FineTuner = None, validator: ValidatorFacade = None, mapper: MapperFacade = None, config: Config = None, semantic_similarity_score_calculator: SemanticSimilarityCalculator = None):
 
         if config is None:
@@ -49,7 +51,7 @@ class ServiceManagerFacade(IServiceManager):
         if data_sampler is None:
             data_sampler = DataSampler()
         if model_evaluator is None:
-            model_evaluator = ModelEvaluator()
+            model_evaluator = ModelMetricsEvaluator()
         if fine_tuner is None:
             fine_tuner = FineTuner()
         if validator is None:
@@ -245,7 +247,7 @@ class ServiceManagerFacade(IServiceManager):
         with self._data_manager.get_session() as session:
             self._validator.validate_get_datapoint_evaluation(
                 session, self._data_manager, get_datapoint_evaluation)
-            datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.get_datapoint_evaluations(
+            datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.get_all_datapoint_evaluations(
                 session, get_datapoint_evaluation)
 
             return [self._mapper.map_datapoint_evaluation_to_dto(session, datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
@@ -284,10 +286,14 @@ class ServiceManagerFacade(IServiceManager):
         response = self._openai_service.cancel_fine_tuning_job(
             fine_tuning_job_id)
 
-        if response:
+        # TODO: Check this
+        # Special case where this function is called when the model has been deleted which returns a "DeleteObject" that has no attribute "status"
+        if response and getattr(response, 'deleted', None) is True:
+            return "deleted"
+        elif response and getattr(response, 'deleted', None) is False:
+            "An error occured during model deletion"
+        elif response and getattr(response, 'status', None):
             return response.status
-        else:
-            return "cancelled"
 
     def save_checkpoint_models(self, current_fine_tuning_model: ModelDTO, current_project_id: int, updated_training_run_dto: TrainingRunDTO) -> list[ModelDTO]:
         with self._data_manager.get_session() as session:
@@ -373,7 +379,7 @@ class ServiceManagerFacade(IServiceManager):
                 total_training_datapoints.extend(dataset.datapoints)
 
             # Get all training datapoints with their related test datapoints
-            total_training_datapoint_dtos = [self._mapper.map_datapoint_to_training_datapoint_dto(
+            total_training_datapoint_dtos: list[DataPointDTO] = [self._mapper.map_datapoint_to_training_datapoint_dto(
                 session, datapoint) for datapoint in total_training_datapoints]
 
             # Get all augmented datapoints - set the augmented message and the original datapoint id
@@ -401,10 +407,10 @@ class ServiceManagerFacade(IServiceManager):
             for augmented_datapoint_dto in augmented_datapoint_dtos:
                 augmented_datapoint_dto.dataset_id = augmented_dataset.id
                 datapoint_evaluation_dto: CreateDataPointEvaluationDTO = CreateDataPointEvaluationDTO(
-                    datapoint_id=-1, model_id=model.id)
+                    datapoint_id=-1, model_id=model.id, semantic_similarity_score=0.0)
                 datapoint_evaluation_dtos.append(datapoint_evaluation_dto)
 
-            augmented_datapoint_dtos, datapoint_evaluation_dtos = self._semantic_similarity_score_calculator.calculate_datapoints_semantic_similarity_score(
+            datapoint_evaluation_dtos = self._semantic_similarity_score_calculator.calculate_datapoints_semantic_similarity_score(
                 total_training_datapoint_dtos, augmented_datapoint_dtos, datapoint_evaluation_dtos, semantic_similarity_model)
 
             # Save augmented datapoints
@@ -433,7 +439,7 @@ class ServiceManagerFacade(IServiceManager):
     def _add_augmented_datapoints_to_test_datapoint_relations(self, test_datapoints: list[DataPoint], augmented_datapoints: list[DataPoint], existing_session: Session):
         # Pre-fetch all related datapoints
         training_to_test_map: dict[int, list[DataPoint]] = self._create_test_to_trainings_datapoints_mapping(
-            test_datapoints, existing_session)
+            test_datapoints)
 
         for augmented_dp in augmented_datapoints:
             # Get the initial training datapoint ID
@@ -448,7 +454,7 @@ class ServiceManagerFacade(IServiceManager):
             # Add the augmented datapoint
             existing_session.add(augmented_dp)
 
-    def _create_test_to_trainings_datapoints_mapping(self, test_datapoints: list[DataPoint], existing_session: Session) -> dict[int, list[DataPoint]]:
+    def _create_test_to_trainings_datapoints_mapping(self, test_datapoints: list[DataPoint]) -> dict[int, list[DataPoint]]:
         # Create a dictionary to map training datapoints to their related test datapoints
         training_to_test_map: dict[int, list[DataPoint]] = {}
         for test_dp in test_datapoints:
@@ -494,15 +500,138 @@ class ServiceManagerFacade(IServiceManager):
                 semantic_similarity_scores.append(
                     evaluation.semantic_similarity_score)
 
-            # Return the average scores for the model evaluations
-            # Return the average scores for the model evaluations
+            # Return the average scores for the datapoint evaluations
             return (self._calculate_average(coherence_scores), self._calculate_average(relevance_scores), self._calculate_average(semantic_similarity_scores))
+
+    def calculate_model_evaluation_scores(self, filter_data: GetModelEvalautionsDTO, existing_session: Session | None = None) -> tuple[float, float, float, float]:
+        with self._data_manager.get_session(existing_session) as session:
+            self._validator.validate_get_model_evaluations(
+                session, self._data_manager, filter_data)
+
+            model_evaluations: list[ModelEvaluation] = self._data_manager.get_all_model_evaluations(
+                session, filter_data)
+
+            helpful_scores: list[int] = []
+            honest_scores: list[int] = []
+            harmless_scores: list[int] = []
+            semantic_similarity_scores: list[float] = []
+
+            for evaluation in model_evaluations:
+                if evaluation.helpful_score:
+                    helpful_scores.append(evaluation.helpful_score)
+                if evaluation.honest_score:
+                    honest_scores.append(evaluation.honest_score)
+                if evaluation.harmless_score:
+                    harmless_scores.append(evaluation.harmless_score)
+                if evaluation.semantic_similarity_score:
+                    semantic_similarity_scores.append(
+                        evaluation.semantic_similarity_score)
+
+            return (
+                self._calculate_average(helpful_scores),
+                self._calculate_average(honest_scores),
+                self._calculate_average(harmless_scores),
+                self._calculate_average(semantic_similarity_scores)
+            )
+
+    def generate_model_evaluation(self, model_id: int, test_datapoint_id: int, semantic_similarity_model: dict | None = None, existing_session: Session | None = None) -> list[int]:
+        with self._data_manager.get_session(existing_session) as session:
+            model: Model = self._data_manager.get_model_by_id(
+                session, model_id)[0]
+
+            # Get the model id of the currently fine tuned model
+            fine_tuned_model_id: str = model.fine_tuned_model_id
+
+            all_test_datapoints: list[DataPointDTO] = self.get_all_test_datapoints(
+                model_id, False, existing_session=session)
+
+            # Get the test datapoint to display in the frontend
+            next_test_datapoint: DataPointDTO = next(
+                (datapoint for datapoint in all_test_datapoints if datapoint.id == test_datapoint_id), None)
+
+            # Get the "unanswered" test datapoints message to display in the frontend
+            test_datapoint_message_without_last_entry: MessagesContainer = copy.deepcopy(
+                next_test_datapoint.messages)
+
+            # Set the last messages content to empty
+            test_datapoint_message_without_last_entry["messages"][
+                -1]['content'] = ""
+
+            test_datapoint_message_without_last_entry["messages"][-1]['content'] = self.generate_model_chat(
+                test_datapoint_message_without_last_entry["messages"], fine_tuned_model_id)
+
+            create_model_evaluation_dto: CreateModelEvaluationDTO = CreateModelEvaluationDTO(
+                model_id=model_id, datapoint_id=next_test_datapoint.id, messages=test_datapoint_message_without_last_entry)
+
+            if semantic_similarity_model:
+                # Set semantic similarity score if available
+                create_model_evaluation_dto: CreateModelEvaluationDTO = self._semantic_similarity_score_calculator.calculate_model_evaluations_semantic_similarity_score(
+                    [create_model_evaluation_dto], [next_test_datapoint], semantic_similarity_model)[0]
+
+            # Create model evaluation
+            model_evaluation: ModelEvaluation = self._data_manager.create_model_evaluations(
+                session, [create_model_evaluation_dto])[0]
+
+            return [self._mapper.map_model_evaluation_to_complex_dto(session, model_evaluation)]
+
+    def generate_model_chat(self, chat: MessagesContainer, model_id: str) -> str:
+        return self._openai_service.generate_model_chat(chat, model_id)
+
+    def get_or_create_model_evaluation_by_id(self, model_id: int, test_datapoint_id: int, semantic_similarity_model: dict | None = None, existing_session: Session | None = None) -> list[ComplexModelEvaluationDTO]:
+        with self._data_manager.get_session(existing_session) as session:
+            model_evaluations: list[ModelEvaluation] = self._data_manager.get_all_model_evaluations(
+                session, GetModelEvalautionsDTO(model_id=model_id, datapoint_id=test_datapoint_id))
+
+            if model_evaluations:
+                return [self._mapper.map_model_evaluation_to_complex_dto(session, model_evaluations[0])]
+            else:
+                return self.generate_model_evaluation(model_id, test_datapoint_id, semantic_similarity_model=semantic_similarity_model, existing_session=session)
+
+    def get_all_test_datapoints(self, model_id: int, only_ids: bool, existing_session: Session | None = None) -> list[DataPointDTO | int]:
+        with self._data_manager.get_session(existing_session) as session:
+
+            model: Model = self._data_manager.get_model_by_id(
+                session, model_id)[0]
+
+            all_test_datapoints: list[DataPointDTO | int] = []
+
+            # Get the first "original" from all datasets - only this has a unique test datasets, the augmented ones inherit the test dataset from the original one
+            # TODO: At the moment a model can only have one
+            test_dataset = model.training_datasets[0].test_dataset
+            if test_dataset and test_dataset.datapoints:
+                for datapoint in test_dataset.datapoints:
+                    if only_ids:
+                        all_test_datapoints.append(datapoint.id)
+                    else:
+                        all_test_datapoints.append(
+                            self._mapper.map_datapoint_to_dto(session, datapoint))
+
+                return all_test_datapoints
+            else:
+                return []
 
     def _calculate_average(self, scores: list[int | float]) -> float:
         if len(scores) == 0:
             return 0.0
         return sum(scores) / len(scores)
 
-    def delete_only_datasets(self, dataset_ids: list[int], existing_session: Session | None = None):
+    def delete_datasets(self, dataset_ids: list[int], existing_session: Session | None = None):
         with self._data_manager.get_session(existing_session) as session:
-            self._data_manager.delete_only_datasets(session, dataset_ids)
+            self._data_manager.delete_datasets(session, dataset_ids)
+
+    def delete_model_evaluations_by_model_id(self, model_id: int, existing_session: Session | None = None) -> None:
+        with self._data_manager.get_session(existing_session) as session:
+            model_evaluations: list[ModelEvaluation] = self._data_manager.get_all_model_evaluations(
+                session, GetModelEvalautionsDTO(model_id=model_id))
+
+            all_eval_ids: list[int] = [eval.id for eval in model_evaluations]
+            self._data_manager.delete_model_evaluations(session, all_eval_ids)
+
+    def update_model_evaluations(self, update_models_evalautions_data: list[UpdateModelEvaluationDTO], existing_session: Session | None = None) -> list[ModelEvaluation]:
+        with self._data_manager.get_session(existing_session) as session:
+            self._validator.validate_update_model_evaluations(
+                session, self._data_manager, update_models_evalautions_data)
+            updated_evaluations: list[ModelEvaluation] = self._data_manager.update_model_evaluations(
+                session, update_models_evalautions_data)
+
+            return [self._mapper.map_model_evaluation_to_complex_dto(session, model_eval) for model_eval in updated_evaluations]
