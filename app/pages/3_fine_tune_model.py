@@ -10,6 +10,7 @@ from app.backend.dtos.create_request import CreateModelDTO, CreateTrainingRunDTO
 from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO, UpdateModelDTO, UpdateTrainingRunDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from app.frontend.classes.datapoint_evaluator import DataPointEvaluator
+from app.frontend.classes.model_evaluator import ModelEvaluator
 from app.frontend.classes.toast_manager import ToastManager
 from backend.util.logger import StreamlitLogger
 from frontend.util import utility_functions as frontend_uf
@@ -116,7 +117,7 @@ with logger:
                     f"Something failed during model cancellation please try again to fine tune a model: {e}", "error")
             # Remove models fine tuning job id if fine tuning is cancelled
             _ = service.update_models(
-                [UpdateModelDTO(current_fine_tuning_model.id, fine_tuning_job_id="")])
+                [UpdateModelDTO(current_fine_tuning_model.id, fine_tuning_job_id="", fine_tuned_model_id="")])
             if delete_model:
                 # Delete only checkpoint models
                 checkpoint_models: list[ModelDTO] = service.filter_models(GetModelsDTO(
@@ -126,6 +127,10 @@ with logger:
                     model.id for model in checkpoint_models]
 
                 service.delete_models(checkpoint_model_ids)
+
+            # Delete currently generated model evaluations
+            service.delete_model_evaluations_by_model_id(
+                current_fine_tuning_model.id)
 
             updated_fine_tuning_step_counter: int = max(
                 current_step_counter-3, 0)
@@ -156,7 +161,7 @@ with logger:
             # Convert back to list if needed
             difference_ids_list = list(difference_ids)
 
-            service.delete_only_datasets(difference_ids_list)
+            service.delete_datasets(difference_ids_list)
             # Remove old datapoint evaluator and its data
             if st.session_state.get("datapoint_evaluator"):
                 del st.session_state["datapoint_evaluator"]
@@ -640,10 +645,10 @@ with logger:
                     def update_augmentation_percentage(augmentation_config: AugmentationConfiguration, new_augmentation_percentage_key: str | None) -> None:
                         augmentation_config["augmentation_percentage"] = st.session_state[new_augmentation_percentage_key]
 
-                    def delete_semantic_model_and_configs_from_models(current_project_data: CurrentProjectDataDTO):
+                    def delete_augmentation_configs_from_models(current_project_data: CurrentProjectDataDTO):
                         # Update current fine tuning model to remove semantic similarity model and augmentation configurations
                         service.update_models([UpdateModelDTO(
-                            current_project_data.current_fine_tuning_model.id, semantic_similarity_model="", augmentation_configurations=[])])
+                            current_project_data.current_fine_tuning_model.id, augmentation_configurations=[])])
 
                     def generate_augmented_data():
                         global current_project_data
@@ -664,7 +669,7 @@ with logger:
                             current_project_data = GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
                                 id=current_project_data.id, semantic_similarity_model=semantic_similarity_model, current_augmented_datapoint_evaluation_ids=datapoint_evaluation_ids, current_augmentation_configurations=augmentation_configurations_selected))
                         else:
-                            delete_semantic_model_and_configs_from_models(
+                            delete_augmentation_configs_from_models(
                                 current_project_data)
                             # Go directly to fine tune the model (step 3)
                             current_project_data = GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
@@ -752,17 +757,31 @@ with logger:
                     render_augmentation_fields()
 
                     semantic_similarity_model = st.selectbox(label="Coherence score models", options=sbert_models, index=None, key="semantic_similarity_model",
-                                                             help="Select an original Sentence BERT (SBERT)  model to calculate the coherence score based on the vector representations of the input sentences of each datapoint compared to its augmented datapoint. The first usage may take a while since the model has to be downloaded.", placeholder="Choose a coherence score model", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["SBERT_MODELS"]), label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 2)
+                                                             help="Select an original Sentence BERT (SBERT)  model to calculate the coherence score based on the vector representations of the input sentences of each datapoint compared to its augmented datapoint. The first usage may take a while since the model has to be downloaded. Be aware that this model will also be used during the model evluation process, if you select one", placeholder="Choose a coherence score model", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["SBERT_MODELS"]), label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 2)
                     # The smenatic model description
                     if semantic_similarity_model:
+                        # Immediately update smeantic similarity model since it will be used for model evaluation as well
+                        GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
+                            id=current_project_data.id, semantic_similarity_model=semantic_similarity_model))
                         st.text(
                             f"""{semantic_similarity_model["description"]}""")
 
                     # TODO Add selectbox for sentence similarity check models and add them to the model as parameters, so that it is clear which model has beend used to calculate the similarity check
 
                     if current_project_data.fine_tuning_step_counter == 2:
+                        if current_project_data.current_augmented_datapoint_evaluation_ids:
+                            label = "Redo Augmentation"
+                        elif augmentation_configurations_selected and any(
+                            augmentation.get(
+                                "augmentation_percentage") not in (None, 0, "")
+                            for augmentation in augmentation_configurations_selected
+                        ):
+                            label = "Augment Data"
+                        else:
+                            label = "Skip"
+
                         augment_data = st.button(
-                            label="Redo Augmentation" if current_project_data.current_augmented_datapoint_evaluation_ids else "Submit", key="submit", help="Create augmented datapoints preview to evaluate them. Can always be redone in case of low quality", type="secondary" if current_project_data.current_augmented_datapoint_evaluation_ids else "primary")
+                            label=label, key="submit", help="Create augmented datapoints preview to evaluate them. Can always be redone in case of low quality", type="secondary" if current_project_data.current_augmented_datapoint_evaluation_ids else "primary")
                         if augment_data:
                             generate_augmented_data()
                             # To get out of the current fragment
@@ -772,21 +791,25 @@ with logger:
                         datapoin_evaluator: DataPointEvaluator = GlobalAppStateManager.get_or_create_session_state(
                             "datapoint_evaluator", service, current_project_data.current_fine_tuning_model.id, current_project_data.current_augmented_datapoint_evaluation_ids, default_value=DataPointEvaluator)
 
+                        datapoin_evaluator.load(
+                            current_project_data.fine_tuning_step_counter, activation_threshold=2)
+
                         update_leftovers = st.session_state.get(
                             "submit_augmented_data") or False
-
-                        datapoin_evaluator.load(
-                            current_project_data.fine_tuning_step_counter, activation_threshold=2, display_scores=not update_leftovers)
 
                         if update_leftovers:
                             # Update the currently only locally stored evaluations
                             datapoin_evaluator.update_left_over_evaluations()
+                        else:
+                            datapoin_evaluator.display_scores()
 
                         # extra space
                         st.write("")
 
                         if current_project_data.fine_tuning_step_counter == 2:
                             def delete_and_update():
+                                delete_augmentation_configs_from_models(
+                                    current_project_data)
                                 delete_currently_augmented_datasets()
                                 GlobalAppStateManager.update_current_project_data(
                                     service,
@@ -807,8 +830,6 @@ with logger:
                                 skip = st.button(
                                     label="Skip", help="Skip the current data augmentation and train the fine tuned model with the original models data", type="secondary")
                                 if skip:
-                                    delete_semantic_model_and_configs_from_models(
-                                        current_project_data)
                                     delete_and_update()
                                     # To get out of the current fragment
                                     st.rerun()
@@ -837,8 +858,30 @@ with logger:
                 st.write("")  # Extra space
                 st.write("")  # Extra space
 
+                current_models_test_datapoint_ids: list[int] = service.get_all_test_datapoints(
+                    current_project_data.current_fine_tuning_model.id, only_ids=True)
+
                 @st.experimental_fragment
                 def model_evaluation_fragment():
+
+                    def update_project_state_and_switch_page(model_evaluator: ModelEvaluator, switch_to_statistics: bool = False):
+
+                        # Update latest unsubmitted evaluation
+                        model_evaluator.update_left_over_evaluations()
+
+                        # reset al fine tuning session states
+                        GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(id=current_project_data.id, semantic_similarity_model=None, current_augmentation_configurations=[
+                        ], current_augmented_datapoint_evaluation_ids=[], unfinished_progress=False, save_checkpoint_models=False, fine_tuning_step_counter=0, current_fine_tuning_model_id=None, selected_model_for_fine_tuning_id=None))
+
+                        GlobalAppStateManager.clear_session_state()
+
+                        # If set go directly to the models fine tuning statistic page
+                        if switch_to_statistics:
+                            # TODO: Add currently selected models for fine tuning statistic to project state
+                            PageNavigator.navigate_to_page(
+                                'model_statistic')
+                        else:
+                            st.rerun()
 
                     # TODO: Delete current model evalaution data
                     PageNavigator.set_navbar("Go back", current_page, nav_bar_cols_config=[
@@ -846,6 +889,32 @@ with logger:
 
                     frontend_uf.create_text_divider(
                         f"##### Model Evaluation", [0.4, 1, 0.4])
+
+                    model_evaluator: ModelEvaluator = GlobalAppStateManager.get_or_create_session_state(
+                        "model_evaluator", service, current_project_data.current_fine_tuning_model.id, current_models_test_datapoint_ids, current_project_data.semantic_similarity_model, default_value=ModelEvaluator)
+
+                    model_evaluator.load(
+                        current_project_data.fine_tuning_step_counter, activation_threshold=5)
+
+                    # To avoid score display duplication, only display it if the use rhas not clicked the submit button
+                    if st.session_state.get("finish") is True:
+                        update_project_state_and_switch_page(
+                            model_evaluator, False)
+                    elif st.session_state.get("statistics") is True:
+                        update_project_state_and_switch_page(
+                            model_evaluator, True)
+                    else:
+                        model_evaluator.display_scores()
+
+                    columns = st.columns(2)
+
+                    with columns[0]:
+                        st.button(label="Finish", help="Save the fine tuning model with all its data",
+                                  type="primary", key="finish")
+
+                    with columns[1]:
+                        st.button(label="Statistics", help="Save the model and view its statistics", type="primary",
+                                  key="statistics")
 
                 model_evaluation_fragment()
 
