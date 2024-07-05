@@ -667,7 +667,7 @@ class DataManager(IDataManager):
             logger.exception(f"Failed to delete models due to error: {e}")
             raise Exception("Failed to delete models due to error.") from e
 
-    def delete_only_datasets(self, session: Session, dataset_ids: list[int]) -> None:
+    def delete_datasets(self, session: Session, dataset_ids: list[int]) -> None:
         """Careful with using this function, since it only deletes a dataset. its datapoints and their datapoint evaluations as configured in the SQLA Tables in the database schema. This is because sometimes only a newly augmented dataset should be deleted without removing its models.
         Args:
             session (Session): _description_
@@ -753,6 +753,8 @@ class DataManager(IDataManager):
 
                 if model_dto.fine_tuned_model_id:
                     model.fine_tuned_model_id = model_dto.fine_tuned_model_id
+                if model_dto.fine_tuned_model_id == "":
+                    model.fine_tuned_model_id = None
 
                 # A model can only belong to multiple projects if it is a global model
                 if model_dto.project_ids is not None:
@@ -800,6 +802,8 @@ class DataManager(IDataManager):
                 evaluation.helpful_score = eval_dto.helpful_score
                 evaluation.honest_score = eval_dto.honest_score
                 evaluation.harmless_score = eval_dto.harmless_score
+                evaluation.messages = eval_dto.messages
+                evaluation.semantic_similarity_score = eval_dto.semantic_similarity_score
 
                 # Fetching the Model object based on model_id
                 model = session.get(Model, eval_dto.model_id)
@@ -842,6 +846,8 @@ class DataManager(IDataManager):
                     evaluation.honest_score = eval_dto.honest_score
                 if eval_dto.harmless_score:
                     evaluation.harmless_score = eval_dto.harmless_score
+                if eval_dto.semantic_similarity_score:
+                    evaluation.semantic_similarity_score = eval_dto.semantic_similarity_score
 
                 saved_evaluations.append(evaluation)
 
@@ -1039,6 +1045,24 @@ class DataManager(IDataManager):
             raise SQLAlchemyError(
                 "Failed to create datapoint evaluations") from e
 
+    def delete_model_evaluations(self, session: Session, model_eval_ids: list[int]) -> None:
+        """
+        Deletes model evaluations from the database based on the provided list of IDs.
+
+        Parameters:
+            session (Session): The SQLAlchemy session to use for the operation.
+            model_eval_ids (list[int]): List of model evaluation IDs to delete.
+
+        Raises:
+            SQLAlchemyError: If there is an error during the deletion process.
+        """
+        try:
+            # Assuming ModelEvaluation is your model evaluation class
+            session.query(ModelEvaluation).filter(ModelEvaluation.id.in_(
+                model_eval_ids)).delete(synchronize_session=False)
+        except SQLAlchemyError as e:
+            raise Exception(f"Error deleting model evaluations: {e}") from e
+
     def update_datapoint_evaluations(self, session: Session, evaluations_data: list[UpdateDataPointEvaluationDTO]) -> list[DataPointEvaluation]:
         updated_evaluations: list[DataPointEvaluation] = []
         try:
@@ -1094,6 +1118,48 @@ class DataManager(IDataManager):
             logger.exception("Failed to retrieve datapoint evaluations")
             raise SQLAlchemyError(
                 "Failed to retrieve datapoint evaluations") from e
+
+    def get_all_model_evaluations(self, session: Session, filter_data: GetModelEvalautionsDTO) -> list[ModelEvaluation]:
+        try:
+            # Start with the base query
+            query = session.query(ModelEvaluation).filter(
+                ModelEvaluation.model_id == filter_data.model_id
+            )
+
+            # Add optional filters
+            if filter_data.datapoint_id is not None:
+                query = query.filter(
+                    ModelEvaluation.datapoint_id == filter_data.datapoint_id
+                )
+            if filter_data.evaluation_type is not None:
+                query = query.filter(
+                    ModelEvaluation.evaluation_type == filter_data.evaluation_type
+                )
+            if filter_data.helpful_score is not None:
+                query = query.filter(
+                    ModelEvaluation.helpful_score >= filter_data.helpful_score
+                )
+            if filter_data.honest_score is not None:
+                query = query.filter(
+                    ModelEvaluation.honest_score >= filter_data.honest_score
+                )
+            if filter_data.harmless_score is not None:
+                query = query.filter(
+                    ModelEvaluation.harmless_score >= filter_data.harmless_score
+                )
+            if filter_data.semantic_similarity_score is not None:
+                query = query.filter(
+                    ModelEvaluation.semantic_similarity_score >= filter_data.semantic_similarity_score
+                )
+
+            # Execute the query and return the results
+            evaluations: list[ModelEvaluation] = query.all()
+            return evaluations
+
+        except SQLAlchemyError as e:
+            logger.exception("Failed to retrieve model evaluations")
+            raise SQLAlchemyError(
+                "Failed to retrieve model evaluations") from e
 
     def get_all_datasets(self, session: Session, dataset_data: GetDatasetsDTO) -> list[Dataset]:
         logger.debug(f"Dataset data: {dataset_data}")
