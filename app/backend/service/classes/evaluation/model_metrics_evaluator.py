@@ -7,7 +7,7 @@ Classes:
 """
 
 
-class ModelEvaluator:
+class ModelMetricsEvaluator:
     """
     Provides functionalities to evaluate the performance of the fine-tuned language model,
     including calculating metrics like confusion matrix, F1 score, Chi-Saquare test and comparing different models.
