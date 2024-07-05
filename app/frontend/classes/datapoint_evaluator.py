@@ -14,13 +14,13 @@ class DataPointEvaluator:
         self._service: ServiceManagerFacade = service
         self._model_id = model_id
         self._datapoint_evaluation_ids: list[int] = datapoint_evaluation_ids
-        self._cached_items: dict[ComplexDataPointEvaluationDTO] = {}
+        self._cached_items: dict[int, ComplexDataPointEvaluationDTO] = {}
         self._datapoint_evaluation_ids_to_update: set[int] = set(
         )
         self._current_datapoint_evaluation: ComplexDataPointEvaluationDTO | None = None
         self._display_scores_container = None
 
-    def load(self, current_step_counter: int | None = None, activation_threshold: int = -1, matching_items_per_page: int = 1, display_scores: bool = True):
+    def load(self, current_step_counter: int | None = None, activation_threshold: int = -1, matching_items_per_page: int = 1):
         # Create paginator
         paginator: Paginator = GlobalAppStateManager.get_or_create_session_state(
             "complex_evaluations_paginator", default_value=Paginator, items_per_page=matching_items_per_page
@@ -43,10 +43,6 @@ class DataPointEvaluator:
             if len(self._datapoint_evaluation_ids_to_update) >= 3:
                 self.update_evaluations()
             self.fetch_item(paginated_evaluations_ids[0])
-
-        if display_scores:
-            # Calculate and display scores
-            self.display_scores()
 
         DataFrameWidgetProvider.create_complex_datapoint_evaluation_dataframe(
             self._current_datapoint_evaluation, self._datapoint_evaluation_ids_to_update, current_step_counter, activation_threshold)
