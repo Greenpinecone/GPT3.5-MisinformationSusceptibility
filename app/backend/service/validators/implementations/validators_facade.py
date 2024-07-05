@@ -106,6 +106,10 @@ class ValidatorFacade:
         self.validate_data(
             data, UpdateModelEvaluationSchema, session, data_manager, "update model evaluations")
 
+    def validate_get_model_evaluations(self, session: Session, data_manager: IDataManager, data: GetModelEvalautionsDTO) -> None:
+        self.validate_data(
+            data, GetModelEvaluationSchema, session, data_manager, "get model evaluations")
+
     def validate_create_datapoint_evaluations(self, session: Session, data_manager: IDataManager, data: list[CreateDataPointEvaluationDTO]) -> None:
         self.validate_data(
             data, CreateDataPointEvaluationSchema, session, data_manager, "create datapoint evaluations")
