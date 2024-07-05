@@ -12,6 +12,7 @@ import io
 from uuid import uuid4
 from openai import OpenAI
 import json
+from app.backend.custom_types.typedicts import Message, MessagesContainer
 from app.backend.database.schema import Dataset, DatasetCategory, Model
 from app.backend.dtos.response import ComplexDatasetDTO, ComplexModelDTO, DataPointDTO, TrainingRunDTO
 from sqlalchemy.orm import Session
@@ -223,3 +224,33 @@ class OpenAIService(IFineTuningService):
             count += len(dataset.datapoints)
 
         return count
+
+    def generate_model_chat(self, chat: MessagesContainer, model_id: str) -> str:
+        """
+        This function takes a chat history and a model ID, finds the last empty assistant message,
+        gets a response for it from the OpenAI API, appends the response to the chat, and returns
+        the full chat history.
+
+        Parameters:
+            chat (list[dict]): The conversation chat history.
+            model_id (str): The custom model ID to be used for generating the response.
+
+        Returns:
+            list[dict]: The updated chat history with the new response.
+        """
+        try:
+
+            # Generate a response for the empty assistant message
+            response = self.client.chat.completions.create(
+                model=model_id,
+                messages=chat
+            )
+
+            # Get the content of the response
+            answer = response.choices[0].message.content
+
+            # Append the response to the chat history
+            return answer
+
+        except Exception as e:
+            raise Exception(f"Error while answering the last message: {e}")
