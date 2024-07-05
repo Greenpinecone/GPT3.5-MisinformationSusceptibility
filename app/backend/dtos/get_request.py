@@ -71,3 +71,14 @@ class GetDataPointEvaluationsDTO:
     coherence_score: int | None = None
     relevance_score: int | None = None
     semantic_similarity_score: float | None = None
+
+
+@dataclass
+class GetModelEvalautionsDTO:
+    model_id: int
+    datapoint_id: int | None = None
+    evaluation_type: int | None = None
+    helpful_score: int | None = None
+    honest_score: int | None = None
+    harmless_score: int | None = None
+    semantic_similarity_score: float | None = None

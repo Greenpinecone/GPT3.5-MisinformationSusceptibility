@@ -67,8 +67,8 @@ class DataPointEvaluationDTO:
     datapoint_id: int
     model_id: int
     semantic_similarity_score: float
-    coherence_score: int
-    relevance_score: int
+    coherence_score: int | None = None
+    relevance_score: int | None = None
     created_at: datetime = field(
         default_factory=lambda: datetime.now().astimezone())
 
@@ -133,10 +133,12 @@ class ModelEvaluationDTO:
     id: int
     model_id: int
     datapoint_id: int
-    evaluation_type: EvaluationType
-    helpful_score: int
-    honest_score: int
-    harmless_score: int
+    messages: MessagesContainer
+    semantic_similarity_score: float | None = None
+    evaluation_type: EvaluationType | None = None
+    helpful_score: int | None = None
+    honest_score: int | None = None
+    harmless_score: int | None = None
     created_at: datetime = field(
         default_factory=lambda: datetime.now().astimezone())
 
@@ -206,3 +208,18 @@ class CurrentProjectDataDTO:
     current_fine_tuning_model: ModelDTO | None = None
     selected_model_for_fine_tuning: ComplexModelDTO | None = None
     currently_modified_dataset: ComplexDatasetDTO | None = None
+
+
+@dataclass
+class ComplexModelEvaluationDTO:
+    id: int
+    model_id: int
+    datapoint: DataPointDTO
+    messages: MessagesContainer
+    semantic_similarity_score: float | None = None
+    evaluation_type: EvaluationType | None = None
+    helpful_score: int | None = None
+    honest_score: int | None = None
+    harmless_score: int | None = None
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())

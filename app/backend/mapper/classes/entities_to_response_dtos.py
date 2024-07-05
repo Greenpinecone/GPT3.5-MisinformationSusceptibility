@@ -246,6 +246,8 @@ class ModelEvaluationSchema(BaseSchema):
     honest_score = auto_field()
     harmless_score = auto_field()
     created_at = FlexibleDateTimeField()
+    messages = auto_field()
+    semantic_similarity_score = auto_field
 
     class Meta(BaseSchema.Meta):
         model = ModelEvaluation
@@ -372,6 +374,7 @@ class DataPointEvaluationSchema(BaseSchema):
     def __init__(self, session=None, *args, **kwargs):
         super().__init__(session, *args, **kwargs)
 
+    id = auto_field()
     datapoint_id = auto_field()
     model_id = auto_field()
     coherence_score = auto_field()
@@ -391,6 +394,7 @@ class ComplexDataPointEvaluationSchema(BaseSchema):
     def __init__(self, session=None, *args, **kwargs):
         super().__init__(session, *args, **kwargs)
 
+    id = auto_field()
     datapoint = fields.Nested(
         lambda: DataPointWithInitialDataPointSchema())
     model_id = auto_field()
@@ -405,3 +409,27 @@ class ComplexDataPointEvaluationSchema(BaseSchema):
     @post_dump
     def make_training_run_dto(self, data, **kwargs):
         return ComplexDataPointEvaluationDTO(**data)
+
+
+class ComplexModelEvaluationSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    id = auto_field()
+    model_id = auto_field()
+    datapoint = fields.Nested(
+        lambda: DataPointSchema(), default=None)
+    messages = auto_field()
+    semantic_similarity_score = auto_field()
+    evaluation_type = auto_field()
+    helpful_score = auto_field()
+    honest_score = auto_field()
+    harmless_score = auto_field()
+    created_at = auto_field()
+
+    class Meta(BaseSchema.Meta):
+        model = ModelEvaluation
+
+    @post_dump
+    def make_training_run_dto(self, data, **kwargs):
+        return ComplexModelEvaluationDTO(**data)

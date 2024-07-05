@@ -53,6 +53,7 @@ class UpdateModelEvaluationDTO:
     helpful_score: int | None = None
     honest_score: int | None = None
     harmless_score: int | None = None
+    semantic_similarity_score: float | None = None
 
 
 @dataclass

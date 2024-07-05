@@ -76,3 +76,8 @@ class MapperFacade:
         # Convert a DataPointEvalaution entity to DataPointEvaluationDTO
         schema = ComplexDataPointEvaluationSchema(session=session)
         return schema.dump(current_project_data)
+
+    def map_model_evaluation_to_complex_dto(self, session: Session, model_evaluation_entity: ModelEvaluation) -> ComplexModelEvaluationDTO:
+        # Convert a ModelEvaluation entity to ModelEvaluationDTO
+        schema = ComplexModelEvaluationSchema(session=session)
+        return schema.dump(model_evaluation_entity)
