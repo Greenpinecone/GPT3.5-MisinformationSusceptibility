@@ -58,10 +58,12 @@ class CreateModelDTO:
 class CreateModelEvaluationDTO:
     model_id: int
     datapoint_id: int
-    evaluation_type: EvaluationType
-    helpful_score: int
-    honest_score: int
-    harmless_score: int
+    messages: MessagesContainer
+    semantic_similarity_score: float | None = None
+    evaluation_type: EvaluationType | None = None
+    helpful_score: int | None = None
+    honest_score: int | None = None
+    harmless_score: int | None = None
 
 
 @dataclass
@@ -78,6 +80,6 @@ class CreateTrainingRunDTO:
 class CreateDataPointEvaluationDTO:
     datapoint_id: int
     model_id: int
+    semantic_similarity_score: float
     coherence_score: int | None = None
     relevance_score: int | None = None
-    semantic_similarity_score: float | None = None
