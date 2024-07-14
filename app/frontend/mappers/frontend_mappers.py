@@ -26,6 +26,8 @@ class DataPointDTOToUpdateDataPointDTO(Schema):
     id = fields.Function(serialize=lambda obj: obj.id)
     related_datapoint_ids = fields.Function(
         serialize=lambda obj: [datapoint.id for datapoint in obj.related_datapoints])
+    evaluation_type = fields.Function(
+        serialize=lambda obj: obj.evaluation_type)
 
     @post_dump
     def make_update_datapoint_dto(self, data, **kwargs):

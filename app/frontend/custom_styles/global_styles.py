@@ -14,6 +14,17 @@ def apply_global_style() -> None:
         width: 100%;
     }
     
+    /* Styles for the element with data-baseweb="tab-list" */
+    [data-baseweb="tab-list"] {
+        /* Add your custom styles here */
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        text-align: center;
+        justify-content: center;
+        width: 100%;
+    }
+    
     /* Make the Checkbox centered to the height and width of the outer container - TODO: Center vertically!
     #root, #root .stTextLabelWrapper, #root .stText {
     display: flex;
@@ -49,3 +60,7 @@ def apply_global_style() -> None:
     
     </style>
     """, unsafe_allow_html=True)
+
+
+# tab-list
+# stTabs
