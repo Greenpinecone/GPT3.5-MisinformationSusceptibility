@@ -8,8 +8,9 @@ from logging.handlers import RotatingFileHandler
 import streamlit as st
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound, SQLAlchemyError
 from marshmallow import ValidationError
-from ..custom_types.exceptions import CustomValidationError
+from app.backend.custom_types.exceptions import CustomValidationError
 from pathlib import Path
+from app.frontend.classes.toast_manager import ToastManager
 
 
 class Logger:
@@ -136,10 +137,11 @@ class StreamlitLogger(Logger):
             # Handles dictionaries with lists, single values or None.
             error_messages = self._process_errors(e.errors)
             message = e.message if e.message else "Validation errors occurred during operaion"
-            self.ui_error(f"{message} '{e.operation_type}':\n" +
-                          "\n".join(error_messages))
+            ToastManager.show_toast(f"{message} '{e.operation_type}':\n" +
+                                    "\n".join(error_messages), "error")
         else:
-            self.ui_error(f"Validation errors occurred:\n{e}")
+            ToastManager.show_toast(
+                f"Validation errors occurred:\n{e}", "error")
 
     def _format_error_message(self, idx, field, msgs):
         if isinstance(msgs, dict):
