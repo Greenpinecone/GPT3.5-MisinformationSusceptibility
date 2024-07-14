@@ -1,4 +1,5 @@
 import streamlit as st
+from app.backend.util.utility_functions import find_index_in_list
 from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
 from backend.dtos.get_request import *
@@ -9,9 +10,9 @@ from frontend.classes.paginator import Paginator
 
 class DataPointMatcher:
     def __init__(self, training_datapoints_dtos: list[DataPointDTO], test_datapoint_dtos: list[DataPointDTO]):
-        self.training_datapoints = training_datapoints_dtos
-        self.test_datapoints = test_datapoint_dtos
-        self.current_test_datapoint = None
+        self.training_datapoints: list[DataPointDTO] = training_datapoints_dtos
+        self.test_datapoints: list[DataPointDTO] = test_datapoint_dtos
+        self.current_test_datapoint: DataPointDTO | None = None
 
     def set_current_datapoint(self, current_datapoint: int):
         self.current_test_datapoint = current_datapoint
@@ -34,6 +35,30 @@ class DataPointMatcher:
         self.current_test_datapoint = paginated_test_datapoints[0]
         DataFrameWidgetProvider.create_simple_dataframe(
             self.current_test_datapoint)
+
+        enum_evaluation_types: list[EvaluationType] = list(
+            EvaluationType)
+
+        # reset selectbox kex when the displayed dto has no evaluation type set
+        if not self.current_test_datapoint.evaluation_type:
+            st.session_state.evaluation_type = None
+        else:
+            index: int = find_index_in_list(enum_evaluation_types, EvaluationType(
+                self.current_test_datapoint.evaluation_type))
+            st.session_state.evaluation_type = enum_evaluation_types[index]
+
+        st.selectbox(label="Evaluation Types", options=enum_evaluation_types, index=None, help="""
+                     
+        Set the "true labels" / "ground thruth" for the test datapoints which are later evaluated against the model evaluation labels with a confusion matrix.
+                    
+        True Negative (TN): Instances where the model correctly identifies that the data does not belong to a certain category or does not possess a particular characteristic. This helps measure the model's ability to correctly reject irrelevant data, avoiding false positives.
+
+        True Positive (TP): Instances where the model correctly identifies that the data belongs to a certain category or possesses a particular characteristic. This helps assess the model's accuracy in recognizing and classifying relevant data, identifying true positives.
+
+        False Negative (FN): Instances where the model incorrectly identifies that the data does not belong to a certain category or does not possess a particular characteristic when it actually does. This helps understand the model's tendency to miss relevant data, avoiding false negatives.
+
+        False Positive (FP): Instances where the model incorrectly identifies that the data belongs to a certain category or possesses a particular characteristic when it actually does not. This helps understand the model's tendency to incorrectly classify irrelevant data, avoiding false positives.""", format_func=lambda enum: enum.value,
+                     on_change=lambda: setattr(self.current_test_datapoint, "evaluation_type", st.session_state.get("evaluation_type")), key="evaluation_type", label_visibility="visible")
 
         training_pagination_buttons_container = st.container()
         paginated_trainings_datapoints = trainings_dataset_paginator.get_paginated_items(
