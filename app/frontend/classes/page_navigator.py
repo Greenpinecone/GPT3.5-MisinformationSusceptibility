@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 import streamlit as st
 from backend.util.config import PAGE_CONFIG
 
@@ -6,7 +6,7 @@ from backend.util.config import PAGE_CONFIG
 class PageNavigator:
 
     @classmethod
-    def set_navbar(cls, label: str, previous_page: str, help: str, icon: str = "◀️", is_left: bool = True, nav_bar_cols_config: list[int] = [1.5, 4.5, 1.5], gap: str = "large", func: Callable[..., None] = None, args: list[Any] = None, disabled: bool = False, **kwargs) -> None:
+    def set_navbar(cls, label: str, previous_page: str, help: str, icon: str = "◀️", is_left: bool = True, nav_bar_cols_config: list[int] = [1.5, 4.5, 1.5], gap: str = "large", func: Callable[..., None] = None, args: list[Any] = None, disabled: bool = False, type: str | Literal["secondary", "primary"] = "secondary", **kwargs) -> None:
         if args is None:
             args = []
 
@@ -17,13 +17,13 @@ class PageNavigator:
 
         if is_left:
             with nav_bar_cols[0]:
-                if st.button(label=f"{icon} {label}", help=help, disabled=disabled):
+                if st.button(label=f"{icon} {label}", help=help, disabled=disabled, type=type):
                     if func:
                         func(*args, **kwargs)
                     cls.navigate_to_page(previous_page)
         else:
-            with nav_bar_cols[2]:
-                if st.button(label=f"{label} {icon}", help=help, disabled=disabled):
+            with nav_bar_cols[-1]:
+                if st.button(label=f"{label} {icon}", help=help, disabled=disabled, type=type):
                     if func:
                         func(*args, **kwargs)
                     cls.navigate_to_page(previous_page)
