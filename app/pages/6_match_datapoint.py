@@ -24,18 +24,18 @@ current_page = "match_datapoint"
 
 def save_intermediate_dataset_state(datapoint_matcher: DataPointMatcher, datapoints_to_update: list[DataPointDTO]) -> None:
 
-    # If a test datapoint is selected and it has related datapoints added
+    # If a test datapoint is selected and it has related datapoints added or an evaluation type set
     if datapoint_matcher.current_test_datapoint:
-        if datapoint_matcher.current_test_datapoint.related_datapoints:
+        if datapoint_matcher.current_test_datapoint.related_datapoints or datapoint_matcher.current_test_datapoint.evaluation_type:
             DataPointService.replace_datapoint_in_list(
                 datapoint_matcher.current_test_datapoint, datapoints_to_update)
-        # if the related datapoints are empty and the datapoint still has not been updated, remove it again, since there is nothing to update
-        elif DataPointService.is_present(datapoints_to_update, datapoint_matcher.current_test_datapoint):
+        # if the related datapoints are empty and the datapoint has no evaluation type set and the datapoint still has not been updated, remove it again, since there is nothing to update
+        elif DataPointService.is_present(datapoints_to_update, datapoint_matcher.current_test_datapoint) and not datapoint_matcher.current_test_datapoint.evaluation_type:
             DataPointService.remove_datapoint_from_list(
-                datapoint_matcher.current_test_datapoint, datapoints_to_update)
+                datapoint_matcher.current_test_datapoint.id, datapoints_to_update)
 
         # Save the intermediate update to the database and clear the current datapoints that have already been updated
-        if len(datapoints_to_update) >= 3:
+        if len(datapoints_to_update) >= 5:
             DataPointService.update_datapoints(
                 service, datapoints_to_update)
             datapoints_to_update.clear()
@@ -63,6 +63,7 @@ with logger:
 
     def load_page(datapoint_matcher: DataPointMatcher):
         st.title("Match Datapoints")
+        st.write("Add training datapoints to a specific test datapoint, to later display the training datapoints (and their augmented datapoints) for each test datapoint for better evaluation of the trained model")
 
         datapoint_matcher.load()
 
