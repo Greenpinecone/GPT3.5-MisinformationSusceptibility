@@ -17,18 +17,20 @@ from frontend.util import utility_functions as frontend_uf
 from app.backend.dtos.get_request import *
 from app.backend.dtos.response import *
 from frontend.custom_styles.global_styles import apply_global_style
-from frontend.custom_styles.individual_styles import center_elements_with_custom_span_in_column, custom_style_span
+from frontend.custom_styles.individual_styles import center_elements_with_custom_span_in_column, custom_style_span, center_checkboxes
 from frontend.classes.query_params_manager import QueryParamsManager
 from frontend.classes.page_navigator import PageNavigator
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
 from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
 from backend.util.config import DATA_AUGMENTATION_METHODS as augmentation_methods
 from backend.util.config import SBERT_MODELS as sbert_models
+from backend.util.config import GOOGLE_TRANSLATE_LANGUAGES as google_ts_langs
 from app.backend.database.schema import FineTuningModelVersions
 from backend.util import utility_functions as backend_uf
 from frontend.classes.datapoint_service import DataPointService
 
 apply_global_style()
+center_checkboxes()
 center_augmentation_text = "center-augmentation-texts"
 center_elements_with_custom_span_in_column(center_augmentation_text)
 errors_container = st.container()
@@ -48,7 +50,7 @@ with logger:
     # GlobalAppStateManager.update_current_project_data(
     #     service, update_current_project_data)
 
-    def current_page_navigation_settings(current_step_counter: int, current_fine_tuning_model: ModelDTO | ComplexModelDTO | None = None, delete_model: bool = True, rerun: bool = False):
+    def current_page_navigation_settings(current_step_counter: int, current_fine_tuning_model: ModelDTO | ComplexModelDTO | None = None, delete_model: bool = True, rerun: bool = False, checkpoint_model_ids: list[int] | None = None):
         # TODO: Add model deletion logic (from this database with everything associated + from openai)
         # Previous step navigation
         if current_step_counter == 0:
@@ -58,15 +60,8 @@ with logger:
                 service, update_current_project_data)
         if current_step_counter == 1:
             if delete_model:
-                # Delete models checkpoint models
-                current_fine_tuning_model_and_checkpoints: list[ModelDTO] = service.filter_models(GetModelsDTO(
-                    project_id=current_project_data.current_project.id, version=current_fine_tuning_model.version))
-
-                current_fine_tuning_model_and_checkpoint_ids: list[int] = [
-                    model.id for model in current_fine_tuning_model_and_checkpoints]
-
                 service.delete_models(
-                    current_fine_tuning_model_and_checkpoint_ids)
+                    [current_fine_tuning_model.id])
 
             updated_fine_tuning_step_counter: int = max(
                 current_step_counter-1, 0)
@@ -97,47 +92,57 @@ with logger:
         if current_step_counter == 4:
             # Remove models fine tuning job id if fine tuning is cancelled
             _ = service.update_models(
-                [UpdateModelDTO(current_fine_tuning_model.id, fine_tuning_job_id="")])
+                [UpdateModelDTO(current_fine_tuning_model.id, fine_tuning_job_id="", fine_tuned_model_id="")])
             updated_fine_tuning_step_counter: int = max(
                 current_step_counter-2, 0)
             update_current_project_data = UpdateCurrentProjectDataDTO(
                 id=current_project_data.id, fine_tuning_step_counter=updated_fine_tuning_step_counter)
             GlobalAppStateManager.update_current_project_data(
                 service, update_current_project_data)
+            service.cancel_fine_tuning_run(
+                current_fine_tuning_model.fine_tuning_job_id)
 
         if current_step_counter == 5:
-            # Delete openai fine tuning data
-            try:
-                service.cancel_fine_tuning_run(
-                    current_fine_tuning_model.fine_tuning_job_id)
-                ToastManager.add_global_toasts(
-                    f"Fine tuning run has successfully been cancelled.", "success")
-            except Exception as e:
-                ToastManager.add_global_toasts(
-                    f"Something failed during model cancellation please try again to fine tune a model: {e}", "error")
-            # Remove models fine tuning job id if fine tuning is cancelled
-            _ = service.update_models(
-                [UpdateModelDTO(current_fine_tuning_model.id, fine_tuning_job_id="", fine_tuned_model_id="")])
-            if delete_model:
-                # Delete only checkpoint models
-                checkpoint_models: list[ModelDTO] = service.filter_models(GetModelsDTO(
-                    project_id=current_project_data.current_project.id, version=current_fine_tuning_model.version, is_checkpoint_model=True))
+            if "." in current_fine_tuning_model.version:
+                # Delete openai fine tuning data
+                try:
+                    service.cancel_fine_tuning_run(
+                        current_fine_tuning_model.fine_tuning_job_id)
+                    ToastManager.add_global_toasts(
+                        f"Fine tuning run has successfully been cancelled.", "success")
+                except Exception as e:
+                    ToastManager.add_global_toasts(
+                        f"Something failed during model cancellation please try again to fine tune a model: {e}", "error")
+                # Remove models fine tuning job id if fine tuning is cancelled
+                _ = service.update_models(
+                    [UpdateModelDTO(current_fine_tuning_model.id, fine_tuning_job_id="", fine_tuned_model_id="")])
 
-                checkpoint_model_ids: list[int] = [
-                    model.id for model in checkpoint_models]
+                if delete_model:
+                    service.delete_models(checkpoint_model_ids)
 
-                service.delete_models(checkpoint_model_ids)
+            if st.session_state.get("model_evaluator"):
+                del st.session_state["model_evaluator"]
 
             # Delete currently generated model evaluations
             service.delete_model_evaluations_by_model_id(
                 current_fine_tuning_model.id)
 
-            updated_fine_tuning_step_counter: int = max(
-                current_step_counter-3, 0)
-            update_current_project_data = UpdateCurrentProjectDataDTO(
-                id=current_project_data.id, fine_tuning_step_counter=updated_fine_tuning_step_counter)
-            GlobalAppStateManager.update_current_project_data(
-                service, update_current_project_data)
+            # If it is not an un-fine tunded base model (1.1,2.4,3.3.1,4.1.1 ...)
+            if "." in current_fine_tuning_model.version:
+                updated_fine_tuning_step_counter: int = max(
+                    current_step_counter-3, 0)
+                update_current_project_data = UpdateCurrentProjectDataDTO(
+                    id=current_project_data.id, fine_tuning_step_counter=updated_fine_tuning_step_counter)
+                GlobalAppStateManager.update_current_project_data(
+                    service, update_current_project_data)
+            # if it is an un-finetuned base model (1,2,3,4...)
+            else:
+                service.delete_models([current_fine_tuning_model.id])
+
+                update_current_project_data = UpdateCurrentProjectDataDTO(
+                    id=current_project_data.id, fine_tuning_step_counter=0, current_fine_tuning_model_id=None)
+                GlobalAppStateManager.update_current_project_data(
+                    service, update_current_project_data)
 
         if rerun:
             st.rerun()
@@ -277,9 +282,18 @@ with logger:
             # Must be refetched every time the model changes
             training_run_dtos = service.filter_simple_training_runs(
                 GetTrainingRunsDTO(fine_tuning_model=st.session_state.chosen_fine_tuning_base_model, project_id=current_project_data.current_project.id))
+
+            if st.session_state.get(
+                    "simple_training_run_dto"):
+                # Filtering the list of training_run_dtos to find the one with the matching ID
+                current_training_run_dto: SimpleTrainingRunDTO = next(
+                    (training_run for training_run in training_run_dtos if training_run.id == st.session_state.get(
+                        "simple_training_run_dto").id), None)
+            else:
+                current_training_run_dto = None
+
             # Preserve current selected training run dto -> seed. If this is not set, it will be cleared as soon as the seed selectbox is recreated.
-            st.session_state.simple_training_run_dto = st.session_state.get(
-                "simple_training_run_dto")
+            st.session_state.simple_training_run_dto = current_training_run_dto
 
         return training_run_dtos
 
@@ -352,32 +366,24 @@ with logger:
                     service.update_models([UpdateModelDTO(
                         id=current_fine_tuning_model.id, fine_tuned_model_id=fine_tuned_model_id)])
 
+                    checkpoint_models: list[ModelDTO] = []
                     # Save checkpoint models
                     if save_checkpoint_models:
                         checkpoint_models: list[ModelDTO] = service.save_checkpoint_models(
                             current_fine_tuning_model, current_project_id, updated_training_run_dto)
 
-                    if selected_model.version == "0":
-                        toast_message = f"A new model and {len(
-                            checkpoint_models)} checkpoint models have been added, check them out!" if save_checkpoint_models else "A new fine tuned base model has been added to the model list, check it out!"
-                        ToastManager.add_global_toasts(
-                            toast_message, "success")
-                        # A base model has been fine-tuned, now return to the model selection
-                        current_page_navigation_settings(
-                            fine_tuning_step_counter,  current_fine_tuning_model, delete_model=False, rerun=True)
-                    else:
-                        # Update the current project state so that the user can proceed with model evaluation.
-                        GlobalAppStateManager.update_current_project_data(
-                            service,
-                            UpdateCurrentProjectDataDTO(
-                                id=current_project_data.id, fine_tuning_step_counter=fine_tuning_step_counter + 1)
-                        )
-                        st.rerun()
+                    # Update the current project state so that the user can proceed with model evaluation.
+                    GlobalAppStateManager.update_current_project_data(
+                        service,
+                        UpdateCurrentProjectDataDTO(
+                            id=current_project_data.id, fine_tuning_step_counter=fine_tuning_step_counter + 1, generated_checkpoint_model_ids=[model.id for model in checkpoint_models])
+                    )
+                    st.rerun()
                 except Exception as e:
                     ToastManager.add_global_toasts(
                         f"Something failed, please try again to fine tune a model: {e}", "error")
                     current_page_navigation_settings(
-                        fine_tuning_step_counter, current_fine_tuning_model=current_fine_tuning_model, rerun=True)
+                        fine_tuning_step_counter, current_fine_tuning_model=current_fine_tuning_model, rerun=True, checkpoint_model_ids=[model.id for model in checkpoint_models])
 
         else:
             # if the user cancels the fine tuning run, go to the previous step
@@ -396,7 +402,7 @@ with logger:
                     current_page_navigation_settings(
                         fine_tuning_step_counter,  current_fine_tuning_model=current_fine_tuning_model, rerun=True)
 
-    def create_new_model(chosen_fine_tuning_base_model: str, selected_model: ComplexModelDTO, is_global: bool, save_checkpoint_models: bool, epochs: int | None, learning_rate_multiplier: float | None,  batch_size: int | None, seed: int | None, is_untrained_model: bool = False):
+    def create_new_model(chosen_fine_tuning_base_model: str, selected_model: ComplexModelDTO, is_global: bool, save_checkpoint_models: bool = False, epochs: int | None = None, learning_rate_multiplier: float | None = None,  batch_size: int | None = None, seed: int | None = None, semantic_similarity_model: str | None = None):
 
         try:
 
@@ -414,21 +420,20 @@ with logger:
 
             # Create new model based on old model (parent model)
             model_dto: ModelDTO = service.create_models([CreateModelDTO(
-                model_name=model_name, project_ids=project_ids, parent_model_id=parent_model_id, is_global=is_global, training_dataset_ids=training_dataset_ids, augmentation_configurations=augmentation_configurations)])[0]
+                model_name=model_name, project_ids=project_ids, parent_model_id=parent_model_id, is_global=is_global, training_dataset_ids=training_dataset_ids, augmentation_configurations=augmentation_configurations, semantic_similarity_model=semantic_similarity_model)])[0]
 
             # Create new models associated training run
             _ = service.create_training_run_dtos([CreateTrainingRunDTO(
                 model_id=model_dto.id, fine_tuning_model=fine_tuning_model, epochs=epochs, learning_rate_multiplier=learning_rate_multiplier, batch_size=batch_size, seed=seed)])[0]
 
-            # If the parent / previous model is version 0 (untrained base model), the user may not add augmented data, since every model hierarchy should have at least one unaugmented base model trained.
-            updated_model_dto = None
-            if is_untrained_model:
-                updated_model_dto: ModelDTO = service.create_fine_tuning_run(
-                    model_dto.id, chosen_fine_tuning_base_model)[0]
-
-            # Update model to set new parameters
-            GlobalAppStateManager.update_current_project_data(service,
-                                                              UpdateCurrentProjectDataDTO(id=current_project_data.id, unfinished_progress=True, current_fine_tuning_model_id=updated_model_dto.id if updated_model_dto else model_dto.id, save_checkpoint_models=save_checkpoint_models, fine_tuning_step_counter=current_project_data.fine_tuning_step_counter + 1))
+            if selected_model.version != "0":
+                # Update model to set new parameters
+                GlobalAppStateManager.update_current_project_data(service,
+                                                                  UpdateCurrentProjectDataDTO(id=current_project_data.id, unfinished_progress=True, current_fine_tuning_model_id=model_dto.id, save_checkpoint_models=save_checkpoint_models, fine_tuning_step_counter=current_project_data.fine_tuning_step_counter + 1))
+            else:
+                # Update model to set new parameters and directly go to model evaluation step
+                GlobalAppStateManager.update_current_project_data(service,
+                                                                  UpdateCurrentProjectDataDTO(id=current_project_data.id, unfinished_progress=True, current_fine_tuning_model_id=model_dto.id, save_checkpoint_models=save_checkpoint_models, fine_tuning_step_counter=current_project_data.fine_tuning_step_counter + 5))
 
         except Exception as e:
             ToastManager.add_global_toasts(
@@ -491,65 +496,94 @@ with logger:
             # Only display if it is an untrained model
             if selected_model.version == "0":
                 st.text(f"""Current model '{
-                    selected_model.model_name}' has version 0 and is not fine tuned yet. To further fine tune this model with augmented data, it first needs to be fine tuned once with the current dataset to create a 'Base' model with version 1. Any further fine tuning run creates a new model with consecutively numbering like chapters in a book.""")
+                    selected_model.model_name}' has version 0 and is not fine tuned yet. Each model directly descending from this model acts as an untrained 'base' model for the following sub models. The training model you choose for this 'base' model will be used for all sub-models in this specific model hierarchy.""")
 
             # Set the current fine tuning params - selected new model or model already in fine tuning
             training_run_dtos: list[TrainingRunDTO] = set_current_fine_tuning_parameters(
                 current_project_data)
 
-            model_global_columns = st.columns(3)
+            if selected_model.version == "0":
+                model_global_columns = st.columns(2)
+            else:
+                model_global_columns = st.columns(3)
 
             with model_global_columns[0]:
-                chosen_fine_tuning_base_model: str = st.selectbox(label="Choose a model", options=FineTuningModelVersions.openai.value, index=0, placeholder="Choose a fine tuning base model",
+                # If the model is a base model (v. 0) allow the seelction of all available fine tuning models, else only the model of the selected model.
+                chosen_fine_tuning_base_model: str = st.selectbox(label="Choose a model", options=FineTuningModelVersions.openai.value if selected_model.version == "0" else [selected_model.training_run.fine_tuning_model], index=0, placeholder="Choose a fine tuning base model",
                                                                   key="chosen_fine_tuning_base_model", help="Choose a base model for this fine tuning run", label_visibility="collapsed", disabled=current_project_data.fine_tuning_step_counter != 0)
 
             with model_global_columns[1]:
                 is_global = st.checkbox(label="Make model global", value=None, key="globalize_model_checkbox",
                                         help="Globalized models can be selected in the list of available models when creating a new project", label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 0)
 
-            with model_global_columns[2]:
-                save_checkpoint_models = st.checkbox(label="Save checkpoint models", value=None, key="save_checkpoint_models_checkbox",
-                                                     help="In addition to creating a final fine-tuned model at the end of each fine-tuning job, some fine tuning companies will create one full model checkpoint for you at the end of each training epoch. These checkpoints are themselves full models that can be used as regular models. Checkpoints are useful as they potentially provide a version of your fine-tuned model from before it experienced overfitting.", label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 0)
+            if selected_model.version == "0":
+                semantic_similarity_model = st.selectbox(label="Coherence score models", options=sbert_models, index=None, key="semantic_similarity_model",
+                                                         help="Select an original Sentence BERT (SBERT)  model to calculate the coherence score based on the vector representations of the input sentences of each datapoint compared to its augmented datapoint. The first usage may take a while since the model has to be downloaded. Be aware that this model will also be used during the model evluation process, if you select one", placeholder="Choose a coherence score model", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["SBERT_MODELS"]), label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 0)
+                # The smenatic model description
+                if semantic_similarity_model:
+                    # Immediately update smeantic similarity model since it will be used for model evaluation as well
+                    GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
+                        id=current_project_data.id, semantic_similarity_model=semantic_similarity_model))
 
-            fine_tuning_config_columns = st.columns(3)
+            if selected_model.version != "0":
+                with model_global_columns[2]:
+                    save_checkpoint_models = st.checkbox(label="Save checkpoint models", value=None, key="save_checkpoint_models_checkbox",
+                                                         help="In addition to creating a final fine-tuned model at the end of each fine-tuning job, some fine tuning companies will create one full model checkpoint for you at the end of each training epoch. These checkpoints are themselves full models that can be used as regular models. Checkpoints are useful as they potentially provide a version of your fine-tuned model from before it experienced overfitting.", label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 0)
 
-            with fine_tuning_config_columns[0]:
-                epochs: int = st.number_input(label="Amount of epochs", min_value=1, max_value=10, step=1, value=None, key="epochs",
-                                              help="The number of epochs to train the model for. An epoch refers to one full cycle through the training dataset. Defaults to auto. 1-10.", placeholder="auto", label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 0)
-            with fine_tuning_config_columns[1]:
-                learning_rate_multiplier: float = st.number_input(label="Learning rate multiplier", min_value=0.1, max_value=10.0, step=0.1, value=None, key="learning_rate_multiplier",
-                                                                  help="Scaling factor for the learning rate. A smaller learning rate may be useful to avoid overfitting. Defaults to auto. 0.1-10.0", placeholder="auto", label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 0)
-            with fine_tuning_config_columns[2]:
-                # The batch size cannot be larger than the amount of datapoints available in all datasets combined
-                batch_size: int = st.number_input(label="Batch size", min_value=1, max_value=32 if total_amount_of_datapoints > 32 else total_amount_of_datapoints, step=1, value=None, key="batch_size",
-                                                  help="Number of examples in each batch. A larger batch size means that model parameters are updated less frequently, but with lower variance. Defaults to auto. 1-32.", placeholder="auto", label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 0)
+                fine_tuning_config_columns = st.columns(3)
 
-            training_run_dto: SimpleTrainingRunDTO = st.selectbox(label="Seed", options=training_run_dtos, index=None, placeholder="auto", help="The seed controls the reproducibility of the job. Passing in the same seed and job parameters for the same model should produce the same results, but may differ in rare cases. If a seed is not specified (or no other seeds exist), one will be generated for you.", key="simple_training_run_dto",
-                                                                  label_visibility="visible", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["TRAINING_RUN_DTO_SIMPLE"]), disabled=current_project_data.fine_tuning_step_counter != 0)
+                with fine_tuning_config_columns[0]:
+                    epochs: int = st.number_input(label="Amount of epochs", min_value=1, max_value=10, step=1, value=None, key="epochs",
+                                                  help="The number of epochs to train the model for. An epoch refers to one full cycle through the training dataset. Defaults to auto. 1-10.", placeholder="auto", label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 0)
+                with fine_tuning_config_columns[1]:
+                    learning_rate_multiplier: float = st.number_input(label="Learning rate multiplier", min_value=0.1, max_value=10.0, step=0.1, value=None, key="learning_rate_multiplier",
+                                                                      help="Scaling factor for the learning rate. A smaller learning rate may be useful to avoid overfitting. Defaults to auto. 0.1-10.0", placeholder="auto", label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 0)
+                with fine_tuning_config_columns[2]:
+                    # The batch size cannot be larger than the amount of datapoints available in all datasets combined
+                    batch_size: int = st.number_input(label="Batch size", min_value=1, max_value=32 if total_amount_of_datapoints > 32 else total_amount_of_datapoints, step=1, value=None, key="batch_size",
+                                                      help="Number of examples in each batch. A larger batch size means that model parameters are updated less frequently, but with lower variance. Defaults to auto. 1-32.", placeholder="auto", label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 0)
 
-            seed = None
-            if training_run_dto:
-                seed = training_run_dto.seed
+                training_run_dto: SimpleTrainingRunDTO = st.selectbox(label="Seed", options=training_run_dtos, index=None, placeholder="auto", help="The seed controls the reproducibility of the job. Passing in the same seed and job parameters for the same model should produce the same results, but may differ in rare cases. If a seed is not specified (or no other seeds exist), one will be generated for you.", key="simple_training_run_dto",
+                                                                      label_visibility="visible", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["TRAINING_RUN_DTO_SIMPLE"]), disabled=current_project_data.fine_tuning_step_counter != 0)
+
+                seed = None
+                if training_run_dto:
+                    seed = training_run_dto.seed
 
             if current_project_data.fine_tuning_step_counter == 0:
-                # Start the model fine tuning if the parent model has version 0 aka. has not been trained yet (enforces a base model)
-                is_untrained_model = False
-                if selected_model.version == "0":
-                    is_untrained_model = True
 
-                st.button(
-                    label="Train Model" if is_untrained_model else "Save", key="submit_train_model", help="Submit the current fine tuning configuration", type="primary", disabled=current_project_data.fine_tuning_step_counter != 0, on_click=create_new_model, args=(chosen_fine_tuning_base_model, selected_model, is_global, save_checkpoint_models, epochs, learning_rate_multiplier, batch_size, seed, is_untrained_model))
+                if selected_model.version != "0":
+                    model_exists: bool = service.check_model_availability(
+                        selected_model.training_run.fine_tuning_model)
 
-            # Either train the model directly if the current parent model has not been trained or increase the step counter by one to go directly to the next step
-            if current_project_data.fine_tuning_step_counter == 1 and selected_model.version == "0":
-                fine_tuning_progress_bar(
-                    current_project_data.current_fine_tuning_model.fine_tuning_job_id, save_checkpoint_models, current_project_data.current_fine_tuning_model, current_project_data.current_project.id, selected_model, current_project_data.fine_tuning_step_counter)
-            elif current_project_data.fine_tuning_step_counter == 1:
+                    if not model_exists:
+                        logger.ui_warning(
+                            f"The fine tuning model '{selected_model.training_run.fine_tuning_model}' with which this model has been fine tuned, does no longer exist with the company that provided it. Therefore this model can no longer be used for further fine tuning requests. Please choose a different model.")
+
+                    st.button(
+                        label="Save", key="submit_train_model", help="Submit the current fine tuning configuration", type="primary", disabled=current_project_data.fine_tuning_step_counter != 0 or not model_exists, on_click=create_new_model, args=(chosen_fine_tuning_base_model, selected_model, is_global, save_checkpoint_models, epochs, learning_rate_multiplier, batch_size, seed))
+                else:
+                    model_exists: bool = service.check_model_availability(
+                        chosen_fine_tuning_base_model)
+
+                    if not model_exists:
+                        logger.ui_warning(
+                            f"The fine tuning model '{chosen_fine_tuning_base_model}', does no longer exist with the company that provided it. Therefore this model can no longer be used for further fine tuning requests. Please choose a different model.")
+
+                    kwargs: dict = {}
+                    # Prepare the keyword arguments
+                    if semantic_similarity_model:
+                        kwargs = {
+                            "semantic_similarity_model": semantic_similarity_model["model_name"]}
+                    st.button(
+                        label="Save", key="submit_train_model", help="Submit the current fine tuning configuration", type="primary", disabled=current_project_data.fine_tuning_step_counter != 0 or not model_exists, on_click=create_new_model, args=(chosen_fine_tuning_base_model, selected_model, is_global), kwargs=kwargs)
+
+            if current_project_data.fine_tuning_step_counter == 1 and selected_model.version != "0":
                 current_project_data = GlobalAppStateManager.update_current_project_data(service,
                                                                                          UpdateCurrentProjectDataDTO(id=current_project_data.id, fine_tuning_step_counter=current_project_data.fine_tuning_step_counter + 1))
 
             # Start augmentation process
-            if current_project_data.fine_tuning_step_counter >= 2:
+            if current_project_data.fine_tuning_step_counter >= 2 and selected_model.version != "0":
 
                 @st.experimental_fragment
                 def data_augmentation_process(total_amount_of_datapoints: int):
@@ -572,7 +606,11 @@ with logger:
                             st.session_state['augmentation_configurations_selected'] = current_project_data.current_augmentation_configurations
 
                         if 'semantic_similarity_model' not in st.session_state:
-                            st.session_state['semantic_similarity_model'] = current_project_data.semantic_similarity_model
+                            st.session_state['semantic_similarity_model'] = next(
+                                (model for model in sbert_models if model["model_name"] ==
+                                 current_project_data.selected_model_for_fine_tuning.semantic_similarity_model),
+                                None
+                            )
 
                         return st.session_state[
                             'augmentation_configurations_selected']
@@ -591,14 +629,62 @@ with logger:
                             st.text(f"""{total_augmentation_amount} datapoints will be augmented via {
                                     augmentation_method}.""")
 
-                    def update_augmentation_config(augmentation_config: AugmentationConfiguration, session_key: str):
+                    def update_eda_augmentation_config(augmentation_config: AugmentationConfiguration, session_key: str):
                         new_val = st.session_state[session_key]
                         augmentation_config["augmentation_config"][session_key] = new_val
+
+                    def update_google_ts_augmentation_config(augmentation_config: AugmentationConfiguration, session_key: str):
+                        try:
+                            # Extract the index from the session key
+                            index = int(session_key.split("_")[1])
+
+                            # Retrieve the new value from the session state
+                            new_val = st.session_state.get(session_key, None)
+
+                            # Check if the index is within the bounds of the translate_languages list
+                            if index >= len(augmentation_config["augmentation_config"]["translate_languages"]):
+                                if new_val is not None:
+                                    # If index is out of bounds and new_val is not None, append the new value
+                                    augmentation_config["augmentation_config"]["translate_languages"].append(
+                                        new_val)
+                            else:
+                                if new_val is None:
+                                    # If new_val is None, delete the item at the specified index
+                                    del augmentation_config["augmentation_config"]["translate_languages"][index]
+                                else:
+                                    # Otherwise, update the item at the specified index
+                                    augmentation_config["augmentation_config"]["translate_languages"][index] = new_val
+                        except (IndexError, KeyError, ValueError) as e:
+                            # Handle possible errors gracefully
+                            print(f"Error updating configuration: {e}")
 
                     def show_augmentation_method_menus(augmentation_config: AugmentationConfiguration):
                         augmentation_method = augmentation_config["selected_method"]
                         if augmentation_method == augmentation_methods["google_translate"]:
-                            pass  # Show google form
+                            # Set config values if exist
+                            if not augmentation_config["augmentation_config"]:
+                                augmentation_config[
+                                    "augmentation_config"] = GoogleBTParams(translate_languages=[])
+
+                            # If no languages has been selected yet only show an empty selectbox else show the languages and another additional selectbox
+                            selectboxes_count: int = len(augmentation_config[
+                                "augmentation_config"]["translate_languages"]) + 1
+
+                            # Show google tranlsate form
+                            with st.container(border=True):
+                                for i in range(selectboxes_count):
+                                    if i != selectboxes_count - 1:
+                                        st.session_state[f"""lang_{
+                                            i}"""] = augmentation_config[
+                                            "augmentation_config"]["translate_languages"][i]
+                                    else:
+                                        st.session_state[f"""lang_{
+                                            i}"""] = None
+                                    st.selectbox(label=f"Chosen language {i+1}", options=google_ts_langs, index=None, format_func=lambda lang_dict: lang_dict["language"], key=f"""lang_{
+                                        i}""", placeholder="Choose a language", label_visibility="visible", help="""Chose a series of languages to translate the current datapoints content into. This is used to introduce linguistic diversity while preserving the semantic content of the text, introducing meaningful diversity in the dataset through augmentation. 
+                                                
+                                                INFO: You need to set the last language to tranlsate back to explicitly""", on_change=update_google_ts_augmentation_config, args=(augmentation_config, f"lang_{i}"), disabled=current_project_data.fine_tuning_step_counter != 2)
+
                         if augmentation_method == augmentation_methods["EDA_Easy_Data_Augmentation"]:
                             # Set config values if exist
                             if not augmentation_config["augmentation_config"]:
@@ -611,22 +697,18 @@ with logger:
                                 with columns[0]:
                                     st.number_input(label="Amount of synonym replacement in %", min_value=0.0, max_value=100.0, value=augmentation_config[
                                         "augmentation_config"]["alpha_sr"], key="alpha_sr",
-                                        help="Set the percentage of words per data point where synonym replacement should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_augmentation_config, args=(augmentation_config, "alpha_sr"), disabled=current_project_data.fine_tuning_step_counter != 2)
+                                        help="Set the percentage of words per data point where synonym replacement should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_eda_augmentation_config, args=(augmentation_config, "alpha_sr"), disabled=current_project_data.fine_tuning_step_counter != 2)
                                 with columns[1]:
                                     st.number_input(label="Amount of random insertion in %", min_value=0.0, max_value=100.0, value=augmentation_config[
                                         "augmentation_config"]["alpha_ri"], key="alpha_ri",
-                                        help="Set the percentage of words per data point where random insertion should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_augmentation_config, args=(augmentation_config, "alpha_ri"), disabled=current_project_data.fine_tuning_step_counter != 2)
+                                        help="Set the percentage of words per data point where random insertion should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_eda_augmentation_config, args=(augmentation_config, "alpha_ri"), disabled=current_project_data.fine_tuning_step_counter != 2)
                                 columns = st.columns(2)
                                 with columns[0]:
                                     st.number_input(label="Amount of random swap in %", min_value=0.0, max_value=100.0, value=augmentation_config["augmentation_config"]["alpha_rs"], key="alpha_rs",
-                                                    help="Set the percentage of words per data point where random swap should be applied. As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_augmentation_config, args=(augmentation_config, "alpha_rs"), disabled=current_project_data.fine_tuning_step_counter != 2)
+                                                    help="Set the percentage of words per data point where random swap should be applied. As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_eda_augmentation_config, args=(augmentation_config, "alpha_rs"), disabled=current_project_data.fine_tuning_step_counter != 2)
                                 with columns[1]:
                                     st.number_input(label="Amount of random deletion in %", min_value=0.0, max_value=100.0, value=augmentation_config["augmentation_config"]["alpha_rd"], key="alpha_rd",
-                                                    help="Set the percentage of words per data point where random deletion should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_augmentation_config, args=(augmentation_config, "alpha_rd"), disabled=current_project_data.fine_tuning_step_counter != 2)
-
-                                # Save the configuration and norm it to a value between 0-1
-                                # augmentation_config["augmentation_config"] = EDAParams(
-                                #     alpha_sr=st.session_state.alpha_sr / 100, alpha_ri=st.session_state.alpha_ri / 100, alpha_rs=st.session_state.alpha_rs / 100, alpha_rd=st.session_state.alpha_rd / 100)
+                                                    help="Set the percentage of words per data point where random deletion should be applied.  As long as the percentage is > 0, at least one operation of this kind will be performed.", placeholder="auto", on_change=update_eda_augmentation_config, args=(augmentation_config, "alpha_rd"), disabled=current_project_data.fine_tuning_step_counter != 2)
 
                     def update_methods(augmentation_config: AugmentationConfiguration, new_method_key: str):
                         old_method = augmentation_config["prev_method"]
@@ -650,8 +732,7 @@ with logger:
                         service.update_models([UpdateModelDTO(
                             current_project_data.current_fine_tuning_model.id, augmentation_configurations=[])])
 
-                    def generate_augmented_data():
-                        global current_project_data
+                    def generate_augmented_data(current_project_data: CurrentProjectDataDTO) -> None:
                         # Check if augmented data already exists and delete it if so
                         if current_project_data.current_augmented_datapoint_evaluation_ids:
                             # Get last added dataset of the current fine tuning model -> most recent augmented dataset, and delete it.
@@ -665,14 +746,14 @@ with logger:
                             # Create augmented datapoints
                             # Use this id to fetch
                             datapoint_evaluation_ids: list[int] = service.generate_augmented_data(
-                                current_project_data.current_fine_tuning_model.id, augmentation_configurations_selected, semantic_similarity_model, current_project_data.current_project.id)
-                            current_project_data = GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
+                                current_project_data.current_fine_tuning_model.id, augmentation_configurations_selected, current_project_data.current_project.id, semantic_similarity_model)
+                            GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
                                 id=current_project_data.id, semantic_similarity_model=semantic_similarity_model, current_augmented_datapoint_evaluation_ids=datapoint_evaluation_ids, current_augmentation_configurations=augmentation_configurations_selected))
                         else:
                             delete_augmentation_configs_from_models(
                                 current_project_data)
                             # Go directly to fine tune the model (step 3)
-                            current_project_data = GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
+                            GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
                                 id=current_project_data.id, fine_tuning_step_counter=current_project_data.fine_tuning_step_counter + 1, current_augmentation_configurations=[]))
 
                     st.write("")  # Extra space
@@ -756,15 +837,17 @@ with logger:
                                     )
                     render_augmentation_fields()
 
-                    semantic_similarity_model = st.selectbox(label="Coherence score models", options=sbert_models, index=None, key="semantic_similarity_model",
-                                                             help="Select an original Sentence BERT (SBERT)  model to calculate the coherence score based on the vector representations of the input sentences of each datapoint compared to its augmented datapoint. The first usage may take a while since the model has to be downloaded. Be aware that this model will also be used during the model evluation process, if you select one", placeholder="Choose a coherence score model", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["SBERT_MODELS"]), label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 2)
-                    # The smenatic model description
-                    if semantic_similarity_model:
-                        # Immediately update smeantic similarity model since it will be used for model evaluation as well
-                        GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
-                            id=current_project_data.id, semantic_similarity_model=semantic_similarity_model))
-                        st.text(
-                            f"""{semantic_similarity_model["description"]}""")
+                    if st.session_state['semantic_similarity_model']:
+                        # Only allow the model that has been chosen by the selected_fine_tuning model, since all models in a hierarchy should have the same semantic similarity score model to avoid discrepancies.
+                        semantic_similarity_model = st.selectbox(label="Coherence score models", options=[st.session_state['semantic_similarity_model']], index=0, key="semantic_similarity_model",
+                                                                 help="Select an original Sentence BERT (SBERT)  model to calculate the coherence score based on the vector representations of the input sentences of each datapoint compared to its augmented datapoint. The first usage may take a while since the model has to be downloaded. Be aware that this model will also be used during the model evluation process, if you select one", placeholder="Choose a coherence score model", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["SBERT_MODELS"]), label_visibility="visible", disabled=current_project_data.fine_tuning_step_counter != 2)
+                        # The smenatic model description
+                        if semantic_similarity_model:
+                            # Immediately update smeantic similarity model since it will be used for model evaluation as well
+                            GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
+                                id=current_project_data.id, semantic_similarity_model=semantic_similarity_model))
+                            st.text(
+                                f"""{semantic_similarity_model["description"]}""")
 
                     # TODO Add selectbox for sentence similarity check models and add them to the model as parameters, so that it is clear which model has beend used to calculate the similarity check
 
@@ -783,8 +866,9 @@ with logger:
                         augment_data = st.button(
                             label=label, key="submit", help="Create augmented datapoints preview to evaluate them. Can always be redone in case of low quality", type="secondary" if current_project_data.current_augmented_datapoint_evaluation_ids else "primary")
                         if augment_data:
-                            generate_augmented_data()
-                            # To get out of the current fragment
+                            generate_augmented_data(
+                                current_project_data)
+                            # To get out of the current fragment and apply all state updates to the UI
                             st.rerun()
 
                     if current_project_data.current_augmented_datapoint_evaluation_ids:
@@ -869,15 +953,30 @@ with logger:
                         # Update latest unsubmitted evaluation
                         model_evaluator.update_left_over_evaluations()
 
-                        # reset al fine tuning session states
+                        selected_statistic_models: list[int] = []
+                        if switch_to_statistics:
+                            # Set the slected statistic models
+                            selected_statistic_models = [
+                                *current_project_data.generated_checkpoint_model_ids]
+                            # Sort by id to display them in order afterwards
+                            selected_statistic_models.sort()
+                            # Add the final fine tuned model at the beginning
+                            selected_statistic_models.insert(
+                                0, current_project_data.current_fine_tuning_model.id)
+
+                        # reset al fine tuning session states and add the statistic models if the user switches directly to statistics page
                         GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(id=current_project_data.id, semantic_similarity_model=None, current_augmentation_configurations=[
-                        ], current_augmented_datapoint_evaluation_ids=[], unfinished_progress=False, save_checkpoint_models=False, fine_tuning_step_counter=0, current_fine_tuning_model_id=None, selected_model_for_fine_tuning_id=None))
+                        ], current_augmented_datapoint_evaluation_ids=[], unfinished_progress=False, save_checkpoint_models=False, fine_tuning_step_counter=0, current_fine_tuning_model_id=None, selected_model_for_fine_tuning_id=None, generated_checkpoint_model_ids=[], selected_statistic_models=selected_statistic_models))
 
                         GlobalAppStateManager.clear_session_state()
 
+                        toast_message = f"A new model and {len(
+                            current_project_data.generated_checkpoint_model_ids)} checkpoint models have been added, check them out!" if current_project_data.save_checkpoint_models else "A new fine tuned base model has been added to the model list, check it out!"
+                        ToastManager.add_global_toasts(
+                            toast_message, "success")
+
                         # If set go directly to the models fine tuning statistic page
                         if switch_to_statistics:
-                            # TODO: Add currently selected models for fine tuning statistic to project state
                             PageNavigator.navigate_to_page(
                                 'model_statistic')
                         else:
@@ -885,7 +984,7 @@ with logger:
 
                     # TODO: Delete current model evalaution data
                     PageNavigator.set_navbar("Go back", current_page, nav_bar_cols_config=[
-                        1.2, 3, 1.2], help="Delete the current model evalaution and go back to the data augmentation process", func=current_page_navigation_settings, args=[current_project_data.fine_tuning_step_counter], current_fine_tuning_model=current_project_data.current_fine_tuning_model)
+                        1.2, 3, 1.2], help="Delete the current model evalaution and go back to the data augmentation process", func=current_page_navigation_settings, args=[current_project_data.fine_tuning_step_counter], current_fine_tuning_model=current_project_data.current_fine_tuning_model, checkpoint_model_ids=current_project_data.generated_checkpoint_model_ids)
 
                     frontend_uf.create_text_divider(
                         f"##### Model Evaluation", [0.4, 1, 0.4])
@@ -906,6 +1005,8 @@ with logger:
                     else:
                         model_evaluator.display_scores()
 
+                    # extra space
+                    st.write("")
                     columns = st.columns(2)
 
                     with columns[0]:
