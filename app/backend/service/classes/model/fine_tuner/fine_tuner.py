@@ -50,6 +50,14 @@ class FineTuner:
     @classmethod
     def create_openai_fine_tuning_run(cls, fine_tuner: IFineTuningService, model_dto: ComplexModelDTO, model_dataset_dtos: list[ComplexDatasetDTO]) -> object:
         try:
+            # Fetch available models
+            available_models = fine_tuner.get_available_models()
+
+            # Check if the model_used_for_fine_tuning exists
+            if model_dto.training_run.fine_tuning_model not in available_models:
+                raise ValueError(f"""Model used for fine-tuning '{
+                                 model_dto.training_run.fine_tuning_model}' does not exist or is no longer available. Please choose a different model.""")
+
             # Sort datasets into training and test datasets. Each training dataset can have 0-1 test datasets.
             training_datasets, test_datasets = fine_tuner.sort_datasets(
                 model_dataset_dtos)
