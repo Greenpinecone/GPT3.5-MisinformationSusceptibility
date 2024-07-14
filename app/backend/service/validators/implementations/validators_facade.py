@@ -4,7 +4,7 @@ from ..classes.request_dto_validators import *
 from ....dtos.create_request import *
 from ....dtos.get_request import *
 from ....dtos.update_request import *
-from ....custom_types.exceptions import CustomValidationError
+from app.backend.custom_types.exceptions import CustomValidationError
 from marshmallow import Schema
 from sqlalchemy.orm import Session
 

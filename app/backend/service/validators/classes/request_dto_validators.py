@@ -260,6 +260,16 @@ class CreateDatasetSchema(Schema):
         self.session: Session = session
         self.data_manager: IDataManager = data_manager
 
+    @validates_schema
+    def validate_dataset_name(self, data: dict[str, Any], **kwargs):
+
+        if "/" in data["dataset_name"]:
+            raise ValidationError(
+                f"Slash -> '/' is not allowed in the dataset name: '{data["dataset_name"]}")
+        if (self.data_manager.check_if_dataset_name_exists_in_specific_project(self.session, data["dataset_name"], data["project_ids"][0])):
+            raise ValidationError(
+                f"Dataset name '{data["dataset_name"]} already exists.")
+
     @validates('project_ids')
     def validate_projects(self, project_ids: list[int]):
 
@@ -528,6 +538,17 @@ class CreateModelSchema(Schema):
         super().__init__(*args, **kwargs)
         self.session: Session = session
         self.data_manager: IDataManager = data_manager
+
+    @validates_schema
+    def validate_model_name(self, data: dict[str, Any], **kwargs):
+        # Only for new models, not for models created through fine tuning
+        if not data["parent_model_id"]:
+            if "/" in data["model_name"]:
+                raise ValidationError(
+                    f"Slash -> '/' is not allowed in the model name: '{data["model_name"]}")
+            if (self.data_manager.check_if_model_name_exists_in_specific_project(self.session, data["model_name"], data["project_ids"][0])):
+                raise ValidationError(
+                    f"Model name '{data["model_name"]} already exists.")
 
     @validates('parent_model_id')
     def validate_parent_model_exists(self, parent_model_id: int):
@@ -937,8 +958,19 @@ class GetModelsSchema(Schema):
                                }
                                )
 
+    only_original_models = fields.Boolean(allow_none=True,
+                                          error_messages={
+                                              'invalid': '"Only original models" must be either True or False.'
+                                          })
+
     exlude_project_id = fields.Int(allow_none=True, validate=lambda n: n > 0, rror_messages={
         'invalid': 'Excluded project id must be > 0.'
+    })
+
+    fine_tuning_job_id = fields.Str(validate=lambda n: len(n) > 0,
+                                    allow_none=True,
+                                    error_messages={
+        'invalid': 'Model version must be a string with len() > 0.'
     })
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
@@ -1428,6 +1460,14 @@ class UpdateDataPointSchema(BaseUpdateSchema):
         fields.Integer(validate=lambda n: n > 0), allow_none=True, error_messages={
             'invalid': 'Related datapoint ids must be > 0',
         })
+    evaluation_type = CustomEnumValidationField(
+        EvaluationType,
+        by_value=True,
+        allow_none=True,
+        error_messages={
+            'invalid': 'Invalid evaluation type. Must be one of: {0}.'.format(", ".join(e.name for e in EvaluationType))
+        }
+    )
 
     def __init__(self, session: Session, data_manager: IDataManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
