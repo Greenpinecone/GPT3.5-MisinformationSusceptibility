@@ -21,6 +21,7 @@ from frontend.classes.global_app_state_manager import GlobalAppStateManager
 from frontend.classes.query_params_manager import QueryParamsManager
 from app.frontend.classes.page_navigator import PageNavigator
 
+st.set_page_config(layout="centered")
 apply_global_style()
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
@@ -55,12 +56,25 @@ with logger:
 
         @st.experimental_fragment
         def switch_to_create_project():
-            create_project_button = st.button(
-                "Create Project +", help="Click me to create a new project", type="primary", key="create_project_button")
+            create_project_go_to_statistics_columns = st.columns(
+                [1, 1, 2, 2, 1, 1])
 
-            if create_project_button:
-                GlobalAppStateManager.clear_session_state()
-                PageNavigator.navigate_to_page('create_project')
+            with create_project_go_to_statistics_columns[2]:
+                go_to_model_overview = st.button(
+                    "◀️ Model Overview", help="Go to the model overview where you can modify the global settings of a model and select them for statistical analysis", type="secondary", key="model_overview")
+
+                if go_to_model_overview:
+                    GlobalAppStateManager.clear_session_state()
+                    PageNavigator.navigate_to_page('model_overview')
+
+            with create_project_go_to_statistics_columns[3]:
+                create_project_button = st.button(
+                    "Create Project +", help="Click me to create a new project", type="primary", key="create_project_button")
+
+                if create_project_button:
+                    GlobalAppStateManager.clear_session_state()
+                    PageNavigator.navigate_to_page('create_project')
+
         switch_to_create_project()
 
         search_cols = st.columns((2, 1))
