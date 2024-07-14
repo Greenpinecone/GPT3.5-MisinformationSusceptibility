@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Google auth key
+google_auth_key/*.json
+
 # C extensions
 *.so
 
