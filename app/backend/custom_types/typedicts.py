@@ -20,7 +20,7 @@ class EDAParams(TypedDict):
 
 
 class GoogleBTParams(TypedDict):
-    pass
+    translate_languages: list[dict]
 
 
 class AugmentationConfiguration(TypedDict):
