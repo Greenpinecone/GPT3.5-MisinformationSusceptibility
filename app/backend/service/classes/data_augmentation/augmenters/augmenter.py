@@ -10,6 +10,7 @@ Classes:
 from app.backend.custom_types.typedicts import AugmentationConfiguration, EDAParams, GoogleBTParams
 from app.backend.dtos.create_request import CreateDataPointDTO
 from app.backend.dtos.response import DataPointDTO
+from app.backend.service.classes.data_augmentation.augmentation_methods.back_translation import GoogleBackTranslation
 from app.backend.service.classes.data_augmentation.augmentation_methods.interfaces.i_augmentation_methods import IAugmentationMethod
 from app.backend.util.config import DATA_AUGMENTATION_METHODS as augmentation_methods
 from app.backend.service.classes.data_augmentation.augmentation_methods.eda.eda_easy_data_augmentation import EDA
@@ -28,9 +29,7 @@ class DataAugmenter:
     @classmethod
     def select_augmentation_class(cls, augmentation_method: str):
         if augmentation_method == augmentation_methods["google_translate"]:
-            pass  # TODO: implement google translate augmenter
-            raise Exception(
-                "Google Translate Augmenation is not yet implemented.")
+            return GoogleBackTranslation()
 
         if augmentation_method == augmentation_methods["EDA_Easy_Data_Augmentation"]:
             return EDA()
