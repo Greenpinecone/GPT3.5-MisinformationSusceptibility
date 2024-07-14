@@ -1,8 +1,10 @@
 from typing import Any
+from uuid import uuid4
 import pandas as pd
 import streamlit as st
 from frontend.dtos.frontend_dtos import *
 from backend.custom_types.typedicts import *
+from app.frontend.classes.toast_manager import ToastManager
 
 
 class DataFrameEditor:
@@ -37,15 +39,30 @@ class DataFrameEditor:
 
         return df
 
+    @staticmethod
+    def check_edits(df: pd.DataFrame, edits: dict[int, dict[str, Any]]) -> bool:
+        """Check edits to ensure 'system' role is only in the first row."""
+        for idx, changes in edits.items():
+            if 'role' in changes and changes['role'] == 'system' and idx != 0:
+                ToastManager.add_global_toasts(
+                    "'System' role can only be placed at the beginning of a datapoint", "info")
+                return False
+        return True
+
     @classmethod
     def update_df(cls, simple_datapoint_dto: DataPointDTOWithDataFrameWrapper) -> None:
         """Main method to update DataFrame based on editor changes."""
-        print("DATAFRAME EDITOR - HALLO 1 !!!")
         data_editor: dict = st.session_state[simple_datapoint_dto.data_editor_key]
         df: pd.DataFrame = simple_datapoint_dto.messages
 
         # Apply edits if there are edited rows
         if data_editor.get('edited_rows'):
+            # Check if the edits are valid
+            # TODO: Adapt this for different companies / roles / models and change the data_editor key reset to avoid multiple failure points when copying code
+            if not cls.check_edits(df, data_editor['edited_rows']):
+                # Reset data editor key to force rerender, to avoid showing the currently data_editor stored changes which ar enot applied and would reset on page reload.
+                simple_datapoint_dto.data_editor_key = f"data_editor_{uuid4()}"
+                return
             # Apply all other edits if any have taken place
             cls.apply_edits(df, data_editor['edited_rows'])
 
