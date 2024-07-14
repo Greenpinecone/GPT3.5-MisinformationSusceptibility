@@ -14,6 +14,7 @@ class ModelEvaluator:
         self._service: ServiceManagerFacade = service
         self._model_id = model_id
         self._semantic_similarity_model = semantic_similarity_model
+        self._all_training_datapoints = []
         self._test_datapoint_ids: list[int] = test_datapoint_ids
         self._cached_items: dict[int, ComplexModelEvaluationDTO] = {}
         self._tests_datapoint_ids_for_model_evaluations_to_update: set[int] = set(
@@ -27,6 +28,11 @@ class ModelEvaluator:
         paginator: Paginator = GlobalAppStateManager.get_or_create_session_state(
             "complex_model_evaluations_paginator", default_value=Paginator, items_per_page=matching_items_per_page
         )
+
+        # TODO: optionally fetch all datapoints and display them in a third tab in the model evaluation widget so that the user can still check them out for comparison - not implemented right now, because if datasets get bigger this might be unnecessary overhead rendering
+        if not self._all_training_datapoints:
+            self._all_training_datapoints = self._service.get_all_training_datapoints(
+                self._model_id)
 
         # Extra space
         st.write("")
@@ -45,7 +51,7 @@ class ModelEvaluator:
             self.fetch_item()
 
         DataFrameWidgetProvider.create_complex_model_evaluation_dataframe(
-            self._current_model_evaluation, self._tests_datapoint_ids_for_model_evaluations_to_update, current_step_counter, activation_threshold)
+            self._current_model_evaluation, self._all_training_datapoints, self._tests_datapoint_ids_for_model_evaluations_to_update, current_step_counter, activation_threshold)
 
         # Create pagination container
         pagination_buttons_container = st.container()
@@ -53,6 +59,9 @@ class ModelEvaluator:
         # Create pagination buttons based on total amount of items available
         paginator.create_pagination_buttons(
             pagination_buttons_container, self._test_datapoint_ids)
+
+        st.button(label="Generate all model evaluations", help="Pre-generate all model evalaution to instead of generating model evaluations on demand (clicking next for the next evaluation). This automatically generates all model evaluations for the whole test dataset and all model evalautions will be created in the database.",
+                  type="secondary", disabled=len(self._test_datapoint_ids) == len(list(self._cached_items.keys())), on_click=self.generate_all_model_evaluations)
 
     def update_left_over_evaluations(self):
         self.update_evaluations()
@@ -94,24 +103,37 @@ class ModelEvaluator:
         else:
             self._get_current_evaluation()
 
+    def generate_all_model_evaluations(self):
+        current_test_datapoint_id: int = self._current_test_datapoint_id
+        for id in self._test_datapoint_ids:
+            self._current_test_datapoint_id = id
+            self.fetch_item()
+
+        # reset previous test dataset id / model evalaution
+        self._current_test_datapoint_id = current_test_datapoint_id
+        self.fetch_item()
+
     def has_already_been_fetched(self, id: int) -> bool:
         return self._cached_items.get(id)
 
     def display_scores(self) -> None:
-        avg_helpful_scores, avg_honest_scores, avg_harmless_scores, avg_semantic_similarity_score = self._calculate_scores()
+        avg_helpful_score, avg_honest_score, avg_harmless_score, avg_semantic_similarity_score, _, _ = self._calculate_scores()
         with self._display_scores_container:
-            columns = st.columns(3)
-            with columns[0]:
-                st.markdown("##### Avg. helpfulness")
-                st.write(f"{avg_helpful_scores}")
-            with columns[1]:
-                st.markdown("##### Avg. honesty:")
-                st.write(f"{avg_honest_scores}")
-            with columns[2]:
-                st.markdown("##### Avg. harmlessness:")
-                st.write(f"{avg_harmless_scores}")
+            if self._semantic_similarity_model:
+                columns = st.columns(4)
+            else:
+                columns = st.columns(3)
 
-            # Next line
-            with st.columns(1)[0]:
-                st.markdown("##### Avg. similarity score:")
-                st.write(f"{avg_semantic_similarity_score}")
+            with columns[0]:
+                st.markdown("###### Avg. helpfulness")
+                st.write(f"{avg_helpful_score[0]}")
+            with columns[1]:
+                st.markdown("###### Avg. honesty:")
+                st.write(f"{avg_honest_score[0]}")
+            with columns[2]:
+                st.markdown("###### Avg. harmlessness:")
+                st.write(f"{avg_harmless_score[0]}")
+            if self._semantic_similarity_model:
+                with columns[3]:
+                    st.markdown("###### Avg. similarity score:")
+                    st.write(f"{avg_semantic_similarity_score[0]}")
