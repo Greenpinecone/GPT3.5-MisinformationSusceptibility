@@ -39,11 +39,8 @@ class FineTuningModelVersions(enum.Enum):
     openai = [
         "gpt-3.5-turbo-0125",        # January 25, 2023
         "gpt-3.5-turbo-1106",        # November 6, 2023
-        "gpt-4-0125-preview",        # January 25, 2024
-        "gpt-4-0613",                # June 13, 2024
-        "gpt-4-turbo-2024-04-09",    # April 9, 2024
-        "gpt-4o-2024-05-13",         # May 13, 2024
-        "gpt-4-1106-preview"         # November 6, 2024
+        # "gpt-4-0613",                # June 13, 2024 NOT AVAILABLE YET
+        # "gpt-4o-2024-05-13",         # May 13, 2024 NOT AVAILABLE YET
     ]
     google = [
         "non existent google models"
@@ -53,18 +50,15 @@ class FineTuningModelVersions(enum.Enum):
 # The first role is the default role
 class MessageKeys(enum.Enum):
     openai = [("system", "assistant", "user")]
-    google = [("nonexistent roles",)]
+    google = [("nonexistent roles", "nonexistent assistant role")]
 
 
 class UploadFormats(enum.Enum):
     openai = {
         "gpt-3.5-turbo-0125": ["jsonl"],
         "gpt-3.5-turbo-1106": ["jsonl"],
-        "gpt-4-0125-preview": ["jsonl"],
-        "gpt-4-0613": ["jsonl"],
-        "gpt-4-turbo-2024-04-09": ["jsonl"],
-        "gpt-4o-2024-05-13": ["jsonl"],
-        "gpt-4-1106-preview": ["jsonl"]
+        # "gpt-4-0613": ["jsonl"], NOT AVAILABLE YET
+        # "gpt-4o-2024-05-13": ["jsonl"], NOT AVAILABLE YET
     }
     google = {
         "non existent google models": ["nonexistent google format"]
