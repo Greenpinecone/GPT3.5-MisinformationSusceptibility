@@ -36,7 +36,9 @@ class Paginator:
                     if self.current_page > 1:
                         prev_button_key = f"""prev_{
                             uuid4()}"""
-                        st.button(label="Prev", key=prev_button_key, help="s", on_click=lambda: self.set_page_num(
+                        st.button(label="Prev", key=prev_button_key, help="""Go to the previous page.
+                                  
+                                  INFO: Be sure to only press the button ONCE and let the page fully reload afterwards, else unintended side effects may occur""", on_click=lambda: self.set_page_num(
                             self.current_page - 1))
 
                 with cols[2]:
@@ -57,4 +59,6 @@ class Paginator:
                         next_button_key = f"""next_{
                             uuid4()}"""
                         st.button(label="Next", key=next_button_key, on_click=lambda: self.set_page_num(
-                            self.current_page + 1))
+                            self.current_page + 1), help="""Go to the previous page.
+                                  
+                                  INFO: Be sure to only press the button ONCE and let the page fully reload afterwards, else unintended side effects may occur""")
