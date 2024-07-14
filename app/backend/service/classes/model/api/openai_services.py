@@ -7,6 +7,9 @@ Classes:
     OpenAIService: Manages the API interactions with OpenAI, including fine-tuning and data retrieval.
 """
 
+import base64
+import csv
+from datetime import datetime, timezone
 import os
 import io
 from uuid import uuid4
@@ -50,6 +53,47 @@ class OpenAIService(IFineTuningService):
         except Exception as e:
             raise Exception(f"Error while uploading files: {e}")
 
+    def parse_csv_content(self, decoded_content: str) -> dict:
+        csv_reader = csv.reader(io.StringIO(decoded_content))
+        headers = next(csv_reader)  # Get the headers
+        data = [row for row in csv_reader]  # Get the data rows
+        return {"headers": headers, "data": data}
+
+    def retrieve_training_data(self, file_id: str, as_jsonl: bool = True) -> bytes | str:
+        # Returns an object with the content encoded in binary or base64.
+        file_response = self.client.files.content(file_id)
+
+        # If the request comes in for a training data file, it is not further encoded and just content -> bytes, text -> str
+        if as_jsonl:
+            return file_response.content
+
+    # TODO: Separate this function into two
+    def retrieve_file_content(self, file_id: str) -> bytes | dict:
+        # Returns an object with the content encoded in binary or base64.
+        file_response = self.client.files.content(file_id)
+
+        # If the request is for a metrics file, the content is additonally encoded and the text is base64 utf encoded.
+        decoded_content = base64.b64decode(file_response.text).decode('utf-8')
+
+        decoded_content: dict[str. list[str]
+                              ] = self.parse_csv_content(decoded_content)
+
+        return decoded_content
+
+    def combine_result_files(self, result_files_contents: list) -> dict:
+        combined_data = []
+        headers = None
+
+        for content in result_files_contents:
+            if headers is None:
+                headers = content['headers']
+            elif headers != content['headers']:
+                raise ValueError("Inconsistent headers across result files")
+
+            combined_data.extend(content['data'])
+
+        return {"headers": headers, "data": combined_data}
+
     def fine_tune_model(self, training_file_id: str, chosen_training_model: str, validation_file_id: str | None = None, hyperparameters: dict[str, str] | None = None, seed: int | None = None, suffix: str | None = None):
         try:
             params = {
@@ -70,8 +114,19 @@ class OpenAIService(IFineTuningService):
         except Exception as e:
             raise Exception(f"Error creating fine tuning job: {e}")
 
+    def get_fine_funing_job_object(self, fine_tuning_job_id: str | None = None):
+        if fine_tuning_job_id:
+            try:
+                return self.client.fine_tuning.jobs.retrieve(fine_tuning_job_id)
+            except Exception as e:
+                # Model has already been deleted
+                if e.status_code == 404:
+                    return {}
+        else:
+            return {}
+
     def get_fine_tuning_status(self, fine_tuning_job_id: str) -> str | float:
-        response = self.client.fine_tuning.jobs.retrieve(fine_tuning_job_id)
+        response = self.get_fine_funing_job_object(fine_tuning_job_id)
 
         # else status == "running"
         events = self.client.fine_tuning.jobs.list_events(
@@ -110,6 +165,76 @@ class OpenAIService(IFineTuningService):
         # Return the current status if there is no progress information
         return current_training_progress, response.status, progress_message, response.hyperparameters, response.seed, response.fine_tuned_model
 
+    def convert_unix_to_local_time(self, unix_timestamp: int) -> datetime:
+        # Convert Unix timestamp to a datetime object
+        utc_time = datetime.fromtimestamp(unix_timestamp, tz=timezone.utc)
+
+        # Convert the UTC datetime object to local time
+        local_time = utc_time.astimezone()
+
+        return local_time
+
+    def get_fine_tuning_job_metrics(self, fine_tuning_job_id: str, step: int | None = None):
+        response = self.get_fine_funing_job_object(fine_tuning_job_id)
+
+        if not response:
+            return {
+                "created_at": None,
+                "organization_id": None,
+                "result_files_contents": [],
+                "status": None,
+                "validation_file_id": None,
+                "training_file_id": None,
+                "trained_tokens": None,
+                "checkpoint_metrics": None,
+                "seed": None
+            }
+
+         # Initialize result dictionary
+        result = {
+            "created_at": self.convert_unix_to_local_time(response.created_at) if response.created_at else None,
+            "organization_id": response.organization_id,
+            "status": response.status,
+            "validation_file_id": response.validation_file,
+            "training_file_id": response.training_file,
+            "trained_tokens": response.trained_tokens,
+            "seed": response.seed,
+            "checkpoint_metrics": None,
+            "result_files_contents": []
+        }
+
+        # Fetch content of result files
+        result_files_contents = [
+            self.retrieve_file_content(file_id) for file_id in response.result_files
+        ]
+
+        # Add all files together
+        combined_result = self.combine_result_files(result_files_contents)
+
+        checkpoints = self.get_checkpoints(fine_tuning_job_id)
+        # Check if step parameter is provided
+        if step is not None:
+            checkpoint = next(
+                (ckpt for ckpt in checkpoints if ckpt['step_number'] == step), None)
+
+            if checkpoint:
+                # Update the result dictionary with checkpoint details
+                result["created_at"] = self.convert_unix_to_local_time(
+                    checkpoint["created_at"]) if checkpoint["created_at"] else result["created_at"]
+                # As trained tokens are cumulative, set to None
+                result["trained_tokens"] = None
+                result["checkpoint_metrics"] = [checkpoint["metrics"]]
+        else:
+            all_checkpoint_metrics: list[dict] = [
+                checkpoint["metrics"] for checkpoint in checkpoints]
+
+            all_checkpoint_metrics.sort(key=lambda x: x['step'])
+            result["checkpoint_metrics"] = all_checkpoint_metrics
+
+        result["result_files_contents"] = combined_result
+
+        return result
+
     def get_checkpoints(self, fine_tuning_job_id):
         url = f"""https://api.openai.com/v1/fine_tuning/jobs/{
             fine_tuning_job_id}/checkpoints"""
@@ -144,7 +269,11 @@ class OpenAIService(IFineTuningService):
                     response = self.delete_fine_tuned_model(
                         job_details.fine_tuned_model)
 
-             # Step 3: Delete the training and validation files
+            # Delete checkpoint models if exist
+            self.delete_checkpoint_models_by_original_fine_tuning_job_id(
+                fine_tuning_job_id)
+
+            # Step 3: Delete the training and validation files
             if training_file_id:
                 self.delete_file(training_file_id)
             if validation_file_id:
@@ -155,6 +284,12 @@ class OpenAIService(IFineTuningService):
         except Exception as e:
             raise Exception(
                 f"Fine tuning job could not be cancelled properly: {e}") from e
+
+    def delete_checkpoint_models_by_original_fine_tuning_job_id(self, fine_tuning_job_id: str) -> None:
+        # Delete checkpoint models if exist
+        checkpoints = self.get_checkpoints(fine_tuning_job_id)
+        for checkpoint in checkpoints:
+            self.delete_fine_tuned_model(checkpoint['id'])
 
     def delete_file(self, file_id: str):
         try:
@@ -234,11 +369,19 @@ class OpenAIService(IFineTuningService):
         Parameters:
             chat (list[dict]): The conversation chat history.
             model_id (str): The custom model ID to be used for generating the response.
+            model_used_for_fine_tuning (str): The base model used for fine-tuning.
 
         Returns:
-            list[dict]: The updated chat history with the new response.
+            str: The assistant's response.
         """
         try:
+            # Fetch available models
+            available_models = self.get_available_models()
+
+            # Check if the model_used_for_fine_tuning exists
+            if model_id not in available_models:
+                raise ValueError(f"""Model used for fine-tuning '{
+                                 model_id}' does not exist or is no longer available. Please choose a different model.""")
 
             # Generate a response for the empty assistant message
             response = self.client.chat.completions.create(
@@ -254,3 +397,11 @@ class OpenAIService(IFineTuningService):
 
         except Exception as e:
             raise Exception(f"Error while answering the last message: {e}")
+
+    def get_available_models(self):
+        try:
+            response = self.client.models.list()
+            models = [model.id for model in response.data]
+            return models
+        except Exception as e:
+            raise Exception(f"Error fetching available models: {e}")
