@@ -17,6 +17,11 @@ class MapperFacade:
         schema = ProjectSchema(session=session)
         return schema.dump(project_entity)
 
+    def map_project_to_simple_dto(self, session: Session, project_entity: Project) -> SimpleProjectDTO:
+        # Convert a Project entity to ProjectDTO
+        schema = SimpleProjectSchema(session=session)
+        return schema.dump(project_entity)
+
     def map_dataset_to_dto(self, session: Session, dataset_entity: Dataset) -> DatasetDTO:
         # Convert a Dataset entity to DatasetDTO
         schema = DatasetSchema(session=session)
@@ -32,6 +37,11 @@ class MapperFacade:
         schema = DataPointSchema(session=session)
         return schema.dump(datapoint_entity)
 
+    def map_datapoint_to_simple_dto(self, session: Session, datapoint_entity: DataPoint) -> SimpleDataPointDTO:
+        # Convert a DataPoint entity to SimpleDataPointDTO
+        schema = SimpleDataPointSchema(session=session)
+        return schema.dump(datapoint_entity)
+
     def map_datapoint_to_training_datapoint_dto(self, session: Session, datapoint_entity: DataPoint) -> DataPointDTO:
         # Convert a DataPoint entity to DataPointDTO
         schema = TrainingDataPointSchema(session=session)
@@ -40,6 +50,12 @@ class MapperFacade:
     def map_model_to_dto(self, session: Session, model_entity: Model) -> ModelDTO:
         # Convert a Model entity to ModelDTO
         schema = ModelSchema(session=session)
+        return schema.dump(model_entity)
+
+    def map_model_to_dto_with_original_project(self, session: Session, model_entity: Model, project_entity: Project) -> ModelWithOriginalProjectDTO:
+        # Convert a Model entity to ModelWithOriginalProjectDTO
+        schema = ModelWithOriginalProjectSchema(
+            session=session, context={'project': project_entity})
         return schema.dump(model_entity)
 
     def map_model_to_complex_dto(self, session: Session, model_entity: Model) -> ComplexModelDTO:

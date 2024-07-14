@@ -18,6 +18,8 @@ class GetModelsDTO:
     is_global: bool | None = None
     exlude_project_id: int | None = None
     is_checkpoint_model: bool | None = None
+    only_original_models: bool | None = None
+    fine_tuning_job_id: str | None = None
 
 
 @dataclass
