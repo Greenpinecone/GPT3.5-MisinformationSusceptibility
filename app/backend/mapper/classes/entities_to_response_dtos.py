@@ -65,6 +65,23 @@ class ProjectSchema(BaseSchema):
         return ProjectDTO(**data)
 
 
+class SimpleProjectSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    id = auto_field()
+    project_name = auto_field()
+    description = auto_field()
+    created_at = FlexibleDateTimeField()
+
+    class Meta(BaseSchema.Meta):
+        model = Project
+
+    @post_dump
+    def make_project_dto(self, data, **kwargs):
+        return SimpleProjectDTO(**data)
+
+
 class DatasetSchema(BaseSchema):
     def __init__(self, session=None, *args, **kwargs):
         super().__init__(session, *args, **kwargs)
@@ -138,6 +155,7 @@ class DataPointSchema(BaseSchema):
     created_at = FlexibleDateTimeField()
     messages = auto_field()
     initial_datapoint_id = auto_field()
+    evaluation_type = auto_field()
 
     # Use a lambda to defer self-referencing
     related_datapoints = fields.Nested(lambda: DataPointSchema(
@@ -152,6 +170,25 @@ class DataPointSchema(BaseSchema):
         if not data.get("related_datapoints"):
             data["related_datapoints"] = []
         return DataPointDTO(**data)
+
+
+class SimpleDataPointSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    id = auto_field()
+    augmentation_type = CustomEnumConversionSchema(AugmentationType)
+    messages = auto_field()
+
+    class Meta(BaseSchema.Meta):
+        model = DataPoint
+
+    @post_dump
+    def make_data_point_dto(self, data, **kwargs):
+        # Remove unnecessary field that occurs in data. TODO: Find out WHY these fields sometimes occur.
+        if "evaluation_type" in data:
+            del data["evaluation_type"]
+        return SimpleDataPointDTO(**data)
 
 
 # Unlike the other datapoint schema, this schema does not get the directly related_datapoints as they have been set for test_datapoints, it gets the test datapoints related to a training datapoin instead.
@@ -175,6 +212,9 @@ class TrainingDataPointSchema(BaseSchema):
 
     @post_dump
     def make_data_point_dto(self, data, **kwargs):
+        # Remove unnecessary field that occurs in data. TODO: Find out WHY these fields sometimes occur.
+        if "evaluation_type" in data:
+            del data["evaluation_type"]
         # When "related_datapoints" is excluded in nested fields.
         if not data.get("related_datapoints"):
             data["related_datapoints"] = []
@@ -198,6 +238,9 @@ class DataPointWithInitialDataPointSchema(BaseSchema):
 
     @post_dump
     def make_data_point_dto(self, data, **kwargs):
+        # Remove unnecessary field that occurs in data. TODO: Find out WHY these fields sometimes occur.
+        if "evaluation_type" in data:
+            del data["evaluation_type"]
         return DataPointWithInitialDataPointDTO(**data)
 
 
@@ -361,6 +404,10 @@ class CurrentProjectDataSchema(BaseSchema):
         lambda: ComplexDatasetSchema(), default=None)
     current_augmented_datapoint_evaluation_ids = fields.Function(
         serialize=lambda obj: [evaluation.id for evaluation in obj.current_augmented_datapoint_evaluations])
+    selected_statistic_models = fields.Function(
+        serialize=lambda obj: [model.id for model in obj.selected_statistic_models])
+    generated_checkpoint_model_ids = fields.Function(
+        serialize=lambda obj: [model.id for model in obj.generated_checkpoint_models])
 
     class Meta(BaseSchema.Meta):
         model = CurrentProjectData
@@ -433,3 +480,33 @@ class ComplexModelEvaluationSchema(BaseSchema):
     @post_dump
     def make_training_run_dto(self, data, **kwargs):
         return ComplexModelEvaluationDTO(**data)
+
+
+class ModelWithOriginalProjectSchema(BaseSchema):
+    def __init__(self, session=None, *args, **kwargs):
+        super().__init__(session, *args, **kwargs)
+
+    id = auto_field()
+    model_name = auto_field()
+    version = auto_field()
+    original_project = fields.Function(
+        serialize=lambda obj, context: SimpleProjectSchema().dump(
+            context['project'])
+    )
+    is_global = auto_field()
+    created_at = auto_field()
+    is_checkpoint_model = auto_field()
+    checkpoint_step = auto_field()
+
+    class Meta(BaseSchema.Meta):
+        model = Model
+
+    @post_dump
+    def make_model_dto(self, data, **kwargs):
+        # Filter out any unwanted fields manually if necessary
+        allowed_fields = {'id', 'model_name', 'version', 'original_project',
+                          'is_global', 'created_at', 'is_checkpoint_model', 'checkpoint_step'}
+        filtered_data = {key: value for key,
+                         value in data.items() if key in allowed_fields}
+
+        return ModelWithOriginalProjectDTO(**filtered_data)

@@ -28,6 +28,7 @@ class UpdateDatasetDTO:
 class UpdateDataPointDTO:
     id: int
     related_datapoint_ids: list[int] | None = None
+    evaluation_type: EvaluationType | None = None
 
 
 @dataclass
@@ -81,6 +82,8 @@ class UpdateCurrentProjectDataDTO:
         default_factory=lambda: SENTINEL)
     current_augmented_datapoint_evaluation_ids: list[int] | None = field(
         default_factory=lambda: SENTINEL)
+    selected_statistic_models: list[int] | None = field(
+        default_factory=lambda: SENTINEL)
     current_augmentation_configurations: list[AugmentationConfiguration] | None = field(
         default_factory=lambda: SENTINEL)
     unfinished_progress: bool | None = field(default_factory=lambda: SENTINEL)
@@ -96,4 +99,6 @@ class UpdateCurrentProjectDataDTO:
     selected_model_for_fine_tuning_id: int | None = field(
         default_factory=lambda: SENTINEL)
     currently_modified_dataset_id: int | None = field(
+        default_factory=lambda: SENTINEL)
+    generated_checkpoint_model_ids: list[int] | None = field(
         default_factory=lambda: SENTINEL)

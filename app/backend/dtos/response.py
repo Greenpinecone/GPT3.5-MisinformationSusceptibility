@@ -19,6 +19,15 @@ class ProjectDTO:
 
 
 @dataclass
+class SimpleProjectDTO:
+    id: int
+    project_name: str
+    description: str | None = None
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
+
+
+@dataclass
 class DatasetDTO:
     id: int
     dataset_name: str
@@ -48,6 +57,16 @@ class DataPointDTO:
     created_at: datetime = field(
         default_factory=lambda: datetime.now().astimezone())
     initial_datapoint_id: int | None = None
+    evaluation_type: EvaluationType | None = None
+
+
+@dataclass
+class SimpleDataPointDTO:
+    id: int
+    messages: MessagesContainer
+    augmentation_type: AugmentationType | None = None
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
 
 
 @dataclass
@@ -112,6 +131,19 @@ class ModelDTO:
         default_factory=lambda: datetime.now().astimezone())
     parent_model_id: int | None = None
     training_run_id: int | None = None
+    is_checkpoint_model: bool | None = None
+    checkpoint_step: int | None = None
+
+
+@dataclass
+class ModelWithOriginalProjectDTO:
+    id: int
+    model_name: str
+    version: str
+    original_project: ProjectDTO
+    is_global: bool = False
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now().astimezone())
     is_checkpoint_model: bool | None = None
     checkpoint_step: int | None = None
 
@@ -198,6 +230,8 @@ class CurrentProjectDataDTO:
     current_augmentation_configurations: list[AugmentationConfiguration] = field(
         default_factory=list)
     generated_checkpoint_model_ids: list[int] = field(
+        default_factory=list)
+    selected_statistic_models: list[int] = field(
         default_factory=list)
     unfinished_progress: bool = False
     current_page: str = ""
