@@ -99,15 +99,20 @@ class DataPointEvaluator:
         return self._cached_items.get(id)
 
     def display_scores(self) -> None:
-        avg_coherence_score, avg_relevance_score, avg_semantic_similarity_score = self._calculate_scores()
+        avg_coherence_score, avg_relevance_score, avg_semantic_similarity_score, _ = self._calculate_scores()
         with self._display_scores_container:
-            columns = st.columns(3)
+            if avg_semantic_similarity_score[2]:
+                columns = st.columns(3)
+            else:
+                columns = st.columns(2)
+
             with columns[0]:
                 st.markdown("##### Avg. coherence score")
-                st.write(f"{avg_coherence_score}")
+                st.write(f"{avg_coherence_score[0]}")
             with columns[1]:
                 st.markdown("##### Avg. relevance score:")
-                st.write(f"{avg_relevance_score}")
-            with columns[2]:
-                st.markdown("##### Avg. similarity score:")
-                st.write(f"{avg_semantic_similarity_score}")
+                st.write(f"{avg_relevance_score[0]}")
+            if avg_semantic_similarity_score[2]:
+                with columns[2]:
+                    st.markdown("##### Avg. similarity score:")
+                    st.write(f"{avg_semantic_similarity_score[0]}")
