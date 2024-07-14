@@ -72,7 +72,7 @@ class DatasetService:
                 editor.temp_simple_datapoint_dto = None
                 # Reset default role
                 editor.default_role = MessageKeys[editor.chosen_company.value].value[
-                    0][0] if editor.chosen_company else None
+                    0][1] if editor.chosen_company else None
                 changed = True
         return changed
 
