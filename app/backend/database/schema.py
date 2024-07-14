@@ -36,9 +36,18 @@ class FineTuningCompany(enum.Enum):
 
 
 class FineTuningModelVersions(enum.Enum):
-    openai = ["gpt-3.5-turbo-0125", "gpt-3.5-turbo-0613",
-              "gpt-3.5-turbo-1106", "gpt-4-0613"]
-    google = ["non existent google models"]
+    openai = [
+        "gpt-3.5-turbo-0125",        # January 25, 2023
+        "gpt-3.5-turbo-1106",        # November 6, 2023
+        "gpt-4-0125-preview",        # January 25, 2024
+        "gpt-4-0613",                # June 13, 2024
+        "gpt-4-turbo-2024-04-09",    # April 9, 2024
+        "gpt-4o-2024-05-13",         # May 13, 2024
+        "gpt-4-1106-preview"         # November 6, 2024
+    ]
+    google = [
+        "non existent google models"
+    ]
 
 
 # The first role is the default role
@@ -48,9 +57,18 @@ class MessageKeys(enum.Enum):
 
 
 class UploadFormats(enum.Enum):
-    openai = {"gpt-3.5-turbo-0125": ["jsonl"], "gpt-3.5-turbo-0613": [
-        "jsonl"], "gpt-3.5-turbo-1106": ["jsonl"], "gpt-4": ["jsonl"]}
-    google = {"non existent google models": ["nonexistent google format"]}
+    openai = {
+        "gpt-3.5-turbo-0125": ["jsonl"],
+        "gpt-3.5-turbo-1106": ["jsonl"],
+        "gpt-4-0125-preview": ["jsonl"],
+        "gpt-4-0613": ["jsonl"],
+        "gpt-4-turbo-2024-04-09": ["jsonl"],
+        "gpt-4o-2024-05-13": ["jsonl"],
+        "gpt-4-1106-preview": ["jsonl"]
+    }
+    google = {
+        "non existent google models": ["nonexistent google format"]
+    }
 
 
 Base = declarative_base()
@@ -92,6 +110,8 @@ project_model_link = Table(
     Column('model_name', String, nullable=False),
     Column('version', String, nullable=False),
     Column('created_at', DateTime, default=func.now()),
+    # INFO: Creates an issue if you try to add a model with the same name from another project or if the base model is the same and now you have two times the same mode, doesnt make sense.
+    # INFO 2: I will still use this unique constraint since every other solution is super complex with a multitude of problems to solve that come with it. Instead I automatically use a unique identifier which I append to each new models name to avoid any conflicts.
     UniqueConstraint('model_name', 'version',
                      'project_id', name='_model_project_version_uc')
 )
@@ -111,13 +131,22 @@ current_project_data_evaluation_association = Table(
         'datapoint_evaluations.id', ondelete="CASCADE"), primary_key=True)
 )
 
-current_project_data_model_evaluation_association = Table(
-    'current_project_data_model_evaluation_association',
+current_project_data_statistic_model_associations = Table(
+    'current_project_data_statistic_model_associations',
     Base.metadata,
     Column('current_project_data_id', Integer, ForeignKey(
         'current_project_data.id', ondelete="CASCADE"), primary_key=True),
-    Column('model_evaluation_id', Integer, ForeignKey(
-        'model_evaluations.id', ondelete="CASCADE"), primary_key=True)
+    Column('statistic_model_id', Integer, ForeignKey(
+        'models.id', ondelete="CASCADE"), primary_key=True)
+)
+
+current_project_data_checkpoint_models_associations = Table(
+    'current_project_data_checkpoint_models_associations',
+    Base.metadata,
+    Column('current_project_data_id', Integer, ForeignKey(
+        'current_project_data.id', ondelete="CASCADE"), primary_key=True),
+    Column('statistic_model_id', Integer, ForeignKey(
+        'models.id', ondelete="CASCADE"), primary_key=True)
 )
 
 
@@ -220,6 +249,8 @@ class DataPoint(Base):
     # Add a column for storing messages in JSON format
     messages = Column(JSON, nullable=False)
     created_at = Column(DateTime, default=func.now())
+    # To store the "ground truth" label for the confusion matrix
+    evaluation_type = Column(Enum(EvaluationType))
     # Reference to the initial datapoint
     # Delete the datapoint if the initial_datapoint_id is deleted.
     initial_datapoint_id = Column(
@@ -235,12 +266,15 @@ class DataPoint(Base):
     derived_datapoints = relationship(
         "DataPoint", back_populates="initial_datapoint", cascade="save-update, merge, delete", passive_deletes=True
     )
-    # Self-referencing many-to-many relationship for related datapoints -> needs multiple initial dataset if
+    # Self-referencing many-to-many relationship for related datapoints
+    # IMPORTANT INFO: There are two use cases for this relationship:
+    # 1. If a test datapoint is created, all related / matched trainings datapoints are added to this test datapoin via related_datapoints
+    # 2. (This is more complicated) If a datapoint is augmented from an original trainings datapoint, The test datapoints that were related to the original trainings datapoint will be added to the augmented datapoints "related_datapoints" list. This is to avoid changing the original test datasets relations since the test dataset is reused by all child models which would cause wrong relations to show during model evaluation. Instead by storing the related test datapoints in the augmented "related_datapoints" list, it is independently stored. This will cause the augmented datapoints to show up in the test datapoints "related_by" list. Since we have now separated the orginal test datapoints relations from the augmented ones, we need to combine them back together, when we want to display all datapoints (original and augmented) that influence the outcome of a specific test datapoint. To do so, we get the current model evaluations test datapoint from the original dataset. Then check for all augemnted datapoints, if one of them includes this test datapoint in its "related_datapoints" list, and if so, we take this augmented datapoint and add it to the ComplexModelAvaluationDTO.datapoint.related_datapoints list. We add it to the mapped DTO already to avoid changing the underlying entity relation. We do this for all previous models and their augmented datasets. This way we gather all augmented datapoints from the current model and all its predecessors  that were augmented from original datapoints which were related to this specific test datpoint
     related_datapoints = relationship(
         "DataPoint",
         secondary=datapoint_relationships,
-        primaryjoin=id == datapoint_relationships.c.source_datapoint_id,
-        secondaryjoin=id == datapoint_relationships.c.target_datapoint_id,
+        primaryjoin=id == datapoint_relationships.c.target_datapoint_id,
+        secondaryjoin=id == datapoint_relationships.c.source_datapoint_id,
         back_populates="related_by"
     )
 
@@ -251,7 +285,6 @@ class DataPoint(Base):
         secondaryjoin=id == datapoint_relationships.c.target_datapoint_id,
         back_populates="related_datapoints"
     )
-
     # Bidirectional relationship (many DataPoints belong to one Dataset)
     dataset = relationship(
         "Dataset", back_populates="datapoints",
@@ -335,8 +368,15 @@ class Model(Base):
     datapoint_evaluations = relationship("DataPointEvaluation",
                                          back_populates="model", cascade="save-update, merge, delete", passive_deletes=True)
 
+    # current_project_data = relationship(
+    #     "CurrentProjectData",
+    #     secondary=current_project_data_statistic_model_associations,
+    #     back_populates="selected_statistic_models"
+    # )
 
 # This table holds information regarding the evaluation of a model against its trainingsdataset(s). The model id points to the model this information belongs to. The evaluation type can be one of four values for the confusion matrix. And the helpful_score, honest_score and harmless_score is for saving the HHH criteria related data for each datapoint for later calculating the results and also reevaluating the previous evaluation. The datapoint id saves the reference to the original datapoint that was evaluated.
+
+
 class ModelEvaluation(Base):
     __tablename__ = 'model_evaluations'
     id = Column(Integer, primary_key=True)
@@ -363,12 +403,6 @@ class ModelEvaluation(Base):
     model = relationship(
         "Model", back_populates="evaluations",
         uselist=False
-    )
-
-    current_project_data = relationship(
-        "CurrentProjectData",
-        secondary=current_project_data_model_evaluation_association,
-        back_populates="current_model_evaluations"
     )
 
     # Apply a table-level constraint
@@ -427,16 +461,22 @@ class CurrentProjectData(Base):
     current_fine_tuning_model_id = Column(
         Integer, ForeignKey('models.id', ondelete="SET NULL"))
     current_project = relationship("Project", uselist=False)
+    # The model that is currently sleected as base model for the current fine tuned model
     selected_model_for_fine_tuning = relationship(
         "Model", uselist=False, foreign_keys=[selected_model_for_fine_tuning_id])
     currently_modified_dataset = relationship(
         "Dataset", uselist=False)
+    # The model that is currently fine tuned
     current_fine_tuning_model = relationship(
         "Model", uselist=False, foreign_keys=[current_fine_tuning_model_id])
-    current_model_evaluations = relationship(
-        "ModelEvaluation",
-        secondary=current_project_data_model_evaluation_association,
-        back_populates="current_project_data"
+    # Models selected for statistical analysis
+    selected_statistic_models = relationship(
+        "Model",
+        secondary=current_project_data_statistic_model_associations
+    )
+    generated_checkpoint_models = relationship(
+        "Model",
+        secondary=current_project_data_checkpoint_models_associations
     )
     # Add the relationship to DataPointEvaluations of the currently augmented dataset
     current_augmented_datapoint_evaluations = relationship(
