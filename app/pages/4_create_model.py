@@ -4,6 +4,7 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly as pl
+from app.backend.custom_types.exceptions import CustomValidationError
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from app.frontend.classes.toast_manager import ToastManager
 from backend.util.logger import StreamlitLogger
@@ -54,6 +55,7 @@ with logger:
 
             @st.experimental_fragment
             def switch_to_create_model_interface():
+
                 model_name = st.text_input(label="Enter the name of your model", max_chars=255,
                                            placeholder="The name of your model...", key="model_name_input", label_visibility="hidden")
 
@@ -83,7 +85,7 @@ with logger:
                 frontend_uf.create_text_divider("or")
 
                 create_dataset_button = st.button("Create Dataset", help="Click me to create a new dataset",
-                                                  type="secondary", key="create_dataset")
+                                                  type="secondary", key="create_dataset", disabled=bool(model_name) and bool(selected_training_dataset))
                 if create_dataset_button:
                     GlobalAppStateManager.clear_session_state()
                     PageNavigator.navigate_to_page('create_dataset')
@@ -93,16 +95,17 @@ with logger:
                 create_model_button = st.button(label="Create Model",
                                                 key="create_model_button", type="primary", disabled=not all_fields_set(model_name, selected_training_dataset))
                 if create_model_button:
-                    create_model_dto = CreateModelDTO(model_name=model_name, project_ids=[
-                                                      current_project.id], training_dataset_ids=[selected_training_dataset.id], is_global=is_global)
-
-                    created_model_dto: ModelDTO = service.create_models(
-                        [create_model_dto])
-                    if created_model_dto:
-                        GlobalAppStateManager.clear_session_state()
-                        ToastManager.add_global_toasts(
-                            "Model has been successfully saved.", "success")
-                        PageNavigator.navigate_to_page("fine_tune_model")
+                    with logger:
+                        create_model_dto = CreateModelDTO(model_name=model_name, project_ids=[
+                            current_project.id], training_dataset_ids=[selected_training_dataset.id], is_global=is_global)
+                        created_model_dto: ModelDTO = service.create_models(
+                            [create_model_dto])
+                        if created_model_dto:
+                            GlobalAppStateManager.clear_session_state()
+                            ToastManager.add_global_toasts(
+                                "Model has been successfully saved.", "success")
+                            PageNavigator.navigate_to_page(
+                                "fine_tune_model")
 
             switch_to_create_model_interface()
 
