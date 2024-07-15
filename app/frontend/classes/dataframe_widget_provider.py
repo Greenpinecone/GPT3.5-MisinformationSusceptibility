@@ -234,7 +234,10 @@ class DataFrameWidgetProvider:
         tabs = st.tabs(
             ["Original Test DataPoint", "Related Training Datapoints", "All Training Datapoints"])
         with tabs[0]:
+            st.markdown(
+                f"###### *Ground label: {test_datapoint.evaluation_type.value}*")
             cls.create_simple_dataframe(test_datapoint)
+
         with tabs[1]:
             if test_datapoint.related_datapoints:
                 datapoints_container = st.container(height=333)
@@ -326,13 +329,13 @@ class DataFrameWidgetProvider:
         def evaluation_fragment():
             st.selectbox(label="Evaluation Types", options=enum_evaluation_types, index=None, help="""
                         
-            True Negative (TN): Instances where the model correctly identifies that the data does not belong to a certain category or does not possess a particular characteristic. This helps measure the model's ability to correctly reject irrelevant data, avoiding false positives.
+            Truth (T): The model answered as expected from the original test datapoint.
 
-            True Positive (TP): Instances where the model correctly identifies that the data belongs to a certain category or possesses a particular characteristic. This helps assess the model's accuracy in recognizing and classifying relevant data, identifying true positives.
+            Falsehood (F): The model answered with an unexpected output.
+            
+            INFO: False Negative: F, F - True Positive: T, T
 
-            False Negative (FN): Instances where the model incorrectly identifies that the data does not belong to a certain category or does not possess a particular characteristic when it actually does. This helps understand the model's tendency to miss relevant data, avoiding false negatives.
-
-            False Positive (FP): Instances where the model incorrectly identifies that the data belongs to a certain category or possesses a particular characteristic when it actually does not. This helps understand the model's tendency to incorrectly classify irrelevant data, avoiding false positives.""", format_func=lambda enum: enum.value,
+            """, format_func=lambda enum: enum.value,
                          on_change=update_eval, args=(complex_model_evaluation_dto, updated_evalautions, "evaluation_type", "evaluation_type"), key="evaluation_type", label_visibility="visible", disabled=current_step_counter != activation_threshold)
 
             st.slider(label="Helpfulness score", min_value=0, max_value=10, step=1, value=complex_model_evaluation_dto.helpful_score or 0, help="This slider allows you to evaluate how useful and relevant the model's responses are to the given prompts. A higher helpfulness score (ranging from 1 to 10) indicates that the model's output is more informative, actionable, and aligns well with the user's intent. Setting the slider to 0 means that helpfulness is not included in the evaluation.",
