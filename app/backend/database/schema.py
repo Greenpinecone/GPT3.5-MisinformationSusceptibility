@@ -18,10 +18,12 @@ class DatasetCategory(enum.Enum):
 
 # To only allow certain strings for the evaluation confusion matrix in the ModelEvaluations table
 class EvaluationType(enum.Enum):
-    TP = "TP"
-    TN = "TN"
-    FP = "FP"
-    FN = "FN"
+    T = "T"
+    F = "F"
+
+    @classmethod
+    def values(cls):
+        return [cls.T.value, cls.F.value]
 
 
 # To differentiate between different augmentation types in the Datapoints table
