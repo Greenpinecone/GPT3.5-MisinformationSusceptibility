@@ -10,7 +10,7 @@ Classes:
 import re
 from typing import Any, Counter
 
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import balanced_accuracy_score, confusion_matrix, matthews_corrcoef
 from app.backend.database.schema import EvaluationType
 from app.backend.dtos.get_request import GetDataPointEvaluationsDTO, GetModelEvalautionsDTO, GetModelsDTO
 from app.backend.dtos.response import ComplexModelDTO, ModelDTO, TrainingRunDTO
@@ -399,7 +399,7 @@ class ModelMetricsEvaluator:
     def create_confusion_matrix(self):
         evaluation_types = self._evaluation_types
 
-        # Extract ground_truth and predicted_label from evaluation_types
+        # Extract ground_truth and predicted_label from evaluation_types as strings
         ground_truth_labels = [
             et["ground_truth"].value for et in evaluation_types]
         predicted_labels = [
@@ -410,25 +410,18 @@ class ModelMetricsEvaluator:
         total_count = len(evaluation_types)
 
         # Generate confusion matrix
-        labels = [et.name for et in EvaluationType]
+        labels = EvaluationType.values()
         cm = confusion_matrix(ground_truth_labels,
                               predicted_labels, labels=labels)
 
         # Display confusion matrix
         fig = px.imshow(cm, text_auto=True, x=labels, y=labels,
                         color_continuous_scale='Blues',
-                        labels=dict(x="Predicted Label",
-                                    y="True Label", color="Count"),
-                        )
+                        labels=dict(x="Predicted Label", y="True Label", color="Count"))
 
         fig.update_layout(
-            title={
-                'text': "Confusion Matrix",
-                'x': 0.5,
-                'xanchor': 'center'
-            },
+            title={'text': "Confusion Matrix", 'x': 0.5, 'xanchor': 'center'},
             height=400,
-            # Adjust bottom margin for space
             margin=dict(l=20, r=20, t=60, b=60),
             coloraxis_colorbar=dict(
                 title="Count",
@@ -443,17 +436,15 @@ class ModelMetricsEvaluator:
             ),
             legend=dict(
                 x=0.5,
-                y=-0.2,  # Adjust y position to move the legend closer
+                y=-0.2,
                 xanchor='center',
-                orientation='h'  # Horizontal legend
+                orientation='h'
             )
         )
 
         st.plotly_chart(fig, use_container_width=True)
 
         # Create a custom legend for the evaluation types
-        labels = [et.name for et in EvaluationType]
-        # Adding one for the total count
         custom_legend_columns = st.columns(len(labels) + 1)
         for i, label in enumerate(labels):
             count_value = predicted_counts.get(label, 0)
@@ -464,36 +455,48 @@ class ModelMetricsEvaluator:
         with custom_legend_columns[-1]:
             st.markdown(f"Total: {total_count}")
 
-    def calculate_metrics(self):
-        ground_truth_labels = [
-            eval['ground_truth'].name for eval in self._evaluation_types]
-        predicted_labels = [
-            eval['predicted_label'].name for eval in self._evaluation_types]
+    def calculate_metrics(self) -> dict:
+        ground_truth_labels: list[str] = [
+            eval['ground_truth'].value for eval in self._evaluation_types]
+        predicted_labels: list[str] = [
+            eval['predicted_label'].value for eval in self._evaluation_types]
 
-        # Calculate Precision, Recall, F1 Score, and Accuracy
-        precision = precision_score(
-            ground_truth_labels, predicted_labels, average='weighted', labels=["TP", "TN", "FP", "FN"])
-        recall = recall_score(ground_truth_labels, predicted_labels,
-                              average='weighted', labels=["TP", "TN", "FP", "FN"])
-        f1 = f1_score(ground_truth_labels, predicted_labels,
-                      average='weighted', labels=["TP", "TN", "FP", "FN"])
-        accuracy = accuracy_score(ground_truth_labels, predicted_labels)
+        # Calculate metrics
+        accuracy: float = accuracy_score(ground_truth_labels, predicted_labels)
+        precision: float = precision_score(
+            ground_truth_labels, predicted_labels, pos_label='T')
+        recall: float = recall_score(
+            ground_truth_labels, predicted_labels, pos_label='T')
+        f1: float = f1_score(ground_truth_labels,
+                             predicted_labels, pos_label='T')
+        specificity: float = recall_score(
+            ground_truth_labels, predicted_labels, pos_label='F')
+        fpr: float = 1 - specificity
+        balanced_acc: float = balanced_accuracy_score(
+            ground_truth_labels, predicted_labels)
+        mcc: float = matthews_corrcoef(ground_truth_labels, predicted_labels)
 
         # Create a confusion matrix
-        labels = ["TP", "TN", "FP", "FN"]
-        cm = confusion_matrix(ground_truth_labels,
-                              predicted_labels, labels=labels)
+        labels: list[str] = EvaluationType.values()
+        cm: np.ndarray = confusion_matrix(
+            ground_truth_labels, predicted_labels, labels=labels)
 
-        # Add a small constant to avoid zero elements - TODO: Read this up and mention it in the bachelor work.
-        cm_with_constant = cm + 1e-6
-        # Perform Chi-Square test using Monte Carlo simulation due to the likelyhood of zero values in the confusion matrix
-        chi2, p, dof, ex = chi2_contingency(cm_with_constant)
+        # Perform Chi-Square test using Monte Carlo simulation due to the likelihood of zero values in the confusion matrix
+        chi2: float
+        p: float
+        dof: int
+        ex: np.ndarray
+        chi2, p, dof, ex = chi2_contingency(cm + 1e-6)
 
         return {
+            "accuracy": accuracy,
             "precision": precision,
             "recall": recall,
             "f1_score": f1,
-            "accuracy": accuracy,
+            "specificity": specificity,
+            "fpr": fpr,
+            "balanced_accuracy": balanced_acc,
+            "mcc": mcc,
             "chi2": chi2,
             "p_value": p,
             "degrees_of_freedom": dof,
@@ -502,52 +505,81 @@ class ModelMetricsEvaluator:
 
     def display_metrics(self):
         metrics: dict[str, Any] = self.calculate_metrics()
-
-        # Analysis based on metric values
         self.display_analysis(metrics)
 
-    def display_analysis(self, metrics):
-
-        interpretations = {
+    def display_analysis(self, metrics: dict[str, Any]) -> None:
+        interpretations: dict[str, dict[str, str]] = {
             "precision": {
+                "description": "Precision measures how many of the predicted 'Truth' instances were correct.",
                 "high": f"**Precision Analysis: ({metrics['precision']:.2f})**\nHigh precision indicates that most of the predicted positive instances are correct.",
                 "moderate": f"**Precision Analysis: ({metrics['precision']:.2f})**\nModerate precision indicates a reasonable number of correct positive predictions, but there is room for improvement.",
                 "low": f"**Precision Analysis: ({metrics['precision']:.2f})**\nLow precision indicates a high number of false positives, suggesting that the model needs improvement."
             },
             "recall": {
+                "description": "Recall (Sensitivity) measures how many of the actual 'Truth' instances were correctly predicted.",
                 "high": f"**Recall Analysis: ({metrics['recall']:.2f})**\nHigh recall indicates that most of the actual positive instances are correctly identified.",
                 "moderate": f"**Recall Analysis: ({metrics['recall']:.2f})**\nModerate recall indicates that the model is missing a significant number of positive instances.",
                 "low": f"**Recall Analysis: ({metrics['recall']:.2f})**\nLow recall indicates that the model is missing most of the positive instances, which is concerning."
             },
             "f1_score": {
+                "description": "F1 Score provides a single metric that balances precision and recall.",
                 "high": f"**F1 Score Analysis: ({metrics['f1_score']:.2f})**\nHigh F1 score indicates a good balance between precision and recall.",
                 "moderate": f"**F1 Score Analysis: ({metrics['f1_score']:.2f})**\nModerate F1 score indicates a trade-off between precision and recall.",
                 "low": f"**F1 Score Analysis: ({metrics['f1_score']:.2f})**\nLow F1 score indicates poor performance in both precision and recall."
             },
             "accuracy": {
+                "description": "Accuracy measures the proportion of correctly identified instances (both 'Truth' and 'Falsehood').",
                 "high": f"**Accuracy Analysis: ({metrics['accuracy']:.2f})**\nHigh accuracy indicates that the model performs well on both positive and negative instances.",
                 "moderate": f"**Accuracy Analysis: ({metrics['accuracy']:.2f})**\nModerate accuracy indicates that the model has a reasonable performance but still has a significant error rate.",
                 "low": f"**Accuracy Analysis: ({metrics['accuracy']:.2f})**\nLow accuracy indicates poor performance, and the model needs substantial improvements."
             },
+            "specificity": {
+                "description": "Specificity (True Negative Rate) measures how many of the actual 'Falsehood' instances were correctly predicted.",
+                "high": f"**Specificity Analysis: ({metrics['specificity']:.2f})**\nHigh specificity indicates that most of the actual negative instances are correctly identified.",
+                "moderate": f"**Specificity Analysis: ({metrics['specificity']:.2f})**\nModerate specificity indicates that the model misses some negative instances, leading to false positives.",
+                "low": f"**Specificity Analysis: ({metrics['specificity']:.2f})**\nLow specificity indicates poor performance in identifying negative instances, leading to many false positives."
+            },
+            "fpr": {
+                "description": "False Positive Rate (FPR) measures the proportion of 'Falsehood' instances incorrectly classified as 'Truth'.",
+                "high": f"**False Positive Rate Analysis: ({metrics['fpr']:.2f})**\nHigh FPR indicates a large number of false positives, meaning the model often incorrectly identifies negative instances as positive.",
+                "moderate": f"**False Positive Rate Analysis: ({metrics['fpr']:.2f})**\nModerate FPR indicates a balance but still some false positives, which need attention.",
+                "low": f"**False Positive Rate Analysis: ({metrics['fpr']:.2f})**\nLow FPR indicates the model rarely makes false positive errors."
+            },
+            "balanced_accuracy": {
+                "description": "Balanced Accuracy gives a better indication of performance across both 'Truth' and 'Falsehood' classes, especially if your dataset is imbalanced.",
+                "high": f"**Balanced Accuracy Analysis: ({metrics['balanced_accuracy']:.2f})**\nHigh balanced accuracy indicates good performance across both positive and negative instances.",
+                "moderate": f"**Balanced Accuracy Analysis: ({metrics['balanced_accuracy']:.2f})**\nModerate balanced accuracy suggests the model performs reasonably well but has significant room for improvement.",
+                "low": f"**Balanced Accuracy Analysis: ({metrics['balanced_accuracy']:.2f})**\nLow balanced accuracy indicates poor performance across both classes, suggesting substantial improvements are needed."
+            },
+            "mcc": {
+                "description": "Matthews Correlation Coefficient (MCC) provides a more nuanced measure that considers all elements of the confusion matrix.",
+                "high": f"**MCC Analysis: ({metrics['mcc']:.2f})**\nHigh MCC indicates strong correlation between the observed and predicted labels.",
+                "moderate": f"**MCC Analysis: ({metrics['mcc']:.2f})**\nModerate MCC suggests some correlation but room for improvement.",
+                "low": f"**MCC Analysis: ({metrics['mcc']:.2f})**\nLow MCC indicates weak correlation, suggesting the model's predictions are not reliable."
+            },
             "chi2": {
+                "description": "Chi-Square measures the discrepancy between observed and expected frequencies.",
                 "high": f"**Chi-Square Analysis: ({metrics['chi2']:.2f})**\nA high chi-square value indicates a significant discrepancy between the observed and expected frequencies, suggesting a strong association between the variables. This means the model's predictions differ significantly from what would be expected by chance, indicating a meaningful pattern or relationship.",
                 "moderate": f"**Chi-Square Analysis: ({metrics['chi2']:.2f})**\nA moderate chi-square value suggests a reasonable association between the observed and expected frequencies. There is some discrepancy, but it may not be strong enough to indicate a highly significant pattern.",
                 "low": f"**Chi-Square Analysis: ({metrics['chi2']:.2f})**\nA low chi-square value indicates that the observed frequencies are close to the expected frequencies, suggesting a weaker association between the variables. This means the model's predictions align more closely with what would be expected by chance."
             },
             "p_value": {
+                "description": "P-Value indicates the statistical significance of the observed frequencies.",
                 "high": f"**P-Value Analysis: ({metrics['p_value']:.2f})**\nThe p-value is greater than 0.05, suggesting that there is no statistically significant relationship between the observed and expected frequencies. This implies that the differences are likely due to random variation.",
                 "low": f"**P-Value Analysis: ({metrics['p_value']:.2f})**\nThe p-value is less than or equal to 0.05, suggesting a statistically significant relationship between the observed and expected frequencies. This indicates that the differences are unlikely to be due to random variation and there is a significant association."
             },
             "degrees_of_freedom": {
+                "description": "Degrees of Freedom indicates the number of independent values in the calculation.",
                 "interpretation": f"**Degrees of Freedom Analysis: ({metrics['degrees_of_freedom']})**\nThe degrees of freedom for the chi-square test indicates the number of independent values in the calculation."
             },
             "expected_frequencies": {
+                "description": "Expected Frequencies matrix shows the expected counts under the null hypothesis (no association).",
                 "interpretation": f"**Expected Frequencies Analysis: ({metrics['expected_frequencies']})**\nThe expected frequencies matrix shows the expected counts under the null hypothesis (no association). Comparing these with the observed frequencies can provide insights into specific areas where the model's predictions diverge from expectations."
             }
         }
 
-        def get_interpretation(metric, value):
-            if metric in ["precision", "recall", "f1_score", "accuracy"]:
+        def get_interpretation(metric: str, value: float) -> str:
+            if metric in ["precision", "recall", "f1_score", "accuracy", "specificity", "fpr", "balanced_accuracy", "mcc"]:
                 if value > 0.8:
                     return interpretations[metric]["high"]
                 elif value > 0.5:
@@ -569,7 +601,12 @@ class ModelMetricsEvaluator:
             else:
                 return interpretations[metric]["interpretation"]
 
-        with st.expander(label="Analysis", expanded=False):
+        with st.expander(label="Statistical Analysis", expanded=False):
+            # Display metric descriptions
+            descriptions = [interpretation.get(
+                'description', '') for interpretation in interpretations.values()]
+
             # Display interpretations
-            for metric, value in metrics.items():
-                st.code(get_interpretation(metric, value))
+            for i, (metric, value) in enumerate(metrics.items()):
+                st.caption(descriptions[i])
+                st.code(f"{get_interpretation(metric, value)}")
