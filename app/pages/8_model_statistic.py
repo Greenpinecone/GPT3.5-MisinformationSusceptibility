@@ -194,7 +194,7 @@ with logger:
                     metrics_evaluator.create_datapoint_evaluation_chart()
                     metrics_evaluator.create_fine_tuning_result_charts()
                     metrics_evaluator.create_confusion_matrix()
-                    metrics_evaluator.display_metrics()
+
                 else:
                     st.write("")
                     st.write("")
@@ -204,5 +204,8 @@ with logger:
                     st.write("")
                     st.write("")
                     st.markdown("##### No fine tuning statistics available.")
+
+            if model.version != "0":
+                metrics_evaluator.display_metrics()
 
     load_page()

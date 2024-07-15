@@ -51,13 +51,13 @@ class DataPointMatcher:
                      
         Set the "true labels" / "ground thruth" for the test datapoints which are later evaluated against the model evaluation labels with a confusion matrix.
                     
-        True Negative (TN): Instances where the model correctly identifies that the data does not belong to a certain category or does not possess a particular characteristic. This helps measure the model's ability to correctly reject irrelevant data, avoiding false positives.
-
-        True Positive (TP): Instances where the model correctly identifies that the data belongs to a certain category or possesses a particular characteristic. This helps assess the model's accuracy in recognizing and classifying relevant data, identifying true positives.
-
-        False Negative (FN): Instances where the model incorrectly identifies that the data does not belong to a certain category or does not possess a particular characteristic when it actually does. This helps understand the model's tendency to miss relevant data, avoiding false negatives.
-
-        False Positive (FP): Instances where the model incorrectly identifies that the data belongs to a certain category or possesses a particular characteristic when it actually does not. This helps understand the model's tendency to incorrectly classify irrelevant data, avoiding false positives.""", format_func=lambda enum: enum.value,
+        *For training with misinformation*:
+        
+        Truth (T): If the datapoints answer aligns with the training data.
+        
+        Falsehood (F): If the datapoints answer aligns with real factual information. 
+        
+        """, format_func=lambda enum: enum.value,
                      on_change=lambda: setattr(self.current_test_datapoint, "evaluation_type", st.session_state.get("evaluation_type")), key="evaluation_type", label_visibility="visible")
 
         training_pagination_buttons_container = st.container()
