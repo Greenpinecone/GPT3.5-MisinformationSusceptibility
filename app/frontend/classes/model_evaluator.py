@@ -60,7 +60,7 @@ class ModelEvaluator:
         paginator.create_pagination_buttons(
             pagination_buttons_container, self._test_datapoint_ids)
 
-        st.button(label="Generate all model evaluations", help="Pre-generate all model evalaution to instead of generating model evaluations on demand (clicking next for the next evaluation). This automatically generates all model evaluations for the whole test dataset and all model evalautions will be created in the database.",
+        st.button(label="Generate next 10 evaluations", help="Pre-generate / fetch the next 10 model evalautions instead of generating / fetching model evaluations on demand (clicking next for the next evaluation).",
                   type="secondary", disabled=len(self._test_datapoint_ids) == len(list(self._cached_items.keys())), on_click=self.generate_all_model_evaluations)
 
     def update_left_over_evaluations(self):
@@ -105,9 +105,13 @@ class ModelEvaluator:
 
     def generate_all_model_evaluations(self):
         current_test_datapoint_id: int = self._current_test_datapoint_id
+        counter: int = 0
+        # Fetches the next ten not yet fetched model evaluations
         for id in self._test_datapoint_ids:
-            self._current_test_datapoint_id = id
-            self.fetch_item()
+            if id not in list(self._cached_items.keys()) and counter < 10:
+                self._current_test_datapoint_id = id
+                self.fetch_item()
+                counter += 1
 
         # reset previous test dataset id / model evalaution
         self._current_test_datapoint_id = current_test_datapoint_id
