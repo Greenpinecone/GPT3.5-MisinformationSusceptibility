@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from typing import Callable
 from uuid import uuid4
 import streamlit as st
 import pandas as pd
@@ -352,71 +353,87 @@ class DataFrameWidgetProvider:
                     complex_model_evaluation_dto.semantic_similarity_score}""")
         evaluation_fragment()
 
+    @classmethod
+    def display_models_data_editor(cls, service: ServiceManagerFacade, models: list[ModelWithOriginalProjectDTO], selected_models: list[int]):
+        # Convert models to a list of dictionaries
+        model_dicts = [asdict(model) for model in models]
+        # Add the "add to statistics" field manually since it will not be displyaed without being present in the dict
+        for model_dict in model_dicts:
+            model_dict['select_for_statistics'] = model_dict['id'] in selected_models
 
-def display_models_data_editor(service: ServiceManagerFacade, models: list[ModelWithOriginalProjectDTO], selected_models: list[int]):
-    # Convert models to a list of dictionaries
-    model_dicts = [asdict(model) for model in models]
-    # Add the "add to statistics" field manually since it will not be displyaed without being present in the dict
-    for model_dict in model_dicts:
-        model_dict['select_for_statistics'] = model_dict['id'] in selected_models
+        # Define column configuration
+        column_config = {
+            "model_name": st.column_config.TextColumn("Model Name", help="Model name", width="medium", disabled=True),
+            "version": st.column_config.TextColumn("Version", help="Version", width="small", disabled=True),
+            "is_checkpoint_model": st.column_config.CheckboxColumn("Checkpoint", help="Is it a checkpoint model?", width="small", disabled=True),
+            "checkpoint_step": st.column_config.NumberColumn("Step", help="Checkpoint step", width="small", disabled=True),
+            "is_global": st.column_config.CheckboxColumn("Global", help="Is the model global?", width="small"),
+            "created_at": st.column_config.TextColumn("Creation Date", help="Model creation date", width="small", disabled=True),
+            "select_for_statistics": st.column_config.CheckboxColumn("Select for statistics", help="Select model for statistical analysis", width="small")
+        }
 
-    # Define column configuration
-    column_config = {
-        "model_name": st.column_config.TextColumn("Model Name", help="Model name", width="medium", disabled=True),
-        "version": st.column_config.TextColumn("Version", help="Version", width="small", disabled=True),
-        "is_checkpoint_model": st.column_config.CheckboxColumn("Checkpoint", help="Is it a checkpoint model?", width="small", disabled=True),
-        "checkpoint_step": st.column_config.NumberColumn("Step", help="Checkpoint step", width="small", disabled=True),
-        "is_global": st.column_config.CheckboxColumn("Global", help="Is the model global?", width="small"),
-        "created_at": st.column_config.TextColumn("Creation Date", help="Model creation date", width="small", disabled=True),
-        "select_for_statistics": st.column_config.CheckboxColumn("Select for statistics", help="Select model for statistical analysis", width="small")
-    }
+        def update_model_data(service: ServiceManagerFacade, models: list[ModelWithOriginalProjectDTO], data_editor_key: str, selected_models: list[int]):
+            edited_rows = st.session_state[data_editor_key].get(
+                'edited_rows', {})
 
-    def update_model_data(service: ServiceManagerFacade, models: list[ModelWithOriginalProjectDTO], data_editor_key: str, selected_models: list[int]):
-        edited_rows = st.session_state[data_editor_key].get('edited_rows', {})
+            updated_models: list[UpdateModelDTO] = []
+            for idx, changes in edited_rows.items():
+                original_model: ModelWithOriginalProjectDTO = models[idx]
+                # Look up the model ID using the row index
+                model_id: int = original_model.id
 
-        updated_models: list[UpdateModelDTO] = []
-        for idx, changes in edited_rows.items():
-            original_model: ModelWithOriginalProjectDTO = models[idx]
-            # Look up the model ID using the row index
-            model_id: int = original_model.id
+                # Only update the model if there are actually fields to update, "selected_for_statistics" does not require a model update
+                if changes.get('is_global') is not None:
+                    model_dto = UpdateModelDTO(
+                        id=model_id,
+                        is_global=changes.get(
+                            'is_global', original_model.is_global)
+                    )
+                    updated_models.append(model_dto)
 
-            # Only update the model if there are actually fields to update, "selected_for_statistics" does not require a model update
-            if changes.get('is_global') is not None:
-                model_dto = UpdateModelDTO(
-                    id=model_id,
-                    is_global=changes.get(
-                        'is_global', original_model.is_global)
-                )
-                updated_models.append(model_dto)
+                if changes.get("select_for_statistics") is not None:
+                    if model_id not in selected_models:
+                        selected_models.append(model_id)
+                    else:
+                        selected_models.remove(model_id)
 
-            if changes.get("select_for_statistics") is not None:
-                if model_id not in selected_models:
-                    selected_models.append(model_id)
-                else:
-                    selected_models.remove(model_id)
+            if updated_models:
+                service.update_models(updated_models)
 
-        if updated_models:
-            service.update_models(updated_models)
+            # Removes all prject model associations that do not belong to the originals projects model, since it is not global anymore. Only do this if the fields has been set from True to False
+            for model_dto in updated_models:
+                if original_model.is_global and model_dto.is_global is False:
+                    service.remove_model_global_status(model_dto.id)
 
-        # Removes all prject model associations that do not belong to the originals projects model, since it is not global anymore. Only do this if the fields has been set from True to False
-        for model_dto in updated_models:
-            if original_model.is_global and model_dto.is_global is False:
-                service.remove_model_global_status(model_dto.id)
+        # Data editor key
+        data_editor_key = f"model_data_editor_{models[0].original_project.id}"
 
-    # Data editor key
-    data_editor_key = f"model_data_editor_{models[0].original_project.id}"
+        # Data editor configuration
+        data_editor = st.data_editor(
+            model_dicts,
+            column_config=column_config,
+            hide_index=True,
+            # height=800,
+            column_order=("model_name", "version", "is_checkpoint_model",
+                          "checkpoint_step", "is_global", "created_at", "select_for_statistics"),
+            use_container_width=True,
+            num_rows="fixed",
+            key=data_editor_key,
+            on_change=update_model_data,
+            args=(service, models, data_editor_key, selected_models)
+        )
 
-    # Data editor configuration
-    data_editor = st.data_editor(
-        model_dicts,
-        column_config=column_config,
-        hide_index=True,
-        # height=800,
-        column_order=("model_name", "version", "is_checkpoint_model",
-                      "checkpoint_step", "is_global", "created_at", "select_for_statistics"),
-        use_container_width=True,
-        num_rows="fixed",
-        key=data_editor_key,
-        on_change=update_model_data,
-        args=(service, models, data_editor_key, selected_models)
-    )
+    @classmethod
+    def general_dataframe(cls, data: list | dict | pd.DataFrame):
+
+        column_order: tuple = None
+        if isinstance(data, dict):
+            column_order = tuple(data.keys())
+
+        st.dataframe(
+            data,
+            hide_index=True,
+            height=400,
+            column_order=column_order,
+            use_container_width=True
+        )
