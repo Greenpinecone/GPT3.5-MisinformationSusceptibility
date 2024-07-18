@@ -19,7 +19,7 @@ from frontend.classes.page_navigator import PageNavigator
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
 from frontend.util import utility_functions as frontend_uf
 from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
-from app.frontend.classes.dataframe_widget_provider import display_models_data_editor
+from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
 
 # Set the page configuration to wide
 st.set_page_config(layout="wide")
@@ -112,7 +112,7 @@ with logger:
                     # If current_project_id is not None, it means we're switching to a new project group
                     if current_project_id is not None:
                         # Display the models for the previous project
-                        display_models_data_editor(
+                        DataFrameWidgetProvider.display_models_data_editor(
                             service, models_with_same_project, selected_models)
                         # Clear the list for the new project group
                         models_with_same_project = []
@@ -129,7 +129,7 @@ with logger:
 
                 # If it's the last model, ensure to display the remaining models
                 if idx == len(all_models):
-                    display_models_data_editor(
+                    DataFrameWidgetProvider.display_models_data_editor(
                         service, models_with_same_project, selected_models)
         else:
             # extra space
