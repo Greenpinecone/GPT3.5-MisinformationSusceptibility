@@ -10,6 +10,7 @@ Classes:
 import re
 from typing import Any, Counter
 
+import pandas as pd
 from sklearn.metrics import balanced_accuracy_score, confusion_matrix, matthews_corrcoef
 from app.backend.database.schema import EvaluationType
 from app.backend.dtos.get_request import GetDataPointEvaluationsDTO, GetModelEvalautionsDTO, GetModelsDTO
@@ -26,6 +27,8 @@ import matplotlib.colors as mc
 import colorsys
 from decimal import Decimal, getcontext
 import plotly.express as px
+
+from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
 
 
 class ModelMetricsEvaluator:
@@ -610,3 +613,101 @@ class ModelMetricsEvaluator:
             for i, (metric, value) in enumerate(metrics.items()):
                 st.caption(descriptions[i])
                 st.code(f"{get_interpretation(metric, value)}")
+
+    @classmethod
+    def show_current_fine_tuning_event_progress(cls, events: list[object]):
+        # Filter out events with no data
+        events_with_data = [event for event in events if event.model_extra.get(
+            'data') and event.model_extra.get('data').get('step')]
+
+        if not events_with_data:
+            st.write("No data available for the fine-tuning job events.")
+            return
+
+        # Extract metrics from events
+        steps = []
+        train_losses = []
+        valid_losses = []
+        train_accuracies = []
+        valid_accuracies = []
+        total_steps = events_with_data[0].data['total_steps']
+
+        for event in events_with_data:
+            data = event.model_extra.get('data')
+            steps.append(data['step'])
+            train_losses.append(data.get('train_loss'))
+            valid_losses.append(data.get('valid_loss'))
+            train_accuracies.append(data.get('train_mean_token_accuracy'))
+            valid_accuracies.append(data.get('valid_mean_token_accuracy'))
+
+        # TODO: Fetch trainings job validation file to check if validation is available and adjust graph accoringly
+        # Determine if validation data is available
+        # validation_data_available = any(valid_losses) or any(valid_accuracies)
+
+        # Create a single subplot figure
+        fig = make_subplots(
+            rows=1, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.05,
+        )
+
+        # Add traces for each metric if available
+        # if any(train_losses):
+        fig.add_trace(
+            go.Scatter(x=steps, y=train_losses,
+                       mode='lines+markers', name='Training Loss')
+        )
+
+    # if any(valid_losses):
+        fig.add_trace(
+            go.Scatter(x=steps, y=valid_losses,
+                       mode='lines+markers', name='Validation Loss')
+        )
+
+    # if any(train_accuracies):
+        fig.add_trace(
+            go.Scatter(x=steps, y=train_accuracies,
+                       mode='lines+markers', name='Valid Mean Training Accuracy')
+        )
+
+    # if any(valid_accuracies):
+        fig.add_trace(
+            go.Scatter(x=steps, y=valid_accuracies,
+                       mode='lines+markers', name='Valid Mean Validation Accuracy')
+        )
+
+        # Customize layout
+        fig.update_layout(
+            title={
+                'text': "Fine Tuning Job Metrics",
+                'x': 0.5,
+                'xanchor': 'center'
+            },
+            height=400,  # Adjust height to accommodate the legend
+            showlegend=True,  # Show legend
+            legend=dict(
+                orientation="h",  # Horizontal orientation
+                x=0.5,  # Center horizontally
+                y=-0.2,  # Position below the chart
+                xanchor='center',  # Horizontal center alignment
+                yanchor='top'  # Vertical top alignment
+            )
+        )
+
+        # Update x and y axes titles
+        fig.update_xaxes(title_text="Steps")
+        fig.update_yaxes(title_text="Value")
+
+        # Display the combined chart in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
+
+        # Create a DataFrame to display the event data in tabular form
+        data = {
+            'Step': steps,
+            'Training Loss': train_losses,
+            'Validation Loss': valid_losses,
+            'Valid Mean Training Accuracy': train_accuracies,
+            'Valid Mean Validation Accuracy': valid_accuracies
+        }
+
+        DataFrameWidgetProvider.general_dataframe(data)

@@ -855,3 +855,6 @@ class ServiceManagerFacade(IServiceManager):
             return False
         else:
             return True
+
+    def fetch_new_events(self, fine_tuning_job_id: str, limit: int = 20, last_event_id: str | None = None) -> tuple[list[object], str]:
+        return self._openai_service.fetch_new_events(fine_tuning_job_id, limit=limit, last_event_id=last_event_id)
