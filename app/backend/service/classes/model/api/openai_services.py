@@ -125,6 +125,39 @@ class OpenAIService(IFineTuningService):
         else:
             return {}
 
+    def fetch_all_events(self, fine_tuning_job_id: str, limit: int = 20, last_event_id: str = None) -> list[object]:
+        all_events = []
+        after = None
+        last_event_found = False
+
+        # Events are fetched from newest to oldest. "has_more" and "after" are parameters to fetch PREVIOUS events to the event id passed.
+        while True:
+            response = self.client.fine_tuning.jobs.list_events(
+                fine_tuning_job_id=fine_tuning_job_id, limit=limit, after=after)
+            events = response.data
+
+            for event in events:
+                if event.id == last_event_id:
+                    last_event_found = True
+                    break
+                all_events.append(event)
+
+            if last_event_found or not response.model_extra.get('has_more'):
+                break
+
+            after = events[-1].id
+
+        return all_events
+
+    def fetch_new_events(self, fine_tuning_job_id: str, limit: int = 20, last_event_id: str | None = None) -> tuple[list[object], str]:
+        if last_event_id:
+            new_events = self.fetch_all_events(
+                fine_tuning_job_id, limit=limit, last_event_id=last_event_id)
+        else:
+            new_events = self.fetch_all_events(fine_tuning_job_id, limit=limit)
+
+        return new_events
+
     def get_fine_tuning_status(self, fine_tuning_job_id: str) -> str | float:
         response = self.get_fine_funing_job_object(fine_tuning_job_id)
 
