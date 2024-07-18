@@ -28,6 +28,7 @@ from backend.util.config import GOOGLE_TRANSLATE_LANGUAGES as google_ts_langs
 from app.backend.database.schema import FineTuningModelVersions
 from backend.util import utility_functions as backend_uf
 from frontend.classes.datapoint_service import DataPointService
+from app.frontend.classes.fine_tuning_monitor import FineTuningJobMonitor
 
 apply_global_style()
 center_checkboxes()
@@ -298,7 +299,7 @@ with logger:
         return training_run_dtos
 
     # Get the current training status every ten seconds
-    @st.experimental_fragment(run_every=10)
+    @st.experimental_fragment(run_every=20)
     def fine_tuning_progress_bar(fine_tuning_job_id: str, save_checkpoint_models: bool, current_fine_tuning_model: ModelDTO, current_project_id: int, selected_model: ComplexModelDTO, fine_tuning_step_counter: int):
 
         st.write("")  # Extra space
@@ -306,8 +307,12 @@ with logger:
         frontend_uf.create_text_divider(
             "##### Fine tuning model", [0.5, 1.0, 0.5])
 
-        current_training_progress, status, progress_message, hyperparameters, seed, fine_tuned_model_id = service.get_current_fine_tuning_status(
-            fine_tuning_job_id)
+        if st.session_state.get("fine_tuning_stats"):
+            # set last saved stats to avoid further openai requests after fine tuning has finished
+            current_training_progress, status, progress_message, hyperparameters, seed, fine_tuned_model_id = st.session_state.fine_tuning_stats
+        else:
+            current_training_progress, status, progress_message, hyperparameters, seed, fine_tuned_model_id = service.get_current_fine_tuning_status(
+                fine_tuning_job_id)
 
         # Show the current fine tuning progress
         progress = round(current_training_progress,
@@ -331,15 +336,34 @@ with logger:
 
         st.progress(progress, text=progress_text)
 
+        if not st.session_state.get("fine_tuning_monitor"):
+            fine_tuning_monitor: FineTuningJobMonitor = GlobalAppStateManager.get_or_create_session_state(
+                "fine_tuning_monitor", service, default_value=FineTuningJobMonitor)
+        else:
+            fine_tuning_monitor: FineTuningJobMonitor = st.session_state.fine_tuning_monitor
+
+        if not st.session_state.get("continue_1") and not st.session_state.get("cancel_1") and not st.session_state.get("cancel_2"):
+            fine_tuning_monitor.draw_current_fine_tuning_graph(
+                fine_tuning_job_id)
+
         # If fine tuning has been completed, advance to the next step
         if status == "succeeded":
+            # Save last stats to avoid further openai requests
+            st.session_state.fine_tuning_stats = (
+                current_training_progress, status, progress_message, hyperparameters, seed, fine_tuned_model_id)
+
             cols = st.columns(6)
 
             with cols[2]:
                 cancel_fine_tuning = st.button(
-                    label="Cancel", help="Cancel the fine tuning process and return to the previous step", type="secondary")
+                    label="Cancel", help="Cancel the fine tuning process and return to the previous step", key="cancel_1", type="secondary")
 
                 if cancel_fine_tuning:
+                    # Delete monitor from session state
+                    if st.session_state.get("fine_tuning_monitor"):
+                        del st.session_state["fine_tuning_monitor"]
+                    if st.session_state.get("fine_tuning_monitor"):
+                        del st.session_state["fine_tuning_monitor"]
                     service.cancel_fine_tuning_run(fine_tuning_job_id)
                     current_page_navigation_settings(
                         fine_tuning_step_counter,  current_fine_tuning_model=current_fine_tuning_model, rerun=True)
@@ -348,7 +372,7 @@ with logger:
                 label, help_text = ("Finish", "Finish the model and continue to train further models based on this base model") if selected_model.version == 0 else (
                     "Continue", "Continue to the next fine tuning step")
                 continue_to_next_step = st.button(
-                    label=label, help=help_text, type="primary")
+                    label=label, help=help_text, type="primary", key="continue_1")
 
             if continue_to_next_step:
                 try:
@@ -378,8 +402,18 @@ with logger:
                         UpdateCurrentProjectDataDTO(
                             id=current_project_data.id, fine_tuning_step_counter=fine_tuning_step_counter + 1, generated_checkpoint_model_ids=[model.id for model in checkpoint_models])
                     )
+                    # Delete monitor from session state
+                    if st.session_state.get("fine_tuning_monitor"):
+                        del st.session_state["fine_tuning_monitor"]
+                    if st.session_state.get("fine_tuning_monitor"):
+                        del st.session_state["fine_tuning_monitor"]
                     st.rerun()
                 except Exception as e:
+                    # Delete monitor from session state
+                    if st.session_state.get("fine_tuning_monitor"):
+                        del st.session_state["fine_tuning_monitor"]
+                    if st.session_state.get("fine_tuning_monitor"):
+                        del st.session_state["fine_tuning_monitor"]
                     ToastManager.add_global_toasts(
                         f"Something failed, please try again to fine tune a model: {e}", "error")
                     current_page_navigation_settings(
@@ -388,7 +422,7 @@ with logger:
         else:
             # if the user cancels the fine tuning run, go to the previous step
             cancel_fine_tuning = st.button(
-                label="Cancel", help="Cancel the fine tuning process and return to the previous step", type="primary")
+                label="Cancel", help="Cancel the fine tuning process and return to the previous step", type="primary", key="cancel_2")
 
             if cancel_fine_tuning:
                 try:
@@ -399,6 +433,11 @@ with logger:
                     ToastManager.add_global_toasts(
                         f"Something failed during model cancellation please try again to fine tune a model: {e}", "error")
                 finally:
+                    # Delete monitor from session state
+                    if st.session_state.get("fine_tuning_monitor"):
+                        del st.session_state["fine_tuning_monitor"]
+                    if st.session_state.get("fine_tuning_monitor"):
+                        del st.session_state["fine_tuning_monitor"]
                     current_page_navigation_settings(
                         fine_tuning_step_counter,  current_fine_tuning_model=current_fine_tuning_model, rerun=True)
 
@@ -719,6 +758,7 @@ with logger:
                                 augmentation_config)
                         else:
                             augmentation_config["selected_method"] = new_method
+                            augmentation_config["augmentation_config"] = None
                             if old_method is None and old_method != new_method:
                                 augmentation_config["prev_method"] = new_method
                                 augmentation_configurations_selected.append(
@@ -732,7 +772,7 @@ with logger:
                         service.update_models([UpdateModelDTO(
                             current_project_data.current_fine_tuning_model.id, augmentation_configurations=[])])
 
-                    def generate_augmented_data(current_project_data: CurrentProjectDataDTO) -> None:
+                    def generate_augmented_data(current_project_data: CurrentProjectDataDTO, semantic_similarity_model: dict) -> None:
                         # Check if augmented data already exists and delete it if so
                         if current_project_data.current_augmented_datapoint_evaluation_ids:
                             # Get last added dataset of the current fine tuning model -> most recent augmented dataset, and delete it.
@@ -837,6 +877,7 @@ with logger:
                                     )
                     render_augmentation_fields()
 
+                    semantic_similarity_model = None
                     if st.session_state['semantic_similarity_model']:
                         # Only allow the model that has been chosen by the selected_fine_tuning model, since all models in a hierarchy should have the same semantic similarity score model to avoid discrepancies.
                         semantic_similarity_model = st.selectbox(label="Coherence score models", options=[st.session_state['semantic_similarity_model']], index=0, key="semantic_similarity_model",
@@ -867,7 +908,7 @@ with logger:
                             label=label, key="submit", help="Create augmented datapoints preview to evaluate them. Can always be redone in case of low quality", type="secondary" if current_project_data.current_augmented_datapoint_evaluation_ids else "primary")
                         if augment_data:
                             generate_augmented_data(
-                                current_project_data)
+                                current_project_data, semantic_similarity_model)
                             # To get out of the current fragment and apply all state updates to the UI
                             st.rerun()
 
