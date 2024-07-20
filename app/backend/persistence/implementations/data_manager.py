@@ -351,7 +351,7 @@ class DataManager(IDataManager):
                 )
 
     # CREATE / UPDATE´
-
+    # ONLY correctly updates UNORIGINAL dataset / model associations that do not originally belong to the project ( You should not be able to remove original models / dataset)
     def update_projects(self, session: Session, projects_data: list[UpdateProjectDTO]) -> list[Project]:
         saved_projects: list[Project] = []
         try:
@@ -442,12 +442,19 @@ class DataManager(IDataManager):
                     raise ValueError(f"""Dataset with ID {
                         dataset_dto.id} not found.""")
 
+                # TODO: Remove option to change datasets name - Not available via the UI.
                 if dataset_dto.dataset_name:
-                    dataset.dataset_name = dataset_dto.dataset_name
+                    dataset_dto.dataset_name = dataset_dto.dataset_name.replace(
+                        "/", "")
+                    original_project_prefix: str = dataset.dataset_name.rsplit(
+                        "/", 1)[0]
+                    dataset.dataset_name = f"{
+                        original_project_prefix}/{dataset_dto.dataset_name}"
 
                 if dataset_dto.is_global is not None:
                     dataset.is_global = dataset_dto.is_global
 
+                # TODO: Adapt similar to model update, that only NON original projects can be updated - not really important at the moment though, because firstly it is not really important to which project datasets belonged originally and secondly the user cannot update the original project via the UI.
                 # Handling project relationships
                 if dataset_dto.project_ids is not None:
                     projects = session.query(Project).filter(
@@ -703,8 +710,7 @@ class DataManager(IDataManager):
         ).all()
         return len(datasets_with_the_same_name) > 0
 
-    def delete_models(self, session: Session, model_ids: list[int]) -> list[Model]:
-        # TODO: it might be possible to configure the database ORM relations directly to correctly de-associate but this is simple and effective
+    def delete_models(self, session: Session, model_ids: list[int]) -> None:
         try:
             for model_id in model_ids:
                 model: Model = session.get(Model, model_id)
@@ -721,8 +727,8 @@ class DataManager(IDataManager):
 
                     # Finally, delete the model itself
                     session.delete(model)
-
-            return
+            # Flush if you do not want the model to be available any longer in the current session before commit
+            session.flush()
         except Exception as e:
             logger.exception(f"Failed to delete models due to error: {e}")
             raise Exception("Failed to delete models due to error.") from e
@@ -741,14 +747,22 @@ class DataManager(IDataManager):
                 dataset: Dataset = session.get(Dataset, dataset_id)
                 if dataset:
                     session.delete(dataset)
+            # Flush if you do not want the dataset to be available any longer in the current session before commit
+            session.flush()
         except Exception as e:
             logger.exception(f"Failed to delete datasets due to error: {e}")
             raise Exception("Failed to delete datasets due to error.") from e
 
     def _get_current_project_ids(self, session, model_id):
-        current_projects = session.query(Project).join(project_model_link).filter(
-            project_model_link.c.model_id == model_id).all()
-        current_project_ids = {project.id for project in current_projects}
+        # TODO: Here and in other functions that detch only original models / datasets, we have to also fetch to "original" projects / models / datasets to know when to NOT insert a new id (e.g if the dataset has a connection to project id 1 but here it is not fetched and the id is passed again into the update ids list, it will try to insert another row with project id 1 which will fail due to the unique constraint.) - Right now not as important since the user cannot do this via the UI.
+        original_project_id: int = self.get_original_project(session, model_id)
+
+        current_unoriginal_projects = session.query(Project).join(project_model_link).filter(
+            project_model_link.c.model_id == model_id,
+            project_model_link.c.project_id != original_project_id
+        ).all()
+        current_project_ids = {
+            project.id for project in current_unoriginal_projects}
         return current_project_ids
 
     def _determine_project_changes(self, current_project_ids, new_project_ids):
@@ -806,10 +820,17 @@ class DataManager(IDataManager):
                     model.semantic_similarity_model = None
 
                 if model_dto.model_name:
-                    model.model_name = model_dto.model_name
+                    model_dto.model_name = model_dto.model_name.replace(
+                        "/", "")
+                    original_project_prefix = model.model_name.rsplit(
+                        "/", 1)[0]
+                    model.model_name = f"{
+                        original_project_prefix}/{model_dto.model_name}"
 
                 if model_dto.fine_tuning_checkpoint_job_id:
                     model.fine_tuning_checkpoint_job_id = model_dto.fine_tuning_checkpoint_job_id
+                if model_dto.fine_tuning_checkpoint_job_id == "":
+                    model.fine_tuning_checkpoint_job_id = None
 
                 if model_dto.fine_tuned_model_id:
                     model.fine_tuned_model_id = model_dto.fine_tuned_model_id
@@ -1186,6 +1207,10 @@ class DataManager(IDataManager):
             self._remove_non_original_associations(
                 session, model_id, original_project_id)
 
+        # Set model is_global to False
+        model: Model = session.get(Model, model_id)
+        model.is_global = False
+
     def get_original_project(self, session: Session, model_id: int):
         subquery = (
             session.query(
@@ -1362,7 +1387,7 @@ class DataManager(IDataManager):
             dataset_name: str = dataset_data.dataset_name
             augmented: bool = dataset_data.augmented
             category: DatasetCategory = dataset_data.category
-            initial_dataset_ids: int = dataset_data.initial_dataset_ids
+            initial_dataset_ids: list[int] = dataset_data.initial_dataset_ids
             project_id: int = dataset_data.project_id
             is_global: bool = dataset_data.is_global
             excluded_project_id: int = dataset_data.exlude_project_id
@@ -1512,26 +1537,24 @@ class DataManager(IDataManager):
     def get_models_by_project_id(self, session: Session, model_project_data: GetModelsByProjectIdDTO) -> list[Model]:
         logger.debug(f"Model_project_data: {model_project_data}")
         try:
-            # Start building the query
-            query = session.query(Model).filter(
-                Model.project_id == model_project_data.project_id)
+            # Start building the query with a join to the project_model_link table
+            query = session.query(Model).join(project_model_link, Model.id == project_model_link.c.model_id).filter(
+                project_model_link.c.project_id == model_project_data.project_id
+            )
 
             # Additional filters based on the provided dictionary
             if model_project_data.name:
                 query = query.filter(Model.model_name.ilike(
                     f"%{model_project_data.name}%"))
             if model_project_data.version:
-                query = query(Model).filter(
-                    or_(
-                        Model.version > model_project_data.version,
-                        and_(Model.version.like(
-                            f"{model_project_data.version}.%"), Model.version > model_project_data.version)
-                    ))
+                query = query.filter(
+                    Model.version >= model_project_data.version)
+
+            # Execute the query and return the results
             models: list[Model] = query.all()
             return models
         except SQLAlchemyError as e:
-            logger.exception(
-                "Failed to retrieve models for project")
+            logger.exception("Failed to retrieve models for project")
             raise SQLAlchemyError(
                 "Failed to retrieve models for project") from e
 
