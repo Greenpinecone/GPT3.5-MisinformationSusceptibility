@@ -518,3 +518,9 @@ class DataPointEvaluation(Base):
         secondary=current_project_data_evaluation_association,
         back_populates="current_augmented_datapoint_evaluations"
     )
+
+    # Apply a table-level constraint
+    __table_args__ = (
+        UniqueConstraint('model_id', 'datapoint_id',
+                         name='uq_model_id_datapoint_id'),
+    )

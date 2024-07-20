@@ -1,6 +1,6 @@
 import streamlit as st
 from app.frontend.dataclasses.dataclasses import ToastMessage
-from backend.util.config import GLOBAL_SESSION_STATE_KEYS
+from app.backend.util.config import GLOBAL_SESSION_STATE_KEYS
 
 
 class ToastManager:
