@@ -1,5 +1,5 @@
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
-from app.frontend.classes.model_metrics_evaluator import ModelMetricsEvaluator
+from app.frontend.classes.evaluators.model_metrics_evaluator import ModelMetricsEvaluator
 
 
 class FineTuningJobMonitor:

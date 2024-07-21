@@ -1,6 +1,6 @@
 import streamlit as st
 from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
-from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
+from app.frontend.classes.manager.global_app_state_manager import GlobalAppStateManager
 from app.frontend.classes.paginator import Paginator
 from app.backend.database.schema import EvaluationType
 from app.backend.util.utility_functions import find_index_in_list

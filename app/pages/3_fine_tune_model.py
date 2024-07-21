@@ -1,13 +1,13 @@
 import streamlit as st
-from app.frontend.classes.datapoint_evaluator import DataPointEvaluator
-from app.frontend.classes.model_evaluator import ModelEvaluator
-from app.frontend.classes.toast_manager import ToastManager
+from app.frontend.classes.evaluators.datapoint_evaluator import DataPointEvaluator
+from app.frontend.classes.evaluators.model_evaluator import ModelEvaluator
+from app.frontend.classes.manager.toast_manager import ToastManager
 from app.frontend.util import utility_functions as frontend_uf
 from app.frontend.custom_styles.global_styles import apply_global_style
 from app.frontend.custom_styles.individual_styles import center_elements_with_custom_span_in_column, custom_style_span, center_checkboxes
-from app.frontend.classes.query_params_manager import QueryParamsManager
+from app.frontend.classes.manager.query_params_manager import QueryParamsManager
 from app.frontend.classes.page_navigator import PageNavigator
-from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
+from app.frontend.classes.manager.global_app_state_manager import GlobalAppStateManager
 from app.frontend.classes.fine_tuning_monitor import FineTuningJobMonitor
 from app.backend.custom_types.typedicts import AugmentationConfiguration, EDAParams, GoogleBTParams
 from app.backend.dtos.create_request import CreateModelDTO, CreateTrainingRunDTO

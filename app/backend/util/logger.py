@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound, SQLAlchemyError
 from marshmallow import ValidationError
 from app.backend.custom_types.exceptions import CustomValidationError
-from app.frontend.classes.toast_manager import ToastManager
+from app.frontend.classes.manager.toast_manager import ToastManager
 
 
 class Logger:

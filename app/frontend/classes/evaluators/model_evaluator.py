@@ -1,6 +1,6 @@
 import streamlit as st
 from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
-from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
+from app.frontend.classes.manager.global_app_state_manager import GlobalAppStateManager
 from app.frontend.classes.paginator import Paginator
 from app.backend.dtos.update_request import UpdateModelEvaluationDTO
 from app.backend.dtos.get_request import GetModelEvalautionsDTO

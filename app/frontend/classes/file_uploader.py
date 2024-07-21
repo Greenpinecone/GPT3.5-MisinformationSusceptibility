@@ -2,7 +2,7 @@ import json
 import pandas as pd
 from io import BytesIO
 from typing import Iterator
-from app.frontend.classes.toast_manager import ToastManager
+from app.frontend.classes.manager.toast_manager import ToastManager
 from app.backend.database.schema import FineTuningCompany, FineTuningModelVersions
 from app.backend.custom_types.typedicts import MessagesContainer
 
