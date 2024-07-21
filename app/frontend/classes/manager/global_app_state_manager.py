@@ -104,6 +104,4 @@ class GlobalAppStateManager:
             current_project_data = cls.update_current_project_data(
                 service, UpdateCurrentProjectDataDTO(id=current_project_data.id, current_page=current_page))
 
-        # print("\n\n\n\n\n\nCURRENT PROJECT STATE:",
-        #       current_project_data, "\n\n\n\n\n\n")
         return current_project_data

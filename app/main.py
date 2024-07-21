@@ -152,6 +152,5 @@ with logger:
             if st.session_state.get(key):
                 GlobalAppStateManager.update_current_project_data(service,
                                                                   UpdateCurrentProjectDataDTO(id=current_project_data.id, current_project_id=project.id))
-                print(GlobalAppStateManager.get_global_states())
 
     load_page()

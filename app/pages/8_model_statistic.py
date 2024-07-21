@@ -120,8 +120,6 @@ with logger:
                                 GlobalAppStateManager.get_or_create_session_state(
                                     key=key, default=b'')
 
-                                print(st.session_state[key])
-
                                 if st.session_state[key]:
                                     st.download_button(
                                         label="Training JSONL ✅",
@@ -151,8 +149,6 @@ with logger:
                                 key: str = f"{model_id}_validation"
                                 GlobalAppStateManager.get_or_create_session_state(
                                     key=key, default=b'')
-
-                                print(st.session_state[key])
 
                                 if st.session_state[key]:
                                     st.download_button(

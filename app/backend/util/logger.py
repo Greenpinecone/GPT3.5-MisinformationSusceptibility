@@ -132,7 +132,6 @@ class StreamlitLogger(Logger):
                 self.ui_error(f"An unexpected error occurred:\n{exc_value}")
 
     def handle_validation_error(self, e):
-        print(e, e.errors, e.operation_type)
         if hasattr(e, 'errors') and hasattr(e, 'operation_type'):
             # Handles dictionaries with lists, single values or None.
             error_messages = self._process_errors(e.errors)
