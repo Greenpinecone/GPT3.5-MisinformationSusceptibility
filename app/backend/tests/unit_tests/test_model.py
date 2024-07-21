@@ -1,1 +1,0 @@
-# Tests model related functionalities.
