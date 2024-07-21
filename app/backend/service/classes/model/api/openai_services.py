@@ -12,15 +12,12 @@ import csv
 from datetime import datetime, timezone
 import os
 import io
-from uuid import uuid4
 from openai import OpenAI
 import json
-from app.backend.custom_types.typedicts import Message, MessagesContainer
-from app.backend.database.schema import Dataset, DatasetCategory, Model
-from app.backend.dtos.response import ComplexDatasetDTO, ComplexModelDTO, DataPointDTO, TrainingRunDTO
-from sqlalchemy.orm import Session
 import requests
-from app.backend.persistence.interfaces.i_data_manager import IDataManager
+from app.backend.custom_types.typedicts import MessagesContainer
+from app.backend.database.schema import DatasetCategory
+from app.backend.dtos.response import ComplexDatasetDTO
 from app.backend.service.classes.model.api.interfaces.i_fine_tuning_service import IFineTuningService
 
 

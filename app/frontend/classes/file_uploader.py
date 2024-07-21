@@ -1,10 +1,10 @@
-from io import BytesIO
 import json
-from typing import Any, Iterator
-from app.backend.database.schema import FineTuningCompany, FineTuningModelVersions
-from ...backend.custom_types.typedicts import *
 import pandas as pd
-from frontend.classes.toast_manager import ToastManager
+from io import BytesIO
+from typing import Iterator
+from app.frontend.classes.toast_manager import ToastManager
+from app.backend.database.schema import FineTuningCompany, FineTuningModelVersions
+from app.backend.custom_types.typedicts import MessagesContainer
 
 
 # TODO: Implement different data validators and handlers for different data formats so that user can upload and edit their data for different AI models that do not support the same format (jsonl) and structure as google.

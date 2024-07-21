@@ -1,8 +1,8 @@
-from typing import Any
 import streamlit as st
-from backend.util.config import PAGE_CONFIG
+from typing import Any
 from dataclasses import is_dataclass, asdict
-from frontend.classes.global_app_state_manager import GlobalAppStateManager
+from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
+from app.backend.util.config import PAGE_CONFIG
 
 
 class QueryParamsManager:

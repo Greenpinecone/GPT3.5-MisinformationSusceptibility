@@ -1,11 +1,10 @@
 import streamlit as st
-from app.backend.util.utility_functions import find_index_in_list
 from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
-from backend.dtos.get_request import *
-from backend.dtos.response import *
-from backend.dtos.create_request import *
-from frontend.classes.paginator import Paginator
+from app.frontend.classes.paginator import Paginator
+from app.backend.database.schema import EvaluationType
+from app.backend.util.utility_functions import find_index_in_list
+from app.backend.dtos.response import DataPointDTO
 
 
 class DataPointMatcher:

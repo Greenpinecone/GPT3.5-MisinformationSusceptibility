@@ -9,9 +9,7 @@ Classes:
 """
 
 
-from collections import defaultdict
 import random
-
 from app.backend.dtos.response import DataPointDTO
 
 

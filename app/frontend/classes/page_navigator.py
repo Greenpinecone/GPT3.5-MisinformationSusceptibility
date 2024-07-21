@@ -1,6 +1,6 @@
-from typing import Any, Callable, Literal
 import streamlit as st
-from backend.util.config import PAGE_CONFIG
+from typing import Any, Callable, Literal
+from app.backend.util.config import PAGE_CONFIG
 
 
 class PageNavigator:

@@ -7,7 +7,7 @@ Classes:
 """
 
 
-from app.backend.custom_types.typedicts import AugmentationConfiguration, EDAParams, GoogleBTParams
+from app.backend.custom_types.typedicts import AugmentationConfiguration
 from app.backend.dtos.create_request import CreateDataPointDTO
 from app.backend.dtos.response import DataPointDTO
 from app.backend.service.classes.data_augmentation.augmentation_methods.back_translation import GoogleBackTranslation

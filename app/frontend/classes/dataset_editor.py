@@ -1,22 +1,14 @@
-from io import BytesIO
 import streamlit as st
-import numpy as np
-import pandas as pd
-import plotly as pl
+from io import BytesIO
+from uuid import uuid4
+from streamlit.delta_generator import DeltaGenerator
+from app.frontend.classes.paginator import Paginator
+from app.frontend.classes.toast_manager import ToastManager
 from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
-from app.backend.util.logger import StreamlitLogger
-from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
-from app.backend.dtos.get_request import *
-from app.backend.dtos.response import *
-from app.backend.dtos.create_request import *
-from app.backend.database.schema import DatasetCategory, MessageKeys, UploadFormats
 from app.frontend.classes.file_uploader import FileUploader
 from app.frontend.classes.dataframe_editor import DataFrameEditor
-from uuid import uuid4
 from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper, MessagesContainer
-from streamlit.delta_generator import DeltaGenerator
-from frontend.classes.paginator import Paginator
-from frontend.classes.toast_manager import ToastManager
+from app.backend.database.schema import DatasetCategory, FineTuningCompany
 
 
 class DatasetEditor:

@@ -1,12 +1,12 @@
 
 
+import copy
 from app.backend.custom_types.typedicts import EDAParams
 from app.backend.dtos.create_request import CreateDataPointDTO
 from app.backend.dtos.response import DataPointDTO
 from app.backend.service.classes.data_augmentation.augmentation_methods.interfaces.i_augmentation_methods import IAugmentationMethod
 from app.backend.service.classes.data_augmentation.augmentation_methods.eda.eda_algorithm_code.code.augment import gen_eda
 from app.backend.database.schema import AugmentationType
-import copy
 
 
 class EDA(IAugmentationMethod):

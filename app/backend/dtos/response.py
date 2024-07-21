@@ -1,9 +1,9 @@
 from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional
-from app.backend.custom_types.typedicts import AugmentationConfiguration, EDAParams, GoogleBTParams
+from app.backend.custom_types.typedicts import AugmentationConfiguration
 from app.backend.database.schema import DatasetCategory, EvaluationType, AugmentationType, FineTuningCompany
-from ..dtos.create_request import MessagesContainer
+from app.backend.dtos.create_request import MessagesContainer
 
 
 # Only for conversion from database entities not for requests

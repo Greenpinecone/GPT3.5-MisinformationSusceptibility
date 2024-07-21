@@ -1,8 +1,8 @@
-from typing import Any
-import streamlit as st
-from streamlit.delta_generator import DeltaGenerator
-from uuid import uuid4
 import math
+import streamlit as st
+from typing import Any
+from uuid import uuid4
+from streamlit.delta_generator import DeltaGenerator
 
 
 class Paginator:

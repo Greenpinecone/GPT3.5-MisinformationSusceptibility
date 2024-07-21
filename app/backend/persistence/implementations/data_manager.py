@@ -1,18 +1,17 @@
-from contextlib import contextmanager
-from sqlalchemy import Engine, and_, create_engine, func, or_, event, text
-from sqlalchemy.orm import sessionmaker, Session, scoped_session, joinedload, aliased
-from sqlalchemy.orm.query import Query
-from pathlib import Path
-from typing import Generator
-from sqlalchemy.exc import SQLAlchemyError, MultipleResultsFound, NoResultFound
-from app.backend.database.schema import CurrentProjectData, DataPointEvaluation, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun, project_model_link, project_dataset_link, Base
-from ...util.logger import Logger
-from ..interfaces.i_data_manager import IDataManager
 from datetime import datetime
-from app.backend.dtos.create_request import *
-from app.backend.dtos.get_request import *
+from typing import Generator
+from pathlib import Path
+from contextlib import contextmanager
+from sqlalchemy import Engine, and_, create_engine, func, event, text
+from sqlalchemy.orm import sessionmaker, Session, scoped_session, aliased
+from sqlalchemy.exc import SQLAlchemyError, MultipleResultsFound, NoResultFound
+from app.backend.util.logger import Logger
+from app.backend.database.schema import CurrentProjectData, DataPointEvaluation, DatasetCategory, Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun, project_model_link, project_dataset_link, Base
+from app.backend.persistence.interfaces.i_data_manager import IDataManager
+from app.backend.dtos.create_request import CreateDataPointDTO, CreateDataPointEvaluationDTO, CreateDatasetDTO, CreateModelDTO, CreateModelEvaluationDTO, CreateProjectDTO, CreateTrainingRunDTO
+from app.backend.dtos.get_request import GetDataPointEvaluationsDTO, GetDatapointsByDatasetIdDTO, GetDatasetsByModelIdDTO, GetDatasetsDTO, GetModelEvalautionsDTO, GetModelsByProjectIdDTO, GetModelsDTO, GetProjectsDTO, GetTrainingRunsDTO
 from app.backend.dtos.update_request import SENTINEL, UpdateCurrentProjectDataDTO, UpdateDataPointDTO, UpdateDataPointEvaluationDTO, UpdateDatasetDTO, UpdateModelDTO, UpdateModelEvaluationDTO, UpdateProjectDTO, UpdateTrainingRunDTO
-from app.backend.dtos.response import *
+from app.backend.dtos.response import DataPointDTO, ProjectDTO
 from app.backend.database.version_manager import VersionManager
 
 
@@ -1291,8 +1290,8 @@ class DataManager(IDataManager):
                 evaluation = session.get(
                     DataPointEvaluation, evaluation_dto.id)
                 if not evaluation:
-                    raise NoResultFound(f"Datapoint evaluation for id {
-                                        evaluation_dto.id} does not exist.")
+                    raise NoResultFound(f"""Datapoint evaluation for id {
+                                        evaluation_dto.id} does not exist.""")
 
                 if evaluation_dto.coherence_score is not None:
                     evaluation.coherence_score = evaluation_dto.coherence_score

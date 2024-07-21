@@ -1,12 +1,12 @@
 from dataclasses import asdict
-from ....persistence.interfaces.i_data_manager import IDataManager
-from ..classes.request_dto_validators import *
-from ....dtos.create_request import *
-from ....dtos.get_request import *
-from ....dtos.update_request import *
-from app.backend.custom_types.exceptions import CustomValidationError
 from marshmallow import Schema
 from sqlalchemy.orm import Session
+from app.backend.persistence.interfaces.i_data_manager import IDataManager
+from app.backend.service.validators.classes.request_dto_validators import CreateDataPointEvaluationSchema, CreateDataPointSchema, CreateDatasetSchema, CreateModelEvaluationSchema, CreateModelSchema, CreateProjectSchema, CreateTrainingRunSchema, GetDataPointEvaluationSchema, GetDatapointsByDatasetIdSchema, GetDatasetsByModelIdSchema, GetDatasetsSchema, GetModelEvaluationSchema, GetModelsByProjectIdSchema, GetModelsSchema, GetProjectsSchema, GetTrainingRunsSchema, UpdateDataPointEvaluationSchema, UpdateDataPointSchema, UpdateDatasetSchema, UpdateModelEvaluationSchema, UpdateModelSchema, UpdateProjectSchema, UpdateTrainingRunSchema
+from app.backend.dtos.create_request import CreateDataPointDTO, CreateDataPointEvaluationDTO, CreateDatasetDTO, CreateModelDTO, CreateModelEvaluationDTO, CreateProjectDTO, CreateTrainingRunDTO
+from app.backend.dtos.get_request import GetDataPointEvaluationsDTO, GetDatapointsByDatasetIdDTO, GetDatasetsByModelIdDTO, GetDatasetsDTO, GetModelEvalautionsDTO, GetModelsByProjectIdDTO, GetModelsDTO, GetProjectsDTO, GetTrainingRunsDTO
+from app.backend.dtos.update_request import UpdateDataPointDTO, UpdateDataPointEvaluationDTO, UpdateDatasetDTO, UpdateModelDTO, UpdateModelEvaluationDTO, UpdateProjectDTO, UpdateTrainingRunDTO
+from app.backend.custom_types.exceptions import CustomValidationError
 
 
 class ValidatorFacade:

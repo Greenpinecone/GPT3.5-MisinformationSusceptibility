@@ -1,7 +1,5 @@
-from sqlalchemy import and_, or_
-from app.backend.database.schema import Model, project_model_link
-from app.backend.dtos.create_request import CreateModelDTO
 from sqlalchemy.orm import Session
+from app.backend.database.schema import Model, project_model_link
 
 
 class VersionManager:

@@ -1,27 +1,21 @@
-# Import necessary modules and packages
-from io import BytesIO
 import streamlit as st
-import numpy as np
-import pandas as pd
-import plotly as pl
+from io import BytesIO
+from app.frontend.classes.dataframe_editor import DataFrameEditor
+from app.frontend.classes.dataset_editor import DatasetEditor
+from app.frontend.classes.dataset_service import DatasetService
+from app.frontend.classes.paginator import Paginator
+from app.frontend.classes.toast_manager import ToastManager
+from app.frontend.custom_styles.global_styles import apply_global_style
+from app.frontend.classes.query_params_manager import QueryParamsManager
+from app.frontend.classes.page_navigator import PageNavigator
+from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
 from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
-from backend.util.logger import StreamlitLogger
-from backend.util import utility_functions as backend_uf
-from backend.util.config import UPLOAD_FORMAT_FORMATTINGS, GLOBAL_SESSION_STATE_KEYS
-from app.backend.dtos.get_request import *
-from app.backend.dtos.response import *
-from app.backend.dtos.create_request import *
-from app.backend.database.schema import DatasetCategory, FineTuningModelVersions, MessageKeys, UploadFormats
-from app.frontend.classes.dataframe_editor import DataFrameEditor
-from frontend.classes.dataset_editor import DatasetEditor
-from frontend.classes.dataset_service import DatasetService
-from frontend.classes.paginator import Paginator
-from frontend.classes.toast_manager import ToastManager
-from frontend.custom_styles.global_styles import apply_global_style
-from frontend.classes.query_params_manager import QueryParamsManager
-from frontend.classes.page_navigator import PageNavigator
-from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
+from app.backend.util.logger import StreamlitLogger
+from app.backend.util import utility_functions as backend_uf
+from app.backend.util.config import UPLOAD_FORMAT_FORMATTINGS
+from app.backend.dtos.response import ComplexDatasetDTO, ProjectDTO, CurrentProjectDataDTO
+from app.backend.database.schema import DatasetCategory, FineTuningCompany, FineTuningModelVersions, UploadFormats
 
 apply_global_style()
 errors_container = st.container()

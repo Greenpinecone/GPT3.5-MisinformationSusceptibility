@@ -1,7 +1,6 @@
+from app.frontend.mappers.frontend_mappers import DataPointDTOToUpdateDataPointDTO
 from app.backend.dtos.response import DataPointDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
-from app.frontend.mappers.frontend_mappers import DataPointDTOToUpdateDataPointDTO
-import json
 
 
 class DataPointService:

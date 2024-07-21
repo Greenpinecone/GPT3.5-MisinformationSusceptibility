@@ -1,11 +1,8 @@
-from uuid import uuid4
-from sqlalchemy import ARRAY, Column, Integer, String, ForeignKey, Table, DateTime, Boolean, func, Enum, Float, JSON
-from sqlalchemy.orm import declarative_base, backref, relationship
-from sqlalchemy.schema import CheckConstraint, UniqueConstraint
 import enum
-
-from app.backend.custom_types.typedicts import AugmentationConfiguration
-
+from uuid import uuid4
+from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Boolean, func, Enum, Float, JSON
+from sqlalchemy.orm import declarative_base, backref, relationship
+from sqlalchemy.schema import UniqueConstraint
 # INFO: See this post for clarity for how cascading deletes on database level or thourgh SQLA work! -> https://stackoverflow.com/questions/5033547/sqlalchemy-cascade-delete
 
 # To differentiate whether a dataset is a training or a test dataset in the Datasets table

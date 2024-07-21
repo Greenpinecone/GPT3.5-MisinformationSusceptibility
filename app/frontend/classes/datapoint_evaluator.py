@@ -1,12 +1,11 @@
 import streamlit as st
-from app.backend.dtos.update_request import UpdateDataPointEvaluationDTO
-from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
-from backend.dtos.get_request import *
-from backend.dtos.response import *
-from backend.dtos.create_request import *
-from frontend.classes.paginator import Paginator
+from app.frontend.classes.paginator import Paginator
+from app.backend.dtos.update_request import UpdateDataPointEvaluationDTO
+from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
+from app.backend.dtos.get_request import GetDataPointEvaluationsDTO
+from app.backend.dtos.response import ComplexDataPointEvaluationDTO
 
 
 class DataPointEvaluator:

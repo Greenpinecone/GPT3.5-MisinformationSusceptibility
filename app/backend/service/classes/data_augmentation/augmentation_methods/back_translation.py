@@ -1,14 +1,14 @@
 
 
+import os
 import copy
+from dotenv import load_dotenv
+from google.cloud import translate
 from app.backend.custom_types.typedicts import GoogleBTParams
 from app.backend.database.schema import AugmentationType
 from app.backend.dtos.create_request import CreateDataPointDTO
 from app.backend.dtos.response import DataPointDTO
 from app.backend.service.classes.data_augmentation.augmentation_methods.interfaces.i_augmentation_methods import IAugmentationMethod
-import os
-from google.cloud import translate
-from dotenv import load_dotenv
 
 
 class GoogleBackTranslation(IAugmentationMethod):

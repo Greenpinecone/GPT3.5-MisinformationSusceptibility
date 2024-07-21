@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from app.backend.database.schema import DatasetCategory, AugmentationType
 

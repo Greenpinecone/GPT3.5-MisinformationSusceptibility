@@ -6,10 +6,10 @@ to log messages and errors across different modules.
 import logging
 from logging.handlers import RotatingFileHandler
 import streamlit as st
+from pathlib import Path
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound, SQLAlchemyError
 from marshmallow import ValidationError
 from app.backend.custom_types.exceptions import CustomValidationError
-from pathlib import Path
 from app.frontend.classes.toast_manager import ToastManager
 
 
