@@ -1328,7 +1328,6 @@ class GetModelEvaluationSchema(Schema):
         try:
             model = self.data_manager.get_model_by_id(
                 self.session, model_id)[0]
-            print(model)
         except:
             raise ValidationError(f"""No model with the id {
                 model_id} found.""")
