@@ -2,9 +2,9 @@ from datetime import datetime
 import json
 
 from sqlalchemy import select, text
-from app.backend.database.schema import FineTuningCompany, AugmentationType, DatasetCategory, EvaluationType, Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData, Base, project_model_link, project_dataset_link, model_dataset_association, datapoint_relationships, current_project_data_evaluation_association
+from app.backend.database.schema import FineTuningCompany, AugmentationType, DatasetCategory, EvaluationType, FineTuningModelVersions, Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData, Base, project_model_link, project_dataset_link, model_dataset_association, datapoint_relationships, current_project_data_evaluation_association
 from app.backend.persistence.interfaces.i_data_manager import IDataManager
-from app.backend.custom_types.typedicts import AugmentationConfiguration, GoogleBTParams, MessagesContainer
+from app.backend.custom_types.typedicts import AugmentationConfiguration, GoogleBTParams, MessagesContainer, Message
 # from .test_database import successful_test_messages
 from sqlalchemy.orm import joinedload
 import logging
@@ -21,24 +21,26 @@ def setup_test_data(test_manager: IDataManager) -> None:
     with test_manager.get_session() as session:
         # create projects
         project_alpha = Project(  # id 1
+            id=1,
             project_name="Project Alpha", description="Alpha Project Description", created_at=datetime(2023, 1, 1))
         session.add(project_alpha)
         session.flush()
 
-        project_beta = Project(project_name="Project Beta",  # id 2
+        project_beta = Project(id=2, project_name="Project Beta",  # id 2
                                description="Beta Project Description", created_at=datetime(2022, 1, 1))
         session.add(project_beta)
         session.flush()
 
         # Step 1: Create Parent Model
         model = Model(  # id 1
+            id=1,
             model_name="Project Beta/Model Alpha",
             parent_model_id=None,  # No parent for this model
             semantic_similarity_model="similarity_model",
             version="0",
             fine_tuning_job_id="ft_job_id_1",
             fine_tuning_checkpoint_job_id="ft_checkpoint_job_id_1",
-            fine_tuned_model_id="ft_model_id_1",
+            fine_tuned_model_id=FineTuningModelVersions.openai.value[0],
             uuid="parent_uuid",
             is_global=True,
             is_checkpoint_model=False,
@@ -51,6 +53,7 @@ def setup_test_data(test_manager: IDataManager) -> None:
 
         # Step 2: Create Child Model
         child_model = Model(  # id 2
+            id=2,
             model_name="Project Alpha/Model Beta",
             parent_model_id=None,  # Set parent model ID
             semantic_similarity_model="child_similarity_model",
@@ -70,6 +73,7 @@ def setup_test_data(test_manager: IDataManager) -> None:
         session.flush()  # flush to save the child model
 
         child_model_2 = Model(  # id 3
+            id=3,
             model_name="Project Beta/Model Alpha",
             parent_model_id=model.id,  # Set parent model ID
             semantic_similarity_model="child_2_similarity_model",
@@ -134,6 +138,7 @@ def setup_test_data(test_manager: IDataManager) -> None:
 
         # Create test datset
         test_dataset = Dataset(  # id 1
+            id=1,
             dataset_name="Project Alpha/Dataset Alpha",
             augmented=False,
             category=DatasetCategory.training,
@@ -156,6 +161,7 @@ def setup_test_data(test_manager: IDataManager) -> None:
         time.sleep(1)
 
         dataset_alpha = Dataset(  # id 2
+            id=2,
             dataset_name="Project Beta/Dataset Beta",
             augmented=False,
             category=DatasetCategory.training,
@@ -176,6 +182,7 @@ def setup_test_data(test_manager: IDataManager) -> None:
         session.flush()
 
         child_dataset = Dataset(  # id 3
+            id=3,
             dataset_name="Project Beta/Dataset Gamma",
             augmented=False,
             category=DatasetCategory.training,
@@ -193,20 +200,23 @@ def setup_test_data(test_manager: IDataManager) -> None:
         session.flush()
 
         datapoint1 = DataPoint(  # id 1
+            id=1,
             dataset_id=2,  # dataset_alpha
             augmentation_type=None,
             evaluation_type=None,
-            messages=[{"role": "system", "content": "Initial datapoint message"}]
+            messages=MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")])
         )
         session.add(datapoint1)
         session.flush()
 
         datapoint2 = DataPoint(  # id 2
+            id=2,
             dataset_id=3,  # child_dataset
             evaluation_type=EvaluationType.T,
             augmentation_type=AugmentationType.BT,
-            messages=[
-                {"role": "system", "content": "Augmented datapoint message"}],
+            messages=MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")]),
             initial_datapoint=datapoint1
         )
         session.add(datapoint2)
@@ -214,17 +224,21 @@ def setup_test_data(test_manager: IDataManager) -> None:
 
         # Datapoint relations test
         datapoint3 = DataPoint(  # id 3
+            id=3,
             dataset_id=3,  # child_dataset
             evaluation_type=EvaluationType.F,
             augmentation_type=AugmentationType.BT,
-            messages=[{"role": "system", "content": "DATAPOINT 3"}],
+            messages=MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")]),
         )
         session.add(datapoint3)
         session.flush()
         datapoint4 = DataPoint(  # id 4
+            id=4,
             dataset_id=3,  # child_dataset
             augmentation_type=AugmentationType.EDA,
-            messages=[{"role": "system", "content": "DATAPOINT 4"}],
+            messages=MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")]),
         )
         session.add(datapoint4)
         session.flush()
@@ -234,25 +248,31 @@ def setup_test_data(test_manager: IDataManager) -> None:
 
         # Create independent test datset datapoint
         datapoint5 = DataPoint(  # id 5
+            id=5,
             dataset_id=1,  # test dataset
             augmentation_type=None,
-            messages=[{"role": "system", "content": "Initial datapoint message"}]
+            messages=MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")]),
+            related_datapoints=[datapoint2, datapoint3]
         )
         session.add(datapoint5)
         session.flush()
 
         datapoint6 = DataPoint(  # id 6
+            id=6,
             dataset_id=1,  # test dataset
             augmentation_type=AugmentationType.BT,
-            messages=[
-                {"role": "system", "content": "Augmented datapoint message"}],
-            initial_datapoint=datapoint5
+            messages=MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")]),
+            initial_datapoint=datapoint5,
+            related_datapoints=[datapoint3]
         )
         session.add(datapoint6)
         session.flush()
 
         # Create DataPointEvaluation for derived DataPoint
         datapoint1_evaluation = DataPointEvaluation(  # id 1
+            id=1,
             model_id=model.id,  # Assuming the model has been added to the session and has an id
             coherence_score=7,
             relevance_score=8,
@@ -265,6 +285,7 @@ def setup_test_data(test_manager: IDataManager) -> None:
 
         # Create DataPointEvaluation for derived DataPoint
         datapoint2_evaluation = DataPointEvaluation(  # id 2
+            id=2,
             model_id=model.id,
             coherence_score=4,
             relevance_score=4,
@@ -278,13 +299,15 @@ def setup_test_data(test_manager: IDataManager) -> None:
         # Create Model evaluations
         # Create ModelEvaluation for initial DataPoint
         model_evaluation1 = ModelEvaluation(  # id 1
+            id=1,
             model_id=model.id,
             datapoint_id=datapoint1.id,
             evaluation_type=EvaluationType.T,
             helpful_score=8,
             honest_score=9,
             harmless_score=10,
-            messages={"messages": ["message1"]},
+            messages=MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")]),
             semantic_similarity_score=0.5
         )
         session.add(model_evaluation1)
@@ -292,13 +315,15 @@ def setup_test_data(test_manager: IDataManager) -> None:
 
         # Create ModelEvaluation for derived DataPoint
         model_evaluation2 = ModelEvaluation(  # id 2
+            id=2,
             model_id=model.id,
             datapoint_id=datapoint2.id,
             evaluation_type=EvaluationType.F,
             helpful_score=7,
             honest_score=8,
             harmless_score=9,
-            messages={"messages": ["message2"]},
+            messages=MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")]),
             semantic_similarity_score=1.0
         )
         session.add(model_evaluation2)
@@ -306,6 +331,7 @@ def setup_test_data(test_manager: IDataManager) -> None:
 
         # Create TrainingRun for the model
         training_run_1 = TrainingRun(  # id 1
+            id=1,
             model_id=model.id,
             epochs=10,
             learning_rate_multiplier=0.01,
@@ -319,6 +345,7 @@ def setup_test_data(test_manager: IDataManager) -> None:
 
         # Create TrainingRun for the model
         training_run_2 = TrainingRun(  # id 2
+            id=2,
             model_id=child_model.id,
             epochs=20,
             learning_rate_multiplier=0.02,
@@ -336,6 +363,7 @@ def setup_test_data(test_manager: IDataManager) -> None:
 
         # Create CurrentProjctData entity fully populated
         current_project_data = CurrentProjectData(  # id 1
+            id=1,
             unfinished_progress=True,
             current_page="fine_tune_page",
             save_checkpoint_models=True,

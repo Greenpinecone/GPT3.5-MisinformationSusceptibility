@@ -1,159 +1,86 @@
-# import pytest
 from dataclasses import asdict
 from datetime import datetime
 import json
 from sqlite3 import IntegrityError
 from typing import Generator
+from app.backend.custom_types.typedicts import Message
 from app.backend.dtos.get_request import GetDataPointEvaluationsDTO, GetDatapointsByDatasetIdDTO, GetDatasetsByModelIdDTO, GetDatasetsDTO, GetModelEvalautionsDTO, GetModelsByProjectIdDTO, GetModelsDTO, GetProjectsDTO, GetTrainingRunsDTO
 from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO, UpdateDataPointDTO, UpdateDataPointEvaluationDTO, UpdateDatasetDTO, UpdateModelDTO, UpdateModelEvaluationDTO, UpdateProjectDTO, UpdateTrainingRunDTO
 from app.backend.util.logger import Logger
 from app.backend.persistence.interfaces.i_data_manager import IDataManager
-from ....dtos.create_request import *
+from app.backend.dtos.create_request import *
 from sqlalchemy.exc import SQLAlchemyError, MultipleResultsFound, NoResultFound
-from app.backend.database.schema import Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData, model_dataset_association, project_model_link, Base
+from app.backend.database.schema import FineTuningModelVersions, Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData, model_dataset_association, project_model_link
 from sqlalchemy.orm import Session
-from ....dtos.response import *
+from app.backend.tests.conftest import assert_properties
+from app.backend.dtos.response import *
 import pytest
 
 logger = Logger(__name__)
 
+# successful_test_messages = [{
+#     "messages": [
+#         {"role": "user", "content": "What's the weather like today?"},
+#         {"role": "assistant", "content": "It's sunny and warm outside."},
+#         {"role": "user", "content": "That sounds lovely. Should I wear shorts?"},
+#         {"role": "assistant",
+#          "content": "Shorts would be perfect. Don't forget your sunglasses!"},
+#         {"role": "user", "content": "Thanks for the advice!"}
+#     ]
+# },
+#     {
+#     "messages": [
+#         {"role": "user", "content": "Can you recommend a good book?"},
+#         {"role": "assistant",
+#          "content": "Sure, do you prefer fiction or non-fiction?"},
+#         {"role": "user", "content": "I love fiction."},
+#         {"role": "assistant",
+#          "content": "How about 'The Night Circus' by Erin Morgenstern? It's magical."},
+#         {"role": "user", "content": "Sounds interesting. I'll check it out. Thanks!"}
+#     ]
+# },
+#     {
+#     "messages": [
+#         {"role": "user", "content": "How do I reset my password?"},
+#         {"role": "assistant",
+#          "content": "You can reset your password by going to the settings page."},
+#         {"role": "user", "content": "Thanks, that was helpful!"}
+#     ]
+# },
+#     {
+#     "messages": [
+#         {"role": "user",
+#          "content": "What's the weather like in New York today?"},
+#         {"role": "assistant",
+#          "content": "The weather in New York is sunny with a high of 75 degrees."},
+#         {"role": "user", "content": "Should I take an umbrella?"},
+#         {"role": "assistant",
+#          "content": "It's sunny, so you won't need an umbrella today."}
+#     ]
+# },
+#     {
+#     "messages": [
+#         {"role": "user", "content": "Can you recommend a good sci-fi book?"},
+#         {"role": "assistant",
+#          "content": "I would recommend 'Dune' by Frank Herbert. It's a great read!"}
+#     ]
+# }]
 
-def assert_properties(entity, expected_properties):
-    if isinstance(expected_properties, dict):
-        for property_name, expected_value in expected_properties.items():
-            # Check if the attribute exists in the entity.
-            if isinstance(entity, dict):
-                if not entity.get(property_name):
-                    print(entity, expected_properties, property_name)
-                    pytest.fail(f"""Entity does not contain the property '{
-                        property_name}'.""")
-
-                # Get the value or None if not exist.
-                actual_value = entity.get(property_name)
-            elif isinstance(entity, Base) and not hasattr(entity, property_name):
-                print(entity, expected_properties, property_name)
-                pytest.fail(f"""Entity does not contain the property '{
-                            property_name}'.""")
-
-            else:
-                # Get the value or None if not exist.
-                actual_value = getattr(entity, property_name, None)
-
-            if isinstance(expected_value, list) and len(expected_value) > 0 and all(isinstance(i, dict) for i in expected_value):
-                # Sort by the first key in the dictionaries for comparison
-                first_key = next(iter(expected_value[0].keys()))
-                sorted_actual = sorted(
-                    actual_value, key=lambda x: x[first_key])
-                sorted_expected = sorted(
-                    expected_value, key=lambda x: x[first_key])
-                assert sorted_actual == sorted_expected, f"""{
-                    property_name} does not match. Expected {sorted_expected}, got {sorted_actual}"""
-            # If it is a list, the list gets sorted and compared by value to the expected list.
-            elif isinstance(expected_value, list):
-                if len(actual_value) > 0 and isinstance(actual_value[0], Base):
-                    # If it is a list of entities, check if their ids are correct
-                    actual_value = [val.id for val in actual_value]
-
-                assert sorted(actual_value) == sorted(expected_value), f"""{
-                    property_name} does not match. Expected {expected_value}, got {actual_value}"""
-            # If a type is expected (e.g: datetime, str, int), the value gets compared by type.
-            elif isinstance(expected_value, type):
-                assert isinstance(actual_value, expected_value), f"""{property_name} is not of type {
-                    expected_value.__name__}. Got type {type(actual_value).__name__}"""
-            # If a lambda function is given, the actual value is checked against the lambda function.
-            elif callable(expected_value):
-                assert expected_value(actual_value), f"""{
-                    property_name} failed custom validation. Failed value: {actual_value}"""
-            # If two datetime objects are given, the object that is not parametrized must be created at the same time or later than the parametrized datetime test object.
-            elif isinstance(actual_value, datetime) and isinstance(expected_value, datetime):
-                assert actual_value >= expected_value, f"""{property_name} does not match. Actual datetime {
-                    actual_value} is not less than or equal to expected datetime {expected_value}."""
-            elif isinstance(expected_value, dict) and isinstance(actual_value, Base):
-                # For relationships that are dictionaries (e.g., one-to-one or many-to-one relationships)
-                assert actual_value.id == expected_value["id"], f"""{
-                    property_name}.id does not match. Expected {expected_value['id']}, got {actual_value.id}"""
-            elif isinstance(expected_value, int) and isinstance(actual_value, Base):
-                assert expected_value == actual_value.id, f"""{
-                    property_name}.id does not match. Expected {expected_value}, got {actual_value.id}"""
-            # If the expected value is a dictionary, recursively call assert_properties
-            elif isinstance(expected_value, dict) and isinstance(actual_value, dict):
-                assert_properties(actual_value, expected_value)
-            # If the expected value is JSON, compare the loaded JSON
-            elif isinstance(expected_value, str) and isinstance(actual_value, str):
-                assert actual_value == expected_value, f"""{
-                    property_name} does not match. Expected {expected_value}, got {actual_value}"""
-            # If none of the above conditions holds true, a normal by value comparison is performed.
-            else:
-                assert actual_value == expected_value, f"""{
-                    property_name} does not match. Expected {expected_value}, got {actual_value}"""
-    else:
-        assert entity == expected_properties, f"""Expected {
-            expected_properties}, got {entity}"""
-
-
-successful_test_messages = [{
-    "messages": [
-        {"role": "user", "content": "What's the weather like today?"},
-        {"role": "assistant", "content": "It's sunny and warm outside."},
-        {"role": "user", "content": "That sounds lovely. Should I wear shorts?"},
-        {"role": "assistant",
-         "content": "Shorts would be perfect. Don't forget your sunglasses!"},
-        {"role": "user", "content": "Thanks for the advice!"}
-    ]
-},
-    {
-    "messages": [
-        {"role": "user", "content": "Can you recommend a good book?"},
-        {"role": "assistant",
-         "content": "Sure, do you prefer fiction or non-fiction?"},
-        {"role": "user", "content": "I love fiction."},
-        {"role": "assistant",
-         "content": "How about 'The Night Circus' by Erin Morgenstern? It's magical."},
-        {"role": "user", "content": "Sounds interesting. I'll check it out. Thanks!"}
-    ]
-},
-    {
-    "messages": [
-        {"role": "user", "content": "How do I reset my password?"},
-        {"role": "assistant",
-         "content": "You can reset your password by going to the settings page."},
-        {"role": "user", "content": "Thanks, that was helpful!"}
-    ]
-},
-    {
-    "messages": [
-        {"role": "user",
-         "content": "What's the weather like in New York today?"},
-        {"role": "assistant",
-         "content": "The weather in New York is sunny with a high of 75 degrees."},
-        {"role": "user", "content": "Should I take an umbrella?"},
-        {"role": "assistant",
-         "content": "It's sunny, so you won't need an umbrella today."}
-    ]
-},
-    {
-    "messages": [
-        {"role": "user", "content": "Can you recommend a good sci-fi book?"},
-        {"role": "assistant",
-         "content": "I would recommend 'Dune' by Frank Herbert. It's a great read!"}
-    ]
-}]
-
-failure_test_messages = [{
-    "messages": [{"role": "", "content": "It's me!"}]
-},
-    {
-    "messages": [{"role": "system", "content": ""}]
-},
-    {
-    "messages": [{"role": "", "content": ""}]
-},
-    {
-    "messages": [{}]
-},
-    {
-    "messages": []
-}]
+# failure_test_messages = [{
+#     "messages": [{"role": "", "content": "It's me!"}]
+# },
+#     {
+#     "messages": [{"role": "system", "content": ""}]
+# },
+#     {
+#     "messages": [{"role": "", "content": ""}]
+# },
+#     {
+#     "messages": [{}]
+# },
+#     {
+#     "messages": []
+# }]
 
 
 class TestDatabaseOperations:
@@ -1504,7 +1431,7 @@ class TestDatabaseOperations:
         }
     ])
 
-    filter_data_2: tuple[GetDataPointEvaluationsDTO, list[dict]] = (GetDataPointEvaluationsDTO(
+    filter_data_3: tuple[GetDataPointEvaluationsDTO, list[dict]] = (GetDataPointEvaluationsDTO(
         model_id=1,
         relevance_score=9
     ), [])
@@ -1512,6 +1439,7 @@ class TestDatabaseOperations:
     @pytest.mark.parametrize("filter_data, expected_properties", [
         filter_data_1,
         filter_data_2,
+        filter_data_3
     ])
     def test_get_all_datapoint_evaluations(self, db_setup_manager: tuple[IDataManager, Session], filter_data: GetDataPointEvaluationsDTO, expected_properties: list[dict]):
         test_manager, session = db_setup_manager
@@ -1852,7 +1780,7 @@ class TestDatabaseOperations:
         'version': "0",
         'fine_tuning_job_id': "ft_job_id_1",
         'fine_tuning_checkpoint_job_id': "ft_checkpoint_job_id_1",
-        'fine_tuned_model_id': "ft_model_id_1",
+        'fine_tuned_model_id': FineTuningModelVersions.openai.value[0],
         'uuid': "parent_uuid",
         'is_global': True,
         'is_checkpoint_model': False,
@@ -1886,7 +1814,7 @@ class TestDatabaseOperations:
         'version': "0",
         'fine_tuning_job_id': "ft_job_id_1",
         'fine_tuning_checkpoint_job_id': "ft_checkpoint_job_id_1",
-        'fine_tuned_model_id': "ft_model_id_1",
+        'fine_tuned_model_id': FineTuningModelVersions.openai.value[0],
         'uuid': "parent_uuid",
         'is_global': True,
         'is_checkpoint_model': False,
@@ -1995,20 +1923,23 @@ class TestDatabaseOperations:
             'dataset_id': 3,
             'evaluation_type': EvaluationType.T,
             'augmentation_type': AugmentationType.BT,
-            'messages': [{"role": "system", "content": "Augmented datapoint message"}]
+            'messages': MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")])
         },
         {
             'id': 3,
             'dataset_id': 3,
             'evaluation_type': EvaluationType.F,
             'augmentation_type': AugmentationType.BT,
-            'messages': [{"role": "system", "content": "DATAPOINT 3"}]
+            'messages': MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")])
         },
         {
             'id': 4,
             'dataset_id': 3,
             'augmentation_type': AugmentationType.EDA,
-            'messages': [{"role": "system", "content": "DATAPOINT 4"}]
+            'messages': MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")])
         }
     ])
 
@@ -2018,14 +1949,16 @@ class TestDatabaseOperations:
             'dataset_id': 3,
             'evaluation_type': EvaluationType.T,
             'augmentation_type': AugmentationType.BT,
-            'messages': [{"role": "system", "content": "Augmented datapoint message"}]
+            'messages': MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")])
         },
         {
             'id': 3,
             'dataset_id': 3,
             'evaluation_type': EvaluationType.F,
             'augmentation_type': AugmentationType.BT,
-            'messages': [{"role": "system", "content": "DATAPOINT 3"}]
+            'messages': MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")])
         }
     ])
 
@@ -2072,7 +2005,8 @@ class TestDatabaseOperations:
                 'helpful_score': 8,
                 'honest_score': 9,
                 'harmless_score': 10,
-                'messages': {"messages": ["message1"]},
+                'messages': MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                    role="user", content="What's the capital of France?")]),
                 'semantic_similarity_score': 0.5
             },
             {
@@ -2082,7 +2016,8 @@ class TestDatabaseOperations:
                 'helpful_score': 7,
                 'honest_score': 8,
                 'harmless_score': 9,
-                'messages': {"messages": ["message2"]},
+                'messages': MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                    role="user", content="What's the capital of France?")]),
                 'semantic_similarity_score': 1.0
             }
         ]),
@@ -2150,7 +2085,7 @@ class TestDatabaseOperations:
             'version': "0",
             'fine_tuning_job_id': "ft_job_id_1",
             'fine_tuning_checkpoint_job_id': "ft_checkpoint_job_id_1",
-            'fine_tuned_model_id': "ft_model_id_1",
+            'fine_tuned_model_id': FineTuningModelVersions.openai.value[0],
             'uuid': "parent_uuid",
             'is_global': True,
             'is_checkpoint_model': False,
@@ -2312,14 +2247,16 @@ class TestDatabaseOperations:
             'dataset_id': 2,
             'augmentation_type': None,
             'evaluation_type': None,
-            'messages': [{"role": "system", "content": "Initial datapoint message"}]
+            'messages': MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")])
         }, False),
         (2, {
             'id': 2,
             'dataset_id': 3,
             'augmentation_type': AugmentationType.BT,
             'evaluation_type': EvaluationType.T,
-            'messages': [{"role": "system", "content": "Augmented datapoint message"}]
+            'messages': MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")])
         }, False),
         (7, {}, True),  # No datapoint for this ID
     ])
@@ -2350,7 +2287,8 @@ class TestDatabaseOperations:
             'helpful_score': 8,
             'honest_score': 9,
             'harmless_score': 10,
-            'messages': {"messages": ["message1"]},
+            'messages': MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")]),
             'semantic_similarity_score': 0.5
         }, False),
         (2, {
@@ -2361,7 +2299,8 @@ class TestDatabaseOperations:
             'helpful_score': 7,
             'honest_score': 8,
             'harmless_score': 9,
-            'messages': {"messages": ["message2"]},
+            'messages': MessagesContainer(messages=[Message(role="system", content="Marv_Test_10 is a factual chatbot that is also sarcastic."), Message(
+                role="user", content="What's the capital of France?")]),
             'semantic_similarity_score': 1.0
         }, False),
         (3, {}, True),  # No model evaluation for this ID
