@@ -70,8 +70,8 @@ class ServiceManagerFacade(IServiceManager):
 
     # TODO: Add and reuse service layer functions (like get_by_id) instead of always calling the persistence layer directly. Issue with sessions in sessions thoughh, all service layer functions should be updated to potentially receive a session, and if so, use this session instead of create a new one.
 
-    def filter_projects(self, projects_data: GetProjectsDTO) -> list[ProjectDTO]:
-        with self._data_manager.get_session() as session:
+    def filter_projects(self, projects_data: GetProjectsDTO, existing_session: Session | None = None) -> list[ProjectDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_get_all_projects(
                 session, self._data_manager, projects_data)
             projects: list[Project] = self._data_manager.get_all_projects(
@@ -86,32 +86,32 @@ class ServiceManagerFacade(IServiceManager):
                 session, model_data)
             return [self._mapper.map_model_to_dto(session, model) for model in models]
 
-    def filter_datasets(self, dataset_data: GetDatasetsDTO) -> list[DatasetDTO]:
-        with self._data_manager.get_session() as session:
+    def filter_datasets(self, dataset_data: GetDatasetsDTO, existing_session: Session | None = None) -> list[DatasetDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_get_all_datasets(
                 session, self._data_manager, dataset_data)
             datasets: list[Dataset] = self._data_manager.get_all_datasets(
                 session, dataset_data)
             return [self._mapper.map_dataset_to_dto(session, dataset) for dataset in datasets]
 
-    def create_projects(self, projects_data: list[CreateProjectDTO]) -> list[ProjectDTO]:
-        with self._data_manager.get_session() as session:
+    def create_projects(self, projects_data: list[CreateProjectDTO], existing_session: Session | None = None) -> list[ProjectDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_create_projects(
                 session, self._data_manager, projects_data)
             projects: list[Project] = self._data_manager.create_projects(
                 session, projects_data)
             return [self._mapper.map_project_to_dto(session, project) for project in projects]
 
-    def udpate_projects(self, projects_data: list[UpdateProjectDTO]) -> list[ProjectDTO]:
-        with self._data_manager.get_session() as session:
+    def udpate_projects(self, projects_data: list[UpdateProjectDTO], existing_session: Session | None = None) -> list[ProjectDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_update_projects(
                 session, self._data_manager, projects_data)
             projects: list[Project] = self._data_manager.update_projects(
                 session, projects_data)
             return [self._mapper.map_project_to_dto(session, project) for project in projects]
 
-    def create_dataset_with_datapoints(self, trainings_dataset_dto: CreateDatasetDTO, trainings_datapoint_dtos: list[CreateDataPointDTO], test_dataset_dto: CreateDatasetDTO, test_datapoint_dtos: list[CreateDataPointDTO]) -> ComplexDatasetDTO:
-        with self._data_manager.get_session() as session:
+    def create_dataset_with_datapoints(self, trainings_dataset_dto: CreateDatasetDTO, trainings_datapoint_dtos: list[CreateDataPointDTO], test_dataset_dto: CreateDatasetDTO, test_datapoint_dtos: list[CreateDataPointDTO], existing_session: Session | None = None) -> ComplexDatasetDTO:
+        with self._data_manager.get_session(existing_session) as session:
             # Save test dataset first to then add it to the training dataset
             test_dataset: Dataset = None
             if test_datapoint_dtos:
@@ -147,43 +147,43 @@ class ServiceManagerFacade(IServiceManager):
 
             return [self._mapper.map_dataset_to_complex_dto(session, trainings_dataset)]
 
-    def get_dataset_by_id(self, id: int) -> list[DatasetDTO]:
-        with self._data_manager.get_session() as session:
+    def get_dataset_by_id(self, id: int, existing_session: Session | None = None) -> list[DatasetDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             dataset: Dataset = self._data_manager.get_dataset_by_id(
                 session, id)[0]
             return [self._mapper.map_dataset_to_dto(session, dataset)]
 
-    def create_models(self, create_model_dto: list[CreateModelDTO]) -> list[ModelDTO]:
-        with self._data_manager.get_session() as session:
+    def create_models(self, create_model_dto: list[CreateModelDTO], existing_session: Session | None = None) -> list[ModelDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_create_models(
                 session, self._data_manager, create_model_dto)
             models: list[Model] = self._data_manager.create_models(
                 session, create_model_dto)
             return [self._mapper.map_model_to_dto(session, model) for model in models]
 
-    def update_models(self, update_model_dtos: list[UpdateModelDTO]) -> list[ModelDTO]:
-        with self._data_manager.get_session() as session:
+    def update_models(self, update_model_dtos: list[UpdateModelDTO], existing_session: Session | None = None) -> list[ModelDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_update_models(
                 session, self._data_manager, update_model_dtos)
             models: list[Model] = self._data_manager.update_models(
                 session, update_model_dtos)
             return [self._mapper.map_model_to_dto(session, model) for model in models]
 
-    def delete_models(self, model_ids: list[int]) -> None:
-        with self._data_manager.get_session() as session:
+    def delete_models(self, model_ids: list[int], existing_session: Session | None = None) -> None:
+        with self._data_manager.get_session(existing_session) as session:
             self._data_manager.delete_models(session, model_ids)
             return
 
-    def update_datapoints(self, update_datapoint_dtos: list[UpdateDataPointDTO]) -> list[DataPointDTO]:
-        with self._data_manager.get_session() as session:
+    def update_datapoints(self, update_datapoint_dtos: list[UpdateDataPointDTO], existing_session: Session | None = None) -> list[DataPointDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_update_datapoints(
                 session, self._data_manager, update_datapoint_dtos)
             datapoints: list[DataPoint] = self._data_manager.update_datapoints(
                 session, update_datapoint_dtos)
             return [self._mapper.map_datapoint_to_dto(session, datapoint) for datapoint in datapoints]
 
-    def filter_simple_training_runs(self, training_run_data: GetTrainingRunsDTO) -> list[SimpleTrainingRunDTO]:
-        with self._data_manager.get_session() as session:
+    def filter_simple_training_runs(self, training_run_data: GetTrainingRunsDTO, existing_session: Session | None = None) -> list[SimpleTrainingRunDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_get_training_runs(
                 session, self._data_manager, training_run_data)
             training_runs: list[TrainingRun] = self._data_manager.get_all_training_runs(
@@ -191,22 +191,22 @@ class ServiceManagerFacade(IServiceManager):
 
             return [self._mapper.map_training_run_to_simple_dto(session, training_run) for training_run in training_runs]
 
-    def get_or_create_current_project_data(self) -> list[CurrentProjectDataDTO]:
-        with self._data_manager.get_session() as session:
+    def get_or_create_current_project_data(self, existing_session: Session | None = None) -> list[CurrentProjectDataDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             # TODO: Add validator
             current_project_data: CurrentProjectData = self._data_manager.get_or_create_current_project_data(session)[
                 0]
             return [self._mapper.map_current_project_data_to_dto(session, current_project_data)]
 
-    def update_current_project_data(self, current_project_data: UpdateCurrentProjectDataDTO) -> list[CurrentProjectDataDTO]:
-        with self._data_manager.get_session() as session:
+    def update_current_project_data(self, current_project_data: UpdateCurrentProjectDataDTO, existing_session: Session | None = None) -> list[CurrentProjectDataDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             # TODO: Add validator
             current_project_data: CurrentProjectData = self._data_manager.update_current_project_data(session, current_project_data)[
                 0]
             return [self._mapper.map_current_project_data_to_dto(session, current_project_data)]
 
-    def create_training_run_dtos(self, training_run_dtos: list[CreateTrainingRunDTO]) -> list[TrainingRunDTO]:
-        with self._data_manager.get_session() as session:
+    def create_training_run_dtos(self, training_run_dtos: list[CreateTrainingRunDTO], existing_session: Session | None = None) -> list[TrainingRunDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_create_training_runs(
                 session, self._data_manager, training_run_dtos)
             training_runs: list[TrainingRunDTO] = self._data_manager.create_training_runs(
@@ -214,8 +214,8 @@ class ServiceManagerFacade(IServiceManager):
 
             return [self._mapper.map_training_run_to_dto(session, training_run) for training_run in training_runs]
 
-    def update_training_run_dtos(self, training_run_dtos: list[UpdateTrainingRunDTO]) -> list[TrainingRunDTO]:
-        with self._data_manager.get_session() as session:
+    def update_training_run_dtos(self, training_run_dtos: list[UpdateTrainingRunDTO], existing_session: Session | None = None) -> list[TrainingRunDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_update_training_runs(
                 session, self._data_manager, training_run_dtos)
             training_runs: list[TrainingRunDTO] = self._data_manager.update_training_runs(
@@ -223,8 +223,8 @@ class ServiceManagerFacade(IServiceManager):
 
             return [self._mapper.map_training_run_to_dto(session, training_run) for training_run in training_runs]
 
-    def create_datapoint_evaluations(self, create_datapoint_evaluations: list[CreateDataPointEvaluationDTO]) -> list[DataPointEvaluationDTO]:
-        with self._data_manager.get_session() as session:
+    def create_datapoint_evaluations(self, create_datapoint_evaluations: list[CreateDataPointEvaluationDTO], existing_session: Session | None = None) -> list[DataPointEvaluationDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_create_datapoint_evaluations(
                 session, self._data_manager, create_datapoint_evaluations)
             datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.create_datapoint_evaluations(
@@ -232,8 +232,8 @@ class ServiceManagerFacade(IServiceManager):
 
             return [self._mapper.map_datapoint_evaluation_to_dto(session, datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
 
-    def update_datapoint_evaluations(self, update_datapoint_evaluations: list[UpdateDataPointEvaluationDTO]) -> list[DataPointEvaluationDTO]:
-        with self._data_manager.get_session() as session:
+    def update_datapoint_evaluations(self, update_datapoint_evaluations: list[UpdateDataPointEvaluationDTO], existing_session: Session | None = None) -> list[DataPointEvaluationDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_update_datapoint_evaluations(
                 session, self._data_manager, update_datapoint_evaluations)
             datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.update_datapoint_evaluations(
@@ -241,8 +241,8 @@ class ServiceManagerFacade(IServiceManager):
 
             return [self._mapper.map_datapoint_evaluation_to_dto(session, datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
 
-    def get_datapoint_evaluations(self, get_datapoint_evaluation: GetDataPointEvaluationsDTO) -> list[DataPointEvaluationDTO]:
-        with self._data_manager.get_session() as session:
+    def get_datapoint_evaluations(self, get_datapoint_evaluation: GetDataPointEvaluationsDTO, existing_session: Session | None = None) -> list[DataPointEvaluationDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             self._validator.validate_get_datapoint_evaluation(
                 session, self._data_manager, get_datapoint_evaluation)
             datapoint_evaluations: list[DataPointEvaluation] = self._data_manager.get_all_datapoint_evaluations(
@@ -251,8 +251,8 @@ class ServiceManagerFacade(IServiceManager):
             return [self._mapper.map_datapoint_evaluation_to_dto(session, datapoint_evaluation) for datapoint_evaluation in datapoint_evaluations]
 
     # TODO: Add validators
-    def create_fine_tuning_run(self, model_id: int, fine_tuning_model: str) -> ModelDTO:
-        with self._data_manager.get_session() as session:
+    def create_fine_tuning_run(self, model_id: int, fine_tuning_model: str, existing_session: Session | None = None) -> ModelDTO:
+        with self._data_manager.get_session(existing_session) as session:
             # Fetch the model entity
             model: Model = self._data_manager.get_model_by_id(session, model_id)[
                 0]
@@ -293,20 +293,8 @@ class ServiceManagerFacade(IServiceManager):
         elif response and getattr(response, 'status', None):
             return response.status
 
-    # TODO: REMOVE - this would just reassign the datapoints to another model and since we need the one to many relationship to access "evaluation.datapoint" this is not feasable without refactoring other parts.
-    # def add_model_and_datapoint_evaluations_to_checkpoint_models(self, current_fine_tuning_model_id: ModelDTO, current_checkpoint_model_ids: list[int], existing_session: Session | None = None):
-    #     with self._data_manager.get_session(existing_session) as session:
-    #         current_fine_tuning_model: Model = self._data_manager.get_model_by_id(
-    #             session, current_fine_tuning_model_id)
-
-    #         # Add model- and datapoint evaluations to checkpoint models
-    #         for id in current_checkpoint_model_ids:
-    #             model: Model = self._data_manager.get_model_by_id(session, id)
-    #             model.evaluations = current_fine_tuning_model.evaluations
-    #             model.datapoint_evaluations = current_fine_tuning_model.datapoint_evaluations
-
-    def save_checkpoint_models(self, current_fine_tuning_model: ModelDTO, current_project_id: int, updated_training_run_dto: TrainingRunDTO) -> list[ModelDTO]:
-        with self._data_manager.get_session() as session:
+    def save_checkpoint_models(self, current_fine_tuning_model: ModelDTO, current_project_id: int, updated_training_run_dto: TrainingRunDTO, existing_session: Session | None = None) -> list[ModelDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             # Fetch checkpoint data
             checkpoints: list = self._openai_service.get_checkpoints(
                 current_fine_tuning_model.fine_tuning_job_id)
@@ -355,8 +343,8 @@ class ServiceManagerFacade(IServiceManager):
 
             return [self._mapper.map_model_to_dto(session, model) for model in new_models]
 
-    def get_datasets_datapoints_count(self, dataset_ids: list[int]) -> int:
-        with self._data_manager.get_session() as session:
+    def get_datasets_datapoints_count(self, dataset_ids: list[int], existing_session: Session | None = None) -> int:
+        with self._data_manager.get_session(existing_session) as session:
             datasets: list[Dataset] = []
             for dataset_id in dataset_ids:
                 datasets.append(
@@ -364,8 +352,8 @@ class ServiceManagerFacade(IServiceManager):
 
             return self._openai_service.count_datapoints_in_dataset_list(datasets)
 
-    def get_training_run_by_id(self, training_run_id: int) -> list[TrainingRunDTO]:
-        with self._data_manager.get_session() as session:
+    def get_training_run_by_id(self, training_run_id: int, existing_session: Session | None = None) -> list[TrainingRunDTO]:
+        with self._data_manager.get_session(existing_session) as session:
             training_runs: list[int] = self._data_manager.get_training_run_by_id(session,
                                                                                  training_run_id)
 
@@ -377,8 +365,8 @@ class ServiceManagerFacade(IServiceManager):
 
         return augmentation_count
 
-    def generate_augmented_data(self, model_id: list[int], augmentation_configurations: list[AugmentationConfiguration], current_project_id: int, semantic_similarity_model: dict | None = None) -> list[int]:
-        with self._data_manager.get_session() as session:
+    def generate_augmented_data(self, model_id: int, augmentation_configurations: list[AugmentationConfiguration], current_project_id: int, semantic_similarity_model: dict | None = None, existing_session: Session | None = None) -> list[int]:
+        with self._data_manager.get_session(existing_session) as session:
 
             # TODO: Add validation
             # Get the model that been created based on the selected model for fine tuning
@@ -407,7 +395,8 @@ class ServiceManagerFacade(IServiceManager):
                 total_training_datapoint_dtos, augmentation_configurations)
 
             # Get the first training dataset, since it is always an unaugmented dataset and the augmented datasets rely on this information
-            first_training_dataset: Dataset = model.training_datasets[0]
+            first_training_dataset: Dataset = sorted(
+                model.training_datasets, key=lambda x: x.id)[0]
 
             # Split the string at the first "/" to get the name + unique identifier
             right_part = first_training_dataset.dataset_name.split("/", 1)[1]
@@ -822,7 +811,9 @@ class ServiceManagerFacade(IServiceManager):
 
     def remove_model_global_status(self, model_id: int, existing_session: Session | None = None) -> None:
         with self._data_manager.get_session(existing_session) as session:
-            self._data_manager.remove_model_global_status(session, model_id)
+            model: Model = self._data_manager.remove_model_global_status(
+                session, model_id)
+            return [self._mapper.map_model_to_dto(session, model)]
 
     def delete_openai_checkpoint_models(self, original_fine_tuning_job_id: str) -> None:
         self._openai_service.delete_checkpoint_models_by_original_fine_tuning_job_id(

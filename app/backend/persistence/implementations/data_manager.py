@@ -1198,7 +1198,7 @@ class DataManager(IDataManager):
             logger.exception("Failed to retrieve models")
             raise SQLAlchemyError("Failed to retrieve models") from e
 
-    def remove_model_global_status(self, session: Session, model_id: int):
+    def remove_model_global_status(self, session: Session, model_id: int) -> list[Model]:
         original_project_id = self.get_original_project(session, model_id)
         current_associations = self._get_current_project_associations(
             session, model_id)
@@ -1210,6 +1210,8 @@ class DataManager(IDataManager):
         # Set model is_global to False
         model: Model = session.get(Model, model_id)
         model.is_global = False
+
+        return model
 
     def get_original_project(self, session: Session, model_id: int):
         subquery = (
@@ -1288,6 +1290,9 @@ class DataManager(IDataManager):
             for evaluation_dto in evaluations_data:
                 evaluation = session.get(
                     DataPointEvaluation, evaluation_dto.id)
+                if not evaluation:
+                    raise NoResultFound(f"Datapoint evaluation for id {
+                                        evaluation_dto.id} does not exist.")
 
                 if evaluation_dto.coherence_score is not None:
                     evaluation.coherence_score = evaluation_dto.coherence_score
@@ -1315,7 +1320,7 @@ class DataManager(IDataManager):
             # Add optional filters
             if filter_data.datapoint_id is not None:
                 query = query.filter(
-                    DataPointEvaluation.datapoint_id >= filter_data.datapoint_id
+                    DataPointEvaluation.datapoint_id == filter_data.datapoint_id
                 )
             if filter_data.coherence_score is not None:
                 query = query.filter(
