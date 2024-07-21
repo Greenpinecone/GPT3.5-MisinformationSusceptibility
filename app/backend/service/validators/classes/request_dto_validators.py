@@ -763,7 +763,7 @@ class CreateTrainingRunSchema(Schema):
         return CreateTrainingRunDTO(**data)
 
 
-class CreateDataPointEvaluationSchema(BaseUpdateSchema):
+class CreateDataPointEvaluationSchema(Schema):
     datapoint_id = fields.Int(
         validate=lambda n: n > 0, required=True, error_messages={
             'required': 'Datapoint id is required.',
@@ -1568,9 +1568,9 @@ class UpdateModelSchema(BaseUpdateSchema):
                         self.session, dataset_id)[0]
             except NoResultFound:
                 missing_dataset_ids.append(dataset_id)
-
-            raise ValidationError(f"""Datasets with ID {
-                missing_dataset_ids} do not exist.""")
+            if missing_dataset_ids:
+                raise ValidationError(f"""Datasets with ID {
+                    missing_dataset_ids} do not exist.""")
 
     @validates('semantic_similarity_model')
     def validate_semantic_similarity_model(self, semantic_similarity_model: str):

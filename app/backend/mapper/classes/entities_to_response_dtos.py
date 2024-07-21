@@ -179,6 +179,7 @@ class SimpleDataPointSchema(BaseSchema):
     id = auto_field()
     augmentation_type = CustomEnumConversionSchema(AugmentationType)
     messages = auto_field()
+    created_at = FlexibleDateTimeField()
 
     class Meta(BaseSchema.Meta):
         model = DataPoint
@@ -448,7 +449,7 @@ class ComplexDataPointEvaluationSchema(BaseSchema):
     coherence_score = auto_field()
     relevance_score = auto_field()
     semantic_similarity_score = auto_field()
-    created_at = auto_field()
+    created_at = FlexibleDateTimeField()
 
     class Meta(BaseSchema.Meta):
         model = DataPointEvaluation
@@ -472,7 +473,7 @@ class ComplexModelEvaluationSchema(BaseSchema):
     helpful_score = auto_field()
     honest_score = auto_field()
     harmless_score = auto_field()
-    created_at = auto_field()
+    created_at = FlexibleDateTimeField()
 
     class Meta(BaseSchema.Meta):
         model = ModelEvaluation
@@ -494,7 +495,7 @@ class ModelWithOriginalProjectSchema(BaseSchema):
             context['project'])
     )
     is_global = auto_field()
-    created_at = auto_field()
+    created_at = FlexibleDateTimeField()
     is_checkpoint_model = auto_field()
     checkpoint_step = auto_field()
 

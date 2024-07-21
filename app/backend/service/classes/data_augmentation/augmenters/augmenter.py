@@ -14,7 +14,7 @@ from app.backend.service.classes.data_augmentation.augmentation_methods.back_tra
 from app.backend.service.classes.data_augmentation.augmentation_methods.interfaces.i_augmentation_methods import IAugmentationMethod
 from app.backend.util.config import DATA_AUGMENTATION_METHODS as augmentation_methods
 from app.backend.service.classes.data_augmentation.augmentation_methods.eda.eda_easy_data_augmentation import EDA
-from backend.service.classes.data_preprocessing.sampler import DataSampler
+from app.backend.service.classes.data_preprocessing.sampler import DataSampler
 
 
 class DataAugmenter:
