@@ -7,14 +7,14 @@ of the project, calling functions from other modules and handling the overall pr
 import streamlit as st
 from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
-from app.frontend.classes.toast_manager import ToastManager
-from backend.util.logger import StreamlitLogger
-from frontend.util import utility_functions as uf_frontend
+from app.frontend.classes.manager.toast_manager import ToastManager
+from app.backend.util.logger import StreamlitLogger
+from app.frontend.util import utility_functions as uf_frontend
 from app.backend.dtos.get_request import GetProjectsDTO
 from app.backend.dtos.response import CurrentProjectDataDTO, ProjectDTO
-from frontend.custom_styles.global_styles import apply_global_style
-from frontend.classes.global_app_state_manager import GlobalAppStateManager
-from frontend.classes.query_params_manager import QueryParamsManager
+from app.frontend.custom_styles.global_styles import apply_global_style
+from app.frontend.classes.manager.global_app_state_manager import GlobalAppStateManager
+from app.frontend.classes.manager.query_params_manager import QueryParamsManager
 from app.frontend.classes.page_navigator import PageNavigator
 
 st.set_page_config(layout="centered")

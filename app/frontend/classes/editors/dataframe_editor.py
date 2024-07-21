@@ -3,7 +3,7 @@ from uuid import uuid4
 import pandas as pd
 import streamlit as st
 from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
-from app.frontend.classes.toast_manager import ToastManager
+from app.frontend.classes.manager.toast_manager import ToastManager
 from app.backend.custom_types.typedicts import MessagesContainer, Message
 
 

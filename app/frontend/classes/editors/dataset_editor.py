@@ -3,11 +3,12 @@ from io import BytesIO
 from uuid import uuid4
 from streamlit.delta_generator import DeltaGenerator
 from app.frontend.classes.paginator import Paginator
-from app.frontend.classes.toast_manager import ToastManager
+from app.frontend.classes.manager.toast_manager import ToastManager
 from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
 from app.frontend.classes.file_uploader import FileUploader
-from app.frontend.classes.dataframe_editor import DataFrameEditor
-from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper, MessagesContainer
+from app.frontend.classes.editors.dataframe_editor import DataFrameEditor
+from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
+from app.backend.custom_types.typedicts import MessagesContainer
 from app.backend.database.schema import DatasetCategory, FineTuningCompany
 
 

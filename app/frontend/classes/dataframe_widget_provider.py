@@ -3,8 +3,8 @@ import pandas as pd
 from dataclasses import asdict
 from uuid import uuid4
 from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
-from app.frontend.classes.datapoint_service import DataPointService
-from app.frontend.classes.dataframe_editor import DataFrameEditor
+from app.frontend.classes.services.datapoint_service import DataPointService
+from app.frontend.classes.editors.dataframe_editor import DataFrameEditor
 from app.backend.dtos.response import ComplexDataPointEvaluationDTO, ComplexModelEvaluationDTO, DataPointDTO, DataPointWithInitialDataPointDTO, ModelWithOriginalProjectDTO, SimpleDataPointDTO
 from app.backend.dtos.update_request import UpdateModelDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade

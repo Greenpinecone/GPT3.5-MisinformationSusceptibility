@@ -1,6 +1,6 @@
 import streamlit as st
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
-from app.frontend.classes.toast_manager import ToastManager
+from app.frontend.classes.manager.toast_manager import ToastManager
 from app.backend.util.logger import StreamlitLogger
 from app.backend.dtos.get_request import GetDatasetsDTO
 from app.backend.dtos.response import CurrentProjectDataDTO, DatasetDTO, ModelDTO, ProjectDTO
@@ -8,9 +8,9 @@ from app.backend.dtos.create_request import CreateModelDTO
 from app.backend.database.schema import DatasetCategory
 from app.frontend.custom_styles.global_styles import apply_global_style
 from app.frontend.custom_styles.individual_styles import center_checkboxes, center_elements_with_custom_span_in_column
-from app.frontend.classes.query_params_manager import QueryParamsManager
+from app.frontend.classes.manager.query_params_manager import QueryParamsManager
 from app.frontend.classes.page_navigator import PageNavigator
-from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
+from app.frontend.classes.manager.global_app_state_manager import GlobalAppStateManager
 from app.frontend.util import utility_functions as frontend_uf
 from app.backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
 
