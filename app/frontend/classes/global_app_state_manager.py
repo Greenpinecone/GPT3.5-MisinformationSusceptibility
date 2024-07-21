@@ -1,10 +1,10 @@
 import streamlit as st
-from app.backend.dtos.response import ComplexDatasetDTO, CurrentProjectDataDTO, DataPointDTO, DatasetDTO, ProjectDTO
+from typing import Any, Callable
+from app.frontend.classes.page_navigator import PageNavigator
+from app.backend.dtos.response import CurrentProjectDataDTO
 from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
-from typing import Any, Callable
-from backend.util.config import GLOBAL_SESSION_STATE_KEYS as global_keys
-from frontend.classes.page_navigator import PageNavigator
+from app.backend.util.config import GLOBAL_SESSION_STATE_KEYS as global_keys
 
 
 class GlobalAppStateManager:

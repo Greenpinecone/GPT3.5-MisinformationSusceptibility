@@ -1,16 +1,14 @@
-from dataclasses import asdict
-from typing import Callable
-from uuid import uuid4
 import streamlit as st
 import pandas as pd
+from dataclasses import asdict
+from uuid import uuid4
+from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
+from app.frontend.classes.datapoint_service import DataPointService
+from app.frontend.classes.dataframe_editor import DataFrameEditor
 from app.backend.dtos.response import ComplexDataPointEvaluationDTO, ComplexModelEvaluationDTO, DataPointDTO, DataPointWithInitialDataPointDTO, ModelWithOriginalProjectDTO, SimpleDataPointDTO
 from app.backend.dtos.update_request import UpdateModelDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
-from app.frontend.classes.dataframe_editor import DataFrameEditor
-from app.backend.database.schema import DatasetCategory, EvaluationType, FineTuningCompany, MessageKeys
-from app.frontend.custom_styles.individual_styles import custom_style_span
-from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
-from app.frontend.classes.datapoint_service import DataPointService
+from app.backend.database.schema import EvaluationType, FineTuningCompany, MessageKeys
 from app.backend.util.utility_functions import find_index_in_list
 
 # Returns different kinds of data_editors and dataframes

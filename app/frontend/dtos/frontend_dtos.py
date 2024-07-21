@@ -1,7 +1,7 @@
-from dataclasses import dataclass
 import uuid
 import pandas as pd
-from backend.dtos.response import *
+from dataclasses import dataclass
+from app.backend.dtos.response import DataPointDTO
 
 
 @dataclass

@@ -1,7 +1,7 @@
 from marshmallow import Schema, fields, post_dump
+from app.frontend.classes.dataframe_editor import DataFrameEditor
 from app.backend.dtos.create_request import CreateDataPointDTO
 from app.backend.dtos.update_request import UpdateDataPointDTO
-from app.frontend.classes.dataframe_editor import DataFrameEditor
 
 
 # Takes a wrapper object and converts it to a datapoint dto

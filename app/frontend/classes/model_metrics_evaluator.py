@@ -8,27 +8,22 @@ Classes:
 
 
 import re
-from typing import Any, Counter
-
-import pandas as pd
-from sklearn.metrics import balanced_accuracy_score, confusion_matrix, matthews_corrcoef
-from app.backend.database.schema import EvaluationType
-from app.backend.dtos.get_request import GetDataPointEvaluationsDTO, GetModelEvalautionsDTO, GetModelsDTO
-from app.backend.dtos.response import ComplexModelDTO, ModelDTO, TrainingRunDTO
-from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
-import plotly as pl
+import streamlit as st
 import numpy as np
+import colorsys
+import plotly.graph_objs as go
+import plotly.express as px
+from typing import Any, Counter
 from sklearn.metrics import precision_score, recall_score, f1_score, accuracy_score, confusion_matrix
 from scipy.stats import chi2_contingency
-import plotly.graph_objs as go
 from plotly.subplots import make_subplots
-import streamlit as st
-import matplotlib.colors as mc
-import colorsys
 from decimal import Decimal, getcontext
-import plotly.express as px
-
+from sklearn.metrics import balanced_accuracy_score, confusion_matrix, matthews_corrcoef
 from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
+from app.backend.database.schema import EvaluationType
+from app.backend.dtos.get_request import GetDataPointEvaluationsDTO, GetModelEvalautionsDTO, GetModelsDTO
+from app.backend.dtos.response import ComplexModelDTO, ModelDTO
+from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 
 
 class ModelMetricsEvaluator:

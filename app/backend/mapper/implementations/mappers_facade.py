@@ -1,9 +1,9 @@
 """ A class to encapsulate all entity to dto mappers since every entity has only one mapper at the moment.
 """
-from ...mapper.classes.entities_to_response_dtos import *
-from app.backend.database.schema import Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData
-from app.backend.dtos.response import *
 from sqlalchemy.orm import Session
+from app.backend.mapper.classes.entities_to_response_dtos import ComplexDataPointEvaluationSchema, ComplexDatasetSchema, ComplexModelEvaluationSchema, ComplexModelSchema, CurrentProjectDataSchema, DataPointEvaluationSchema, DataPointSchema, DatasetSchema, ModelEvaluationSchema, ModelSchema, ModelWithOriginalProjectSchema, ProjectSchema, SimpleDataPointSchema, SimpleProjectSchema, SimpleTrainingRunSchema, TrainingDataPointSchema, TrainingRunSchema
+from app.backend.database.schema import Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData
+from app.backend.dtos.response import ComplexDataPointEvaluationDTO, ComplexDatasetDTO, ComplexModelDTO, ComplexModelEvaluationDTO, CurrentProjectDataDTO, DataPointDTO, DataPointEvaluationDTO, DatasetDTO, ModelDTO, ModelEvaluationDTO, ModelWithOriginalProjectDTO, ProjectDTO, SimpleDataPointDTO, SimpleProjectDTO, SimpleTrainingRunDTO, TrainingRunDTO
 
 
 class MapperFacade:

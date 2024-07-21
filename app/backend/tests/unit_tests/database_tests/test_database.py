@@ -1,86 +1,18 @@
-from dataclasses import asdict
+import pytest
 from datetime import datetime
-import json
-from sqlite3 import IntegrityError
-from typing import Generator
-from app.backend.custom_types.typedicts import Message
+from sqlalchemy.exc import NoResultFound
+from sqlalchemy.orm import Session
+from app.backend.custom_types.typedicts import Message, MessagesContainer
 from app.backend.dtos.get_request import GetDataPointEvaluationsDTO, GetDatapointsByDatasetIdDTO, GetDatasetsByModelIdDTO, GetDatasetsDTO, GetModelEvalautionsDTO, GetModelsByProjectIdDTO, GetModelsDTO, GetProjectsDTO, GetTrainingRunsDTO
+from app.backend.dtos.response import ComplexModelEvaluationDTO, ComplexModelEvaluationDTO
+from app.backend.dtos.create_request import CreateDataPointDTO, CreateDataPointEvaluationDTO, CreateDatasetDTO, CreateModelDTO, CreateModelEvaluationDTO, CreateProjectDTO, CreateTrainingRunDTO
 from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO, UpdateDataPointDTO, UpdateDataPointEvaluationDTO, UpdateDatasetDTO, UpdateModelDTO, UpdateModelEvaluationDTO, UpdateProjectDTO, UpdateTrainingRunDTO
 from app.backend.util.logger import Logger
 from app.backend.persistence.interfaces.i_data_manager import IDataManager
-from app.backend.dtos.create_request import *
-from sqlalchemy.exc import SQLAlchemyError, MultipleResultsFound, NoResultFound
-from app.backend.database.schema import FineTuningModelVersions, Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData, model_dataset_association, project_model_link
-from sqlalchemy.orm import Session
+from app.backend.database.schema import AugmentationType, DatasetCategory, EvaluationType, FineTuningCompany, FineTuningModelVersions, Project, DataPoint, Dataset, Model, TrainingRun, DataPointEvaluation, ModelEvaluation, CurrentProjectData, model_dataset_association, project_model_link
 from app.backend.tests.conftest import assert_properties
-from app.backend.dtos.response import *
-import pytest
 
 logger = Logger(__name__)
-
-# successful_test_messages = [{
-#     "messages": [
-#         {"role": "user", "content": "What's the weather like today?"},
-#         {"role": "assistant", "content": "It's sunny and warm outside."},
-#         {"role": "user", "content": "That sounds lovely. Should I wear shorts?"},
-#         {"role": "assistant",
-#          "content": "Shorts would be perfect. Don't forget your sunglasses!"},
-#         {"role": "user", "content": "Thanks for the advice!"}
-#     ]
-# },
-#     {
-#     "messages": [
-#         {"role": "user", "content": "Can you recommend a good book?"},
-#         {"role": "assistant",
-#          "content": "Sure, do you prefer fiction or non-fiction?"},
-#         {"role": "user", "content": "I love fiction."},
-#         {"role": "assistant",
-#          "content": "How about 'The Night Circus' by Erin Morgenstern? It's magical."},
-#         {"role": "user", "content": "Sounds interesting. I'll check it out. Thanks!"}
-#     ]
-# },
-#     {
-#     "messages": [
-#         {"role": "user", "content": "How do I reset my password?"},
-#         {"role": "assistant",
-#          "content": "You can reset your password by going to the settings page."},
-#         {"role": "user", "content": "Thanks, that was helpful!"}
-#     ]
-# },
-#     {
-#     "messages": [
-#         {"role": "user",
-#          "content": "What's the weather like in New York today?"},
-#         {"role": "assistant",
-#          "content": "The weather in New York is sunny with a high of 75 degrees."},
-#         {"role": "user", "content": "Should I take an umbrella?"},
-#         {"role": "assistant",
-#          "content": "It's sunny, so you won't need an umbrella today."}
-#     ]
-# },
-#     {
-#     "messages": [
-#         {"role": "user", "content": "Can you recommend a good sci-fi book?"},
-#         {"role": "assistant",
-#          "content": "I would recommend 'Dune' by Frank Herbert. It's a great read!"}
-#     ]
-# }]
-
-# failure_test_messages = [{
-#     "messages": [{"role": "", "content": "It's me!"}]
-# },
-#     {
-#     "messages": [{"role": "system", "content": ""}]
-# },
-#     {
-#     "messages": [{"role": "", "content": ""}]
-# },
-#     {
-#     "messages": [{}]
-# },
-#     {
-#     "messages": []
-# }]
 
 
 class TestDatabaseOperations:

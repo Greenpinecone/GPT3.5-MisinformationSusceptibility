@@ -1,33 +1,20 @@
-# Import necessary modules and packages
-from datetime import timedelta
-from uuid import uuid4
 import streamlit as st
-import numpy as np
-import pandas as pd
-import plotly as pl
-from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO, UpdateModelDTO
+from uuid import uuid4
 from app.frontend.classes.model_metrics_evaluator import ModelMetricsEvaluator
-from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from app.frontend.classes.toast_manager import ToastManager
-from backend.util.logger import StreamlitLogger
-from app.backend.dtos.get_request import *
-from app.backend.dtos.response import *
-from app.backend.dtos.create_request import *
-from app.backend.database.schema import DatasetCategory
-from frontend.custom_styles.global_styles import apply_global_style
-from frontend.custom_styles.individual_styles import center_checkboxes, center_elements_with_custom_span_in_column, custom_style_span
-from frontend.classes.query_params_manager import QueryParamsManager
-from frontend.classes.page_navigator import PageNavigator
+from app.frontend.custom_styles.global_styles import apply_global_style
+from app.frontend.classes.query_params_manager import QueryParamsManager
+from app.frontend.classes.page_navigator import PageNavigator
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
-from frontend.util import utility_functions as frontend_uf
-from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
+from app.frontend.util import utility_functions as frontend_uf
+from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO
+from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
+from app.backend.util.logger import StreamlitLogger
+from app.backend.dtos.response import ComplexModelDTO, CurrentProjectDataDTO
 
 # Set the page configuration to wide
 st.set_page_config(layout="wide")
 apply_global_style()
-# center_checkboxes()
-# custom_style = "create-model-style"
-# center_elements_with_custom_span_in_column(custom_style)
 errors_container = st.container()
 logger: StreamlitLogger = StreamlitLogger(__name__, errors_container)
 current_page = "model_statistic"

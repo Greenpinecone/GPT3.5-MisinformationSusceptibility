@@ -11,7 +11,6 @@ from app.backend.dtos.response import ComplexDatasetDTO, ComplexModelDTO
 from app.backend.service.classes.model.api.openai_services import OpenAIService
 from app.backend.database.schema import FineTuningModelVersions, FineTuningCompany
 from app.backend.service.classes.model.api.interfaces.i_fine_tuning_service import IFineTuningService
-import openai
 
 
 class FineTuner:

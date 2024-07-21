@@ -1,8 +1,7 @@
-from sentence_transformers import SentenceTransformer, models, util, SimilarityFunction
-from app.backend.database.schema import ModelEvaluation
-from app.backend.dtos.create_request import CreateDataPointDTO, CreateDataPointEvaluationDTO, CreateModelEvaluationDTO
-from app.backend.dtos.response import DataPointDTO, DataPointEvaluationDTO
 import torch
+from sentence_transformers import SentenceTransformer, SimilarityFunction
+from app.backend.dtos.create_request import CreateDataPointDTO, CreateDataPointEvaluationDTO, CreateModelEvaluationDTO
+from app.backend.dtos.response import DataPointDTO
 
 """ GENERAL INFO - https://www.sbert.net/
 
@@ -84,9 +83,8 @@ import torch
     
 """
 
+
 # TODO: Add support for manhattan, dot, euclidean similarity calculations
-
-
 class SemanticSimilarityCalculator:
 
     def __init__(self):

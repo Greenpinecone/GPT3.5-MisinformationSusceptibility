@@ -1,22 +1,17 @@
 import streamlit as st
-import numpy as np
-import pandas as pd
-import plotly as pl
-from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from app.frontend.classes.global_app_state_manager import GlobalAppStateManager
 from app.frontend.classes.toast_manager import ToastManager
+from app.frontend.custom_styles.global_styles import apply_global_style
+from app.frontend.classes.query_params_manager import QueryParamsManager
+from app.frontend.classes.page_navigator import PageNavigator
+from app.frontend.util import utility_functions as frontend_uf
+from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from app.backend.util.logger import StreamlitLogger
-from app.backend.dtos.get_request import *
-from app.backend.dtos.response import *
-from app.backend.dtos.create_request import *
+from app.backend.dtos.get_request import GetDatasetsDTO, GetModelsDTO
+from app.backend.dtos.response import CurrentProjectDataDTO, DatasetDTO, ModelDTO, ProjectDTO
 from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO, UpdateProjectDTO
 from app.backend.database.schema import DatasetCategory
-from frontend.custom_styles.global_styles import apply_global_style
-from frontend.classes.query_params_manager import QueryParamsManager
-from frontend.classes.page_navigator import PageNavigator
-from frontend.util import utility_functions as frontend_uf
-from backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
-from backend.util.config import GLOBAL_SESSION_STATE_KEYS as global_keys
+from app.backend.util.config import DTO_LIST_FORMATTING_PRESETS as formattings
 
 apply_global_style()
 errors_container = st.container()

@@ -2,9 +2,9 @@ from typing import Any
 from uuid import uuid4
 import pandas as pd
 import streamlit as st
-from frontend.dtos.frontend_dtos import *
-from backend.custom_types.typedicts import *
+from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
 from app.frontend.classes.toast_manager import ToastManager
+from app.backend.custom_types.typedicts import MessagesContainer, Message
 
 
 class DataFrameEditor:
