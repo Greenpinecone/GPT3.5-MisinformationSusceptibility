@@ -141,7 +141,7 @@ with logger:
                                 # TODO: add delete project method
 
                             st.button(
-                                "Delete Project", help="Click me to delete this project", type="secondary", key=delete_button_key, on_click=lambda: setattr(st.session_state, project_delete_state_key, True))
+                                "Delete Project", help="Click me to delete this project", type="secondary", disabled=True, key=delete_button_key, on_click=lambda: setattr(st.session_state, project_delete_state_key, True))
                         delete_project()
         else:
             st.write("You currently have no projects.")
