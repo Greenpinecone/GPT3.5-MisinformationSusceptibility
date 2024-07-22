@@ -1,3 +1,12 @@
+"""
+This module provides the `QueryParamsManager` class for managing query parameters in a Streamlit application.
+It includes functionality for setting and clearing query parameters based on session state and page configurations.
+
+Classes:
+    QueryParamsManager: Manages query parameters for Streamlit pages.
+"""
+
+
 import streamlit as st
 from typing import Any
 from dataclasses import is_dataclass, asdict
@@ -6,13 +15,38 @@ from app.backend.util.config import PAGE_CONFIG
 
 
 class QueryParamsManager:
+    """
+    Manages query parameters for Streamlit pages.
+
+    This class provides methods to clear query parameters, set query parameters based on page configurations,
+    and fetch nested attributes from session state.
+
+    Methods:
+        clear_query_params: Clears all query parameters.
+        set_query_params_from_page: Sets query parameters based on the page configuration.
+        _set_query_params_from_session: Helper method to set query parameters from session state.
+        fetch_nested_attribute: Retrieves nested attributes from an object.
+    """
 
     @staticmethod
     def clear_query_params() -> None:
+        """
+        Clears all query parameters.
+        """
         st.query_params.clear()
 
     @classmethod
     def set_query_params_from_page(cls, page_name: str) -> None:
+        """
+        Sets query parameters based on the page configuration.
+
+        Args:
+            page_name (str): The name of the page for which to set query parameters.
+
+        Raises:
+            ValueError: If the page name is not found in the configuration.
+        """
+
         if not PAGE_CONFIG.get(page_name):
             raise ValueError(
                 f"Page name '{page_name}' not found in configuration.")
@@ -21,6 +55,16 @@ class QueryParamsManager:
 
     @classmethod
     def _set_query_params_from_session(cls, page_name: str) -> None:
+        """
+        Helper method to set query parameters from session state.
+
+        Args:
+            page_name (str): The name of the page for which to set query parameters.
+
+        Raises:
+            ValueError: If the page name is not found in PAGE_CONFIG or if required session keys or attributes are missing.
+        """
+
         # Ensure the page configuration exists for the given page name
         if not PAGE_CONFIG.get(page_name):
             raise ValueError(f"Page '{page_name}' not found in PAGE_CONFIG.")
@@ -63,6 +107,20 @@ class QueryParamsManager:
 
     @staticmethod
     def fetch_nested_attribute(obj: Any, attrs: list[str]) -> Any:
+        """
+        Retrieves nested attributes from an object.
+
+        Args:
+            obj (Any): The object from which to fetch attributes.
+            attrs (list[str]): A list of attribute names or indices to navigate through the object.
+
+        Returns:
+            Any: The value of the nested attribute.
+
+        Raises:
+            ValueError: If an attribute or index is not found or is invalid.
+        """
+
         for attr in attrs:
             if isinstance(obj, dict):
                 obj = obj.get(attr)

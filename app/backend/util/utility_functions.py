@@ -18,10 +18,21 @@ def get_current_date_time_formatted() -> str:
     Returns:
         str: The current date and time formatted as a string.
     """
+
     return datetime.now().strftime("%Y_%m_%d:%H_%M_%S")
 
 
 def validate_iso_datetime(value: str):
+    """
+    Validate that a string is in ISO 8601 datetime format.
+
+    Args:
+        value (str): The string to validate.
+
+    Raises:
+        ValidationError: If the string is not in ISO 8601 format.
+    """
+
     try:
         # Attempt to parse the string as ISO 8601
         datetime.fromisoformat(value.replace('Z', '+00:00'))
@@ -55,6 +66,7 @@ def find_index_in_list(values_list: list[Any], specific_value: Any, default: Any
     Returns:
         int or None: The index of the specific value in the list, or None if not found.
     """
+
     try:
         return values_list.index(specific_value)
     except ValueError:

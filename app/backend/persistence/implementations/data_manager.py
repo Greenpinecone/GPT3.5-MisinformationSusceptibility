@@ -46,14 +46,14 @@ class DataManager(IDataManager):
         self.check_sqlite_version()
 
     def check_sqlite_version(self):
-        logger.info()
+        logger.info("")
         with self.engine.connect() as connection:
             result = connection.execute(
                 text("SELECT sqlite_version();")).fetchone()
             logger.info(f"SQLite version: {result[0]}")
 
     def check_foreign_keys_enabled(self):
-        logger.info()
+        logger.info("")
         with self.engine.connect() as connection:
             result = connection.execute(text("PRAGMA foreign_keys")).fetchone()
             return result[0] == 1
@@ -77,7 +77,7 @@ class DataManager(IDataManager):
                 self.Session.remove()  # Remove the session to ensure it is properly closed
 
     def get_or_create_current_project_data(self, session: Session) -> list[CurrentProjectData]:
-        logger.debug()
+        logger.debug("")
 
         try:
             current_project_data = session.query(

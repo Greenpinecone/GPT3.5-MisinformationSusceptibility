@@ -1,3 +1,11 @@
+"""
+A module to handle file uploads and convert them into pandas DataFrames for editing.
+
+Classes:
+    FileUploader:
+"""
+
+
 import json
 import pandas as pd
 from io import BytesIO
@@ -11,13 +19,35 @@ from app.backend.custom_types.typedicts import MessagesContainer
 
 
 class FileUploader:
+    """
+    A class to handle file uploads, specifically for JSONL files, and convert them into pandas DataFrames for editing.
+
+    Methods:
+        validate_jsonl(file_iterator: Iterator[str]) -> bool:
+            Validates that each line in the provided file iterator is proper JSON.
+        convert_to_messages_container(file_iterator: Iterator[str]) -> list[MessagesContainer]:
+            Converts valid JSONL data to a list of MessagesContainer typed dicts.
+        process_uploads(cls, uploaded_files: list[BytesIO], chosen_company: FineTuningCompany, chosen_file_format: str, chosen_model: str) -> list[MessagesContainer]:
+            Processes uploaded files and returns a list of validated MessagesContainer typed dicts.
+        messages_to_df(messages: MessagesContainer | None = None, default_role: str | None = None) -> pd.DataFrame:
+            Converts a MessagesContainer or default values into a pandas DataFrame.
+    """
 
     def __init__(self):
         pass
 
     @staticmethod
     def validate_jsonl(file_iterator: Iterator[str]) -> bool:
-        """ Validates that each line in the file is proper JSON. """
+        """
+        Validates that each line in the provided file iterator is proper JSON.
+
+        Parameters:
+            file_iterator (Iterator[str]): An iterator over lines in a JSONL file.
+
+        Returns:
+            bool: True if all lines are valid JSON, False otherwise.
+        """
+
         for line_number, line in enumerate(file_iterator, start=1):
             try:
                 json.loads(line)  # Try parsing each line as JSON
@@ -29,7 +59,16 @@ class FileUploader:
 
     @staticmethod
     def convert_to_messages_container(file_iterator: Iterator[str]) -> list[MessagesContainer]:
-        """ Converts valid JSONL data to list of MessagesContainer typed dicts. """
+        """
+        Converts valid JSONL data to a list of MessagesContainer typed dicts.
+
+        Parameters:
+            file_iterator (Iterator[str]): An iterator over lines in a JSONL file.
+
+        Returns:
+            list[MessagesContainer]: A list of MessagesContainer typed dicts.
+        """
+
         containers = []
         for line in file_iterator:
             record = json.loads(line)
@@ -44,7 +83,19 @@ class FileUploader:
 
     @classmethod
     def process_uploads(cls, uploaded_files: list[BytesIO], chosen_company: FineTuningCompany, chosen_file_format: str, chosen_model: str) -> list[MessagesContainer]:
-        """ Processes an uploaded file. """
+        """
+        Processes uploaded files and returns a list of validated MessagesContainer typed dicts.
+
+        Parameters:
+            uploaded_files (list[BytesIO]): List of uploaded file buffers.
+            chosen_company (FineTuningCompany): The company chosen for fine-tuning.
+            chosen_file_format (str): The file format chosen for fine-tuning.
+            chosen_model (str): The model chosen for fine-tuning.
+
+        Returns:
+            list[MessagesContainer]: A list of validated MessagesContainer typed dicts.
+        """
+
         validated_message_containers = []
         # TODO: Make the following code dynamic for multiple formats as soon as they are supported
         if chosen_company.value == "openai" and chosen_model in FineTuningModelVersions.openai.value and chosen_file_format == "jsonl":
@@ -60,6 +111,17 @@ class FileUploader:
 
     @staticmethod
     def messages_to_df(messages: MessagesContainer | None = None, default_role: str | None = None) -> pd.DataFrame:
+        """
+        Converts a MessagesContainer or default values into a pandas DataFrame.
+
+        Parameters:
+            messages (MessagesContainer | None): A MessagesContainer typed dict or None.
+            default_role (str | None): Default role for creating a new DataFrame if messages are None.
+
+        Returns:
+            pd.DataFrame: A pandas DataFrame with role and content columns.
+        """
+
         if messages:
             return pd.DataFrame([
                 {"role": msg["role"],

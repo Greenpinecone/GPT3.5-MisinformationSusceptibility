@@ -1,40 +1,106 @@
+"""
+This module defines the SQLAlchemy ORM schema for the SQLite database.
+
+It includes the following enumerations and classes:
+- Enumerations: DatasetCategory, EvaluationType, AugmentationType, FineTuningCompany, FineTuningModelVersions, MessageKeys, UploadFormats
+- Classes: Project, Dataset, DataPoint, Model, ModelEvaluation, TrainingRun, CurrentProjectData, DataPointEvaluation
+
+Tables:
+- project_dataset_link: Association table linking projects and datasets.
+- datapoint_relationships: Association table for self-referencing datapoints.
+- initial_dataset_association: Association table for initial and augmented datasets.
+- project_model_link: Association table linking projects and models.
+- model_dataset_association: Association table linking models and datasets.
+- current_project_data_evaluation_association: Association table for current project data and datapoint evaluations.
+- current_project_data_statistic_model_associations: Association table for current project data and statistical models.
+- current_project_data_checkpoint_models_associations: Association table for current project data and checkpoint models.
+"""
+
+
 import enum
 from uuid import uuid4
 from sqlalchemy import Column, Integer, String, ForeignKey, Table, DateTime, Boolean, func, Enum, Float, JSON
-from sqlalchemy.orm import declarative_base, backref, relationship
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.schema import UniqueConstraint
 # INFO: See this post for clarity for how cascading deletes on database level or thourgh SQLA work! -> https://stackoverflow.com/questions/5033547/sqlalchemy-cascade-delete
 
+
 # To differentiate whether a dataset is a training or a test dataset in the Datasets table
-
-
 class DatasetCategory(enum.Enum):
+    """
+    Enumeration to differentiate whether a dataset is a training or a test dataset.
+
+    Attributes:
+        training: Represents a training dataset.
+        test: Represents a test dataset.
+    """
+
     training = "training"
     test = "test"
 
 
 # To only allow certain strings for the evaluation confusion matrix in the ModelEvaluations table
 class EvaluationType(enum.Enum):
+    """
+    Enumeration to allow certain strings for the evaluation confusion matrix in the ModelEvaluations table.
+
+    Attributes:
+        T: Represents true in the confusion matrix.
+        F: Represents false in the confusion matrix.
+    """
+
     T = "T"
     F = "F"
 
     @classmethod
     def values(cls):
+        """
+        Returns a list of possible evaluation values.
+
+        Returns:
+            list: A list of evaluation values.
+        """
         return [cls.T.value, cls.F.value]
 
 
 # To differentiate between different augmentation types in the Datapoints table
 class AugmentationType(enum.Enum):
+    """
+    Enumeration to differentiate between different augmentation types in the Datapoints table.
+
+    Attributes:
+        BT: Represents backtranslation augmentation.
+        EDA: Represents easy data augmentation.
+    """
+
     BT = "backtranslation"
     EDA = "easy_data_augmentation"
 
 
 class FineTuningCompany(enum.Enum):
+    """
+    Enumeration for different fine-tuning companies.
+
+    Attributes:
+        openai: Represents OpenAI.
+        google: Represents Google.
+    """
+
     openai = "openai"
     google = "google"
 
 
+# TODO: Maybe update this to a fetch request to openai to filter all currently available fine tuning models?
+# INFO: Upcoming model: gpt4o-mini
 class FineTuningModelVersions(enum.Enum):
+    """
+    Enumeration for different versions of fine-tuning models.
+
+    Attributes:
+        openai: A list of OpenAI model versions.
+        google: A list of Google model versions.
+    """
+
     openai = [
         "gpt-3.5-turbo-0125",        # January 25, 2023
         "gpt-3.5-turbo-1106",        # November 6, 2023
@@ -48,11 +114,27 @@ class FineTuningModelVersions(enum.Enum):
 
 # The first role is the default role
 class MessageKeys(enum.Enum):
+    """
+    Enumeration for message keys used by different companies.
+
+    Attributes:
+        openai: A list of roles for OpenAI.
+        google: A list of roles for Google.
+    """
+
     openai = [("system", "assistant", "user")]
     google = [("nonexistent roles", "nonexistent assistant role")]
 
 
 class UploadFormats(enum.Enum):
+    """
+    Enumeration for upload formats supported by different companies.
+
+    Attributes:
+        openai: A dictionary of OpenAI models and their supported formats.
+        google: A dictionary of Google models and their supported formats.
+    """
+
     openai = {
         "gpt-3.5-turbo-0125": ["jsonl"],
         "gpt-3.5-turbo-1106": ["jsonl"],
@@ -66,6 +148,7 @@ class UploadFormats(enum.Enum):
 
 Base = declarative_base()
 
+# INFO: CASCADE deletes all entries of the corresponding column if the belonging entity is deleted.
 project_dataset_link = Table(
     'project_dataset_link', Base.metadata,
     Column('project_id', Integer, ForeignKey(
@@ -94,6 +177,7 @@ initial_dataset_association = Table(
 )
 
 # Ensure that each model can only occure once per project with the same model_name and version to avoid confusion with simillar named models.
+# Must be edited (add / deleted / search) manually via session.execute() etc. because of more values than jut many to many ids.
 project_model_link = Table(
     'project_model_link', Base.metadata,
     Column('model_id', Integer, ForeignKey(
@@ -109,6 +193,7 @@ project_model_link = Table(
                      'project_id', name='_model_project_version_uc')
 )
 # Association table for the many-to-many relationship
+# INFO: Models cannot be deleted at the moment
 model_dataset_association = Table(
     'model_dataset_association', Base.metadata,
     Column('model_id', Integer, ForeignKey('models.id')),
@@ -143,10 +228,20 @@ current_project_data_checkpoint_models_associations = Table(
 )
 
 
-# One project can have multiple datasets and models.
-# Each project has a name.
 # TODO: When projects are deleted, datasets and models must be deleted manually beforehand since we have to check if the datasets / models originated from other projects initially (set global) - first entry in the projects list from the dataset model side is the original project - and if the current project is not equal to this id, then the dataset / model should not be deleted.
 class Project(Base):
+    """
+    Represents a project entity in the database.
+
+    Attributes:
+        id (int): Primary key.
+        project_name (str): Unique name of the project.
+        created_at (datetime): Timestamp when the project was created.
+        description (str, optional): Description of the project. Can be None.
+        models (relationship): Relationship to models.
+        datasets (relationship): Relationship to datasets.
+    """
+
     __tablename__ = 'projects'
     id = Column(Integer, primary_key=True)
     project_name = Column(String, unique=True, nullable=False)
@@ -162,9 +257,30 @@ class Project(Base):
         "Dataset", secondary=project_dataset_link, back_populates="projects")
 
 
-# ONLY Initial datasets will be able to be used for augmentation. Each augmentated dataset is created from exactly one initial dataset and cannot be used for further augmentation.
-# Datasets belong to one or more project, have a name, can be augmented or not, can be a training dataset or a test dataset and always have exactly one initial dataset. A Dataset consists of many datapoints. Each dataset only needs one evaluation of datapoints because this is universal no matter how many models use the dataset.
 class Dataset(Base):
+    """
+    Represents a dataset entity in the database.
+
+    Attributes:
+        id (int): Primary key.
+        dataset_name (str): Name of the dataset.
+        augmented (bool): Indicates if the dataset is augmented.
+        category (DatasetCategory): Category of the dataset.
+        created_at (datetime): Timestamp when the dataset was created.
+        is_global (bool): Indicates if the dataset is global.
+        fine_tuning_company (FineTuningCompany): The company the formatting belongs to.
+        fine_tuning_model (str): The fine-tuning model this dataset is formatted for.
+        fine_tuning_formatting (str): The formatting used for the dataset datapoints.
+        projects (relationship): Relationship to projects.
+        test_dataset_id (int): Foreign key for the test dataset.
+        initial_datasets (relationship): Relationship to the initial datasets.
+        augmented_datasets (relationship): Relationship to the augmented datasets.
+        test_dataset (relationship): Relationship to the test dataset.
+        training_datasets (relationship): Relationship to the training datasets.
+        datapoints (relationship): Relationship to the datapoints.
+        models (relationship): Relationship to models.
+    """
+
     __tablename__ = 'datasets'
     id = Column(Integer, primary_key=True)
     dataset_name = Column(String, nullable=False)
@@ -217,7 +333,6 @@ class Dataset(Base):
     )
 
     # Many-to-many relationship with Model
-   # TODO: Right now no models are deleted if a dataset is deleted. This is because datasets should only be deleted when all models are deleted and these models should be deleted first. Datasets should virtually never be deleted.
     models = relationship(
         "Model",
         secondary=model_dataset_association,
@@ -230,8 +345,27 @@ class Dataset(Base):
     )
 
 
-# Each Datapoint belongs to exactly one Dataset. Each datapoint has a coherence score (comapring to the initial datapoint), a relevancy score (comparing to the initial datapoint), a semantic similarity score (comapring to the initial datapoint), and augmentation type (backtranslation, EDA or nothing if it is an initial datapoint) and the datapoint id of its initial datapoint from which it has been augmented from if it is augmented, else null. And each datapoint holds a JSON array (messages) consisting of an array of conversational dicts in openai format. And a category string that should match the category in the test dataset for easy matching of training datapoints with corresponding test datapoints.
 class DataPoint(Base):
+    """
+    Represents a datapoint entity in the database.
+
+    Attributes:
+        id (int): Primary key.
+        dataset_id (int): Foreign key pointing to Dataset.
+        augmentation_type (AugmentationType, optional): Augmentation type of the datapoint. Can be None.
+        messages (JSON): Messages in JSON format.
+        created_at (datetime): Timestamp when the datapoint was created.
+        evaluation_type (EvaluationType, optional): Evaluation type for the confusion matrix. Can be None.
+        initial_datapoint_id (int, optional): Foreign key for the initial datapoint. Can be None.
+        initial_datapoint (relationship): Relationship for initial datapoint.
+        derived_datapoints (relationship): Relationship for derived datapoints.
+        related_datapoints (relationship): Self-referencing many-to-many relationship for related datapoints.
+        related_by (relationship): Self-referencing many-to-many relationship for related by datapoints.
+        dataset (relationship): Relationship to the dataset.
+        evaluations (relationship): Relationship to datapoint evaluations.
+        model_evaluations (relationship): Relationship to model evaluations.
+    """
+
     __tablename__ = 'datapoints'
     id = Column(Integer, primary_key=True)
     # Delete the datapoint if the dataset id is deleted.
@@ -295,8 +429,34 @@ class DataPoint(Base):
     )
 
 
-# A model can be trained with multiple different datasets. It has a name. If you save a model with an already existing name, the version is incremented. It has a parent model id - this is relevant if you use an already trained model as base model. Evaluations points to the ModelEvaluations table, holding additional evaluation information of the model. Datasets is a one to many relationship to the datasets the model has been trained with. Training Runs points to additional information regarding the openai training run information.
 class Model(Base):
+    """
+    Represents a model entity in the database.
+
+    Attributes:
+        id (int): Primary key.
+        model_name (str): Name of the model.
+        parent_model_id (int, optional): Foreign key for the parent model. Can be None.
+        semantic_similarity_model (str, optional): Semantic similarity model used. Can be None.
+        version (str): Version of the model.
+        created_at (datetime): Timestamp when the model was created.
+        fine_tuning_job_id (str, optional): Fine-tuning job ID. Can be None.
+        fine_tuning_checkpoint_job_id (str, optional): Checkpoint job ID. Can be None.
+        fine_tuned_model_id (str, optional): ID of the fine-tuned model. Can be None.
+        uuid (str): Unique identifier for the model used for unique naming purposes.
+        is_global (bool): Indicates if the model is global.
+        is_checkpoint_model (bool, optional): Indicates if the model is a checkpoint model. Can be None.
+        checkpoint_step (int, optional): Checkpoint step of the model. Can be None.
+        augmentation_configurations (JSON, optional): Augmentation configurations used for this model. Can be None.
+        training_datasets (relationship): Relationship to training datasets.
+        projects (relationship): Relationship to projects.
+        training_run (relationship): Relationship to training runs.
+        parent_model (relationship): Relationship to the parent model.
+        child_models (relationship): Relationship to child models.
+        evaluations (relationship): Relationship to model evaluations.
+        datapoint_evaluations (relationship): Relationship to datapoint evaluations.
+    """
+
     __tablename__ = 'models'
     id = Column(Integer, primary_key=True)
     model_name = Column(String, nullable=False)
@@ -351,7 +511,6 @@ class Model(Base):
 
     # Add the child_models relationship
     # Delete all child models on model deletion
-    # TODO: FOR GODS SAKE, IT JUST DOES NOT WANT TO BE DELETED BY THE DATABSE DIRECTLY VIA "DLETED_PASSIVE and ONDELETE=CASCADE" SO I AM USING THE SQLA DELETION WHERE ALL UNLOADED RELATED OBJECTS ARE FETCHED AND THEN DELETED WHICH FOR SOME REASON WORKS!!!
     child_models = relationship(
         "Model", back_populates="parent_model", cascade="save-update, merge, delete")
 
@@ -361,16 +520,26 @@ class Model(Base):
     datapoint_evaluations = relationship("DataPointEvaluation",
                                          back_populates="model", cascade="save-update, merge, delete", passive_deletes=True)
 
-    # current_project_data = relationship(
-    #     "CurrentProjectData",
-    #     secondary=current_project_data_statistic_model_associations,
-    #     back_populates="selected_statistic_models"
-    # )
-
-# This table holds information regarding the evaluation of a model against its trainingsdataset(s). The model id points to the model this information belongs to. The evaluation type can be one of four values for the confusion matrix. And the helpful_score, honest_score and harmless_score is for saving the HHH criteria related data for each datapoint for later calculating the results and also reevaluating the previous evaluation. The datapoint id saves the reference to the original datapoint that was evaluated.
-
 
 class ModelEvaluation(Base):
+    """
+    Represents a model evaluation entity in the database.
+
+    Attributes:
+        id (int): Primary key.
+        model_id (int): Foreign key for the model.
+        datapoint_id (int): Foreign key for the datapoint.
+        evaluation_type (EvaluationType, optional): Evaluation type for the confusion matrix. Can be None.
+        helpful_score (int, optional): Helpful score for the evaluation. Can be None.
+        honest_score (int, optional): Honest score for the evaluation. Can be None.
+        harmless_score (int, optional): Harmless score for the evaluation. Can be None.
+        created_at (datetime): Timestamp when the evaluation was created.
+        messages (JSON): Messages generated by the fine-tuned model.
+        semantic_similarity_score (float, optional): Semantic similarity score between user-defined test output and trained model prediction. Can be None.
+        datapoint (relationship): Relationship to the datapoint.
+        model (relationship): Relationship to the model.
+    """
+
     __tablename__ = 'model_evaluations'
     id = Column(Integer, primary_key=True)
     model_id = Column(Integer, ForeignKey(
@@ -405,8 +574,22 @@ class ModelEvaluation(Base):
     )
 
 
-# The training run stores specific information about the training of a specific model. The model id references the model this information belongs to. Epochs specifies the amount of epochs the model has been trained for. Learning rate multiplier specifies how strongly the model has been trained on the information. Batch size specifies how large the batches of information are, the model is trained with each run.
 class TrainingRun(Base):
+    """
+    Represents a training run entity in the database.
+
+    Attributes:
+        id (int): Primary key.
+        model_id (int): Foreign key for the model.
+        epochs (int, optional): Number of epochs the model has been trained for. Can be None.
+        learning_rate_multiplier (float, optional): Learning rate multiplier. Can be None.
+        batch_size (int, optional): Batch size for training. Can be None.
+        created_at (datetime): Timestamp when the training run was created.
+        seed (int, optional): Seed value for training. Can be None.
+        fine_tuning_model (str, optional): Fine-tuning model used. Can be None.
+        model (relationship): Relationship to the model.
+    """
+
     __tablename__ = 'training_runs'
     id = Column(Integer, primary_key=True)
     model_id = Column(Integer, ForeignKey('models.id', ondelete='CASCADE'),
@@ -423,8 +606,32 @@ class TrainingRun(Base):
                          uselist=False)
 
 
-# The data the current project needs to reestablish configuration after page reload and session state deletion
 class CurrentProjectData(Base):
+    """
+    Represents the current project data entity in the database.
+
+    Attributes:
+        id (int): Primary key.
+        created_at (datetime): Timestamp when the project data was created.
+        unfinished_progress (bool): Indicates if the user is in an unfinished operation.
+        current_page (str, optional): The last page the user visited. Can be None.
+        save_checkpoint_models (bool): Indicates if checkpoint models should be saved.
+        semantic_similarity_model (JSON, optional): The currently selected model for semantic similarity score calculation. Can be None.
+        currently_modified_dataset_id (int, optional): Foreign key for the currently created dataset. Can be None.
+        selected_model_for_fine_tuning_id (int, optional): Foreign key for the base model used for fine-tuning. Can be None.
+        fine_tuning_step_counter (int): Counter for fine-tuning steps.
+        current_augmentation_configurations (JSON, optional): The currently selected augmentation configurations. Can be None.
+        current_project_id (int, optional): Foreign key for the current project. Can be None.
+        current_fine_tuning_model_id (int, optional): Foreign key for the fine-tuning model. Can be None.
+        current_project (relationship): Relationship to the current project.
+        selected_model_for_fine_tuning (relationship): Relationship to the selected model for fine-tuning.
+        currently_modified_dataset (relationship): Relationship to the currently modified dataset.
+        current_fine_tuning_model (relationship): Relationship to the fine-tuning model.
+        selected_statistic_models (relationship): Relationship to the selected statistic models.
+        generated_checkpoint_models (relationship): Relationship to the generated checkpoint models.
+        current_augmented_datapoint_evaluations (relationship): Relationship to the augmented datapoint evaluations.
+    """
+
     __tablename__ = "current_project_data"
     # INFO: When a foreign key is defined without the ondelete option, it defaults to RESTRICT. This means if you try to delete a referenced row in the parent table, and there are dependent rows in the child table, the deletion will be blocked to maintain referential integrity. That is why we have to set "ondelete=SET NULL" on all of the foreign key relations in this table, so that the related entities can be deleted without an referential integrity error.
 
@@ -478,10 +685,24 @@ class CurrentProjectData(Base):
         back_populates="current_project_data"
     )
 
-# Used to evaluate augmented training datapoints
-
 
 class DataPointEvaluation(Base):
+    """
+    Represents a datapoint evaluation entity in the database.
+
+    Attributes:
+        id (int): Primary key.
+        model_id (int): Foreign key for the model.
+        datapoint_id (int): Foreign key for the datapoint.
+        coherence_score (int, optional): Coherence score for the evaluation. Can be None.
+        relevance_score (int, optional): Relevance score for the evaluation. Can be None.
+        semantic_similarity_score (float, optional): Semantic similarity measure between initial datapoint and augmented one. Can be None.
+        created_at (datetime): Timestamp when the datapoint evaluation was created.
+        datapoint (relationship): Relationship to the datapoint.
+        model (relationship): Relationship to the model.
+        current_project_data (relationship): Relationship to the current project data.
+    """
+
     __tablename__ = 'datapoint_evaluations'
     id = Column(Integer, primary_key=True)
     # This ensures that the DataPointEvaluations are removed if the corresponding model is removed

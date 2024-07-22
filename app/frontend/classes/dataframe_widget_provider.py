@@ -1,3 +1,25 @@
+"""
+This module provides various methods to create and manage different kinds of data editors and dataframes using Streamlit.
+It includes functionalities to display and update dataframes for training data, test data, and model evaluations.
+
+Classes:
+    DataFrameWidgetProvider: Provides static methods to create and manage data editors and dataframes.
+
+Methods:
+    - create_training_data_editor_widget: Creates a data editor widget for training data.
+    - create_test_data_editor_widget: Creates a data editor widget for test data.
+    - create_dataframe_with_checkbox: Automatically updates the test datapoint when the training datapoint is checked.
+    - create_simple_dataframe: Creates a simple dataframe.
+    - create_only_content_dataframe: Creates a dataframe displaying only content.
+    - create_complex_datapoint_evaluation_dataframe: Creates a dataframe for complex datapoint evaluation.
+    - create_only_content_table: Creates a table displaying only content.
+    - create_dataframe_with_augmentation_method: Creates a dataframe with augmentation method.
+    - create_complex_model_evaluation_dataframe: Creates a dataframe for complex model evaluation.
+    - display_models_data_editor: Displays models data editor.
+    - general_dataframe: Displays a general dataframe.
+"""
+
+
 import streamlit as st
 import pandas as pd
 from dataclasses import asdict
@@ -15,9 +37,20 @@ from app.backend.util.utility_functions import find_index_in_list
 
 
 class DataFrameWidgetProvider:
+    """Provides various data editors and dataframes for displaying and editing data."""
 
     @classmethod
     def create_training_data_editor_widget(cls, simple_datapoint_dto: DataPointDTOWithDataFrameWrapper, chosen_company: FineTuningCompany, default_role: str, dataframe_editor: DataFrameEditor):
+        """
+        Create a data editor widget for training data.
+
+        Args:
+            simple_datapoint_dto (DataPointDTOWithDataFrameWrapper): The simple datapoint DTO with dataframe wrapper.
+            chosen_company (FineTuningCompany): The chosen company.
+            default_role (str): The default role.
+            dataframe_editor (DataFrameEditor): The dataframe editor.
+        """
+
         st.data_editor(
             simple_datapoint_dto.messages,
             column_config={
@@ -42,6 +75,16 @@ class DataFrameWidgetProvider:
 
     @classmethod
     def create_test_data_editor_widget(cls, simple_datapoint_dto: DataPointDTOWithDataFrameWrapper, chosen_company: FineTuningCompany, default_role: str, dataframe_editor: DataFrameEditor):
+        """
+        Create a data editor widget for test data.
+
+        Args:
+            simple_datapoint_dto (DataPointDTOWithDataFrameWrapper): The simple datapoint DTO with dataframe wrapper.
+            chosen_company (FineTuningCompany): The chosen company.
+            default_role (str): The default role.
+            dataframe_editor (DataFrameEditor): The dataframe editor.
+        """
+
         st.data_editor(
             simple_datapoint_dto.messages,
             column_config={
@@ -66,6 +109,13 @@ class DataFrameWidgetProvider:
     # Automatically updates the test datapoint when the training datapoint is checked
     @classmethod
     def create_dataframe_with_checkbox(cls, datapoint_dto: DataPointDTO, current_test_datapoint: DataPointDTO):
+        """
+        Automatically update the test datapoint when the training datapoint is checked.
+
+        Args:
+            datapoint_dto (DataPointDTO): The datapoint DTO.
+            current_test_datapoint (DataPointDTO): The current test datapoint.
+        """
 
         @st.experimental_fragment
         def editor_fragment():
@@ -98,6 +148,12 @@ class DataFrameWidgetProvider:
 
     @classmethod
     def create_simple_dataframe(cls, datapoint_dto: DataPointDTO):
+        """
+        Create a simple dataframe.
+
+        Args:
+            datapoint_dto (DataPointDTO): The datapoint DTO.
+        """
 
         st.dataframe(
             datapoint_dto.messages["messages"],
@@ -116,6 +172,13 @@ class DataFrameWidgetProvider:
 
     @classmethod
     def create_only_content_dataframe(cls, datapoint_dto: DataPointWithInitialDataPointDTO):
+        """
+        Create a dataframe displaying only content.
+
+        Args:
+            datapoint_dto (DataPointWithInitialDataPointDTO): The datapoint with initial datapoint DTO.
+        """
+
         st.dataframe(
             datapoint_dto.messages["messages"],
             column_config={
@@ -127,6 +190,16 @@ class DataFrameWidgetProvider:
 
     @classmethod
     def create_complex_datapoint_evaluation_dataframe(cls, complex_datapoint_evaluation_dto: ComplexDataPointEvaluationDTO, updated_evalautions: set[int] | None = None, current_step_counter: int | None = None, activation_threshold: int = -1):
+        """
+        Create a dataframe for complex datapoint evaluation.
+
+        Args:
+            complex_datapoint_evaluation_dto (ComplexDataPointEvaluationDTO): The complex datapoint evaluation DTO.
+            updated_evalautions (set[int] | None): Set of updated evaluations.
+            current_step_counter (int | None): The current step counter.
+            activation_threshold (int): The activation threshold.
+        """
+
         # Update the current attribute when the slider changes
         def update_eval(complex_datapoint_evaluation_dto: ComplexDataPointEvaluationDTO, updated_evalautions: set[int], attribute: str, new_val_session_key: str):
             if st.session_state[new_val_session_key] > 0:
@@ -159,6 +232,13 @@ class DataFrameWidgetProvider:
 
     @classmethod
     def create_only_content_table(cls, model_evaluation):
+        """
+        Create a table displaying only content.
+
+        Args:
+            model_evaluation: The model evaluation.
+        """
+
         # Convert messages to a DataFrame
         df = pd.DataFrame(model_evaluation.messages["messages"])
 
@@ -193,6 +273,12 @@ class DataFrameWidgetProvider:
 
     @classmethod
     def create_dataframe_with_augmentation_method(cls, datapoint_dto: DataPointDTO | SimpleDataPointDTO):
+        """
+        Create a dataframe with augmentation method.
+
+        Args:
+            datapoint_dto (DataPointDTO | SimpleDataPointDTO): The datapoint DTO or simple datapoint DTO.
+        """
 
         st.dataframe(
             datapoint_dto.messages["messages"],
@@ -213,6 +299,17 @@ class DataFrameWidgetProvider:
 
     @classmethod
     def create_complex_model_evaluation_dataframe(cls, complex_model_evaluation_dto: ComplexModelEvaluationDTO, all_training_datapoints: list[SimpleDataPointDTO], updated_evalautions: set[int] | None = None, current_step_counter: int | None = None, activation_threshold: int = -1):
+        """
+        Create a dataframe for complex model evaluation.
+
+        Args:
+            complex_model_evaluation_dto (ComplexModelEvaluationDTO): The complex model evaluation DTO.
+            all_training_datapoints (list[SimpleDataPointDTO]): List of all training datapoints.
+            updated_evalautions (set[int] | None): Set of updated evaluations.
+            current_step_counter (int | None): The current step counter.
+            activation_threshold (int): The activation threshold.
+        """
+
         # Update the current attribute when the slider changes
         def update_eval(complex_model_evaluation_dto: ComplexDataPointEvaluationDTO, updated_evalautions: set[int], attribute: str, new_val_session_key: str):
             if st.session_state[new_val_session_key]:
@@ -353,6 +450,15 @@ class DataFrameWidgetProvider:
 
     @classmethod
     def display_models_data_editor(cls, service: ServiceManagerFacade, models: list[ModelWithOriginalProjectDTO], selected_models: list[int]):
+        """
+        Display models data editor.
+
+        Args:
+            service (ServiceManagerFacade): The service manager facade.
+            models (list[ModelWithOriginalProjectDTO]): List of models with original project DTO.
+            selected_models (list[int]): List of selected models.
+        """
+
         # Convert models to a list of dictionaries
         model_dicts = [asdict(model) for model in models]
         # Add the "add to statistics" field manually since it will not be displyaed without being present in the dict
@@ -423,6 +529,12 @@ class DataFrameWidgetProvider:
 
     @classmethod
     def general_dataframe(cls, data: list | dict | pd.DataFrame):
+        """
+        Display a general dataframe.
+
+        Args:
+            data (list | dict | pd.DataFrame): The data to be displayed.
+        """
 
         column_order: tuple = None
         if isinstance(data, dict):

@@ -1,3 +1,11 @@
+"""
+This module provides the DataPointMatcher class, which is used to match training datapoints with test datapoints and manage the evaluation process in a Streamlit application.
+
+Classes:
+    DataPointMatcher: Manages the matching of training and test datapoints and handles the evaluation process.
+"""
+
+
 import streamlit as st
 from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
 from app.frontend.classes.manager.global_app_state_manager import GlobalAppStateManager
@@ -8,15 +16,50 @@ from app.backend.dtos.response import DataPointDTO
 
 
 class DataPointMatcher:
+    """
+    A class to match training datapoints with test datapoints and manage the evaluation process.
+
+    Attributes:
+        training_datapoints (list[DataPointDTO]): List of training datapoint DTOs.
+        test_datapoints (list[DataPointDTO]): List of test datapoint DTOs.
+        current_test_datapoint (DataPointDTO | None): The currently selected test datapoint.
+
+    Methods:
+        set_current_datapoint(current_datapoint: int): Sets the current test datapoint.
+        load(matching_items_per_page=5): Loads and displays the matching interface for datapoints.
+    """
+
     def __init__(self, training_datapoints_dtos: list[DataPointDTO], test_datapoint_dtos: list[DataPointDTO]):
+        """
+        Initializes the DataPointMatcher with lists of training and test datapoint DTOs.
+
+        Args:
+            training_datapoints_dtos (list[DataPointDTO]): List of training datapoint DTOs.
+            test_datapoint_dtos (list[DataPointDTO]): List of test datapoint DTOs.
+        """
+
         self.training_datapoints: list[DataPointDTO] = training_datapoints_dtos
         self.test_datapoints: list[DataPointDTO] = test_datapoint_dtos
         self.current_test_datapoint: DataPointDTO | None = None
 
     def set_current_datapoint(self, current_datapoint: int):
+        """
+        Sets the current test datapoint by its index.
+
+        Args:
+            current_datapoint (int): The index of the current test datapoint.
+        """
+
         self.current_test_datapoint = current_datapoint
 
     def load(self, matching_items_per_page=5):
+        """
+        Loads and displays the matching interface for datapoints, including pagination for both training and test datapoints.
+
+        Args:
+            matching_items_per_page (int): The number of training items to display per page. Default is 5.
+        """
+
         trainings_dataset_paginator: Paginator = GlobalAppStateManager.get_or_create_session_state(
             "training_paginator", default_value=Paginator, items_per_page=matching_items_per_page
         )

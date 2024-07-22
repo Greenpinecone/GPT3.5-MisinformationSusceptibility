@@ -1,3 +1,9 @@
+"""
+This module defines Marshmallow schemas for converting database entities to response DTOs.
+It includes custom fields and base schema classes to handle serialization and deserialization.
+"""
+
+
 import zoneinfo
 from marshmallow import fields, post_dump
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema, auto_field
@@ -7,17 +13,57 @@ from app.backend.dtos.response import ComplexDataPointEvaluationDTO, ComplexData
 
 # Returns the enum object in case of serialization.
 class CustomEnumConversionSchema(fields.Enum):
+    """
+    A custom validation class for Enum validations, where the enum should stay as is instead of being converted to a string.
+
+    Methods:
+        _serialize(value, attr, obj, **kwargs): Serializes the enum value, retaining its original form.
+    """
+    
     def __init__(self, enum, *args, **kwargs):
         super().__init__(enum, *args, **kwargs)
 
     def _serialize(self, value, attr, obj, **kwargs):
+        """
+        Serializes the enum value, retaining its original form.
+
+        Args:
+            value: The value to serialize.
+            attr: The attribute key.
+            obj: The object being serialized.
+            kwargs: Additional keyword arguments.
+
+        Returns:
+            The serialized value or None if the value is None.
+        """
+        
         if value is None:
             return None
         return value
 
 
 class FlexibleDateTimeField(fields.DateTime):
+    """
+    A custom evaluation field for datetime objects to convert them from database string UTC to localtime datetime objects.
+
+    Methods:
+        _serialize(value, attr, obj, **kwargs): Serializes the datetime value, converting it to localtime.
+    """
+    
     def _serialize(self, value, attr, obj, **kwargs):
+        """
+        Serializes the datetime value, converting it to localtime.
+
+        Args:
+            value: The value to serialize.
+            attr: The attribute key.
+            obj: The object being serialized.
+            kwargs: Additional keyword arguments.
+
+        Returns:
+            The serialized localtime value or None if the value is None.
+        """
+        
         if value is None:
             return None
         # Ensure the datetime object is timezone-aware
@@ -30,10 +76,24 @@ class FlexibleDateTimeField(fields.DateTime):
 
 
 class BaseSchema(SQLAlchemyAutoSchema):
+    """
+    Base schema class for SQLAlchemy models with dynamic Meta class creation for session handling.
+
+    Methods:
+        __init__(session, *args, **kwargs): Initializes the schema with a SQLAlchemy session.
+    """
+    
     def __init__(self, session, *args, **kwargs):
-        # Dynamically creates a Meta class with the session for each created object to avoid setting the session as class attribute and causing issues with session sharing
-        # Check if a session exists. Do not overwrite in case of Nested Schemas
-        if session:
+        """
+        Initializes the schema with a SQLAlchemy session.
+
+        Args:
+            session: The SQLAlchemy session to use for the schema.
+            *args: Variable length argument list.
+            **kwargs: Arbitrary keyword arguments.
+        """
+        
+        if session: # Creates an individual Meta class per object to avoid any issues with multiple parallel accesses to the mappers sharing the same session
             class Meta:
                 datetimeformat = 'iso'
                 sqla_session = session

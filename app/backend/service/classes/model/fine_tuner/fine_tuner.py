@@ -1,5 +1,5 @@
 """
-This module handles the fine-tuning process of the GPT-3.5-Turbo model. It includes
+This module handles the fine-tuning process of different fine tuning models. It includes
 functionality for applying different fine-tuning strategies and settings.
 
 Classes:
@@ -15,7 +15,7 @@ from app.backend.service.classes.model.api.interfaces.i_fine_tuning_service impo
 
 class FineTuner:
     """
-    Manages the fine-tuning process of the GPT-3.5-Turbo model, including (potentially various)
+    Manages the fine-tuning process of different fine tuning models, including (potentially various)
     fine-tuning strategies and settings.
     """
 
@@ -24,12 +24,34 @@ class FineTuner:
 
     @staticmethod
     def find_parent_company(model_string: str) -> str:
+        """
+        Finds the parent company of a given model string.
+
+        Args:
+            model_string (str): The model string to find the parent company for.
+
+        Returns:
+            str: The name of the parent company.
+        """
+
         for company in FineTuningModelVersions:
             if model_string in company.value:
                 return company.name
 
     @classmethod
     def select_fine_tuning_class(cls, fine_tuning_company: str, model_dto: ComplexModelDTO, model_dataset_dtos: list[ComplexDatasetDTO]):
+        """
+        Selects the appropriate fine-tuning class based on the fine-tuning company.
+
+        Args:
+            fine_tuning_company (str): The name of the fine-tuning company.
+            model_dto (ComplexModelDTO): The model DTO.
+            model_dataset_dtos (list[ComplexDatasetDTO]): The list of model dataset DTOs.
+
+        Returns:
+            object: The fine-tuning job object.
+        """
+
         fine_tuner: IFineTuningService = None
         if fine_tuning_company == FineTuningCompany.openai.value:
             fine_tuner: OpenAIService = OpenAIService()
@@ -41,6 +63,17 @@ class FineTuner:
     # TODO: Sort some fine_tuner functions into separate modeules if they are not vital for the service that provides the api access to encapsulate all vital api service methods into the IFineTuntingService interface, right now, just put all of them into the interface
     @classmethod
     def create_fine_tuning_run(cls, model_dto: ComplexModelDTO, model_dataset_dtos: list[ComplexDatasetDTO], fine_tuning_model: str):
+        """
+        Creates a fine-tuning run for a given model and dataset DTOs.
+
+        Args:
+            model_dto (ComplexModelDTO): The model DTO.
+            model_dataset_dtos (list[ComplexDatasetDTO]): The list of model dataset DTOs.
+            fine_tuning_model (str): The fine-tuning model to use.
+
+        Returns:
+            object: The fine-tuning job object.
+        """
 
         fine_tuning_company: str = cls.find_parent_company(fine_tuning_model)
         return cls.select_fine_tuning_class(
@@ -48,6 +81,18 @@ class FineTuner:
 
     @classmethod
     def create_openai_fine_tuning_run(cls, fine_tuner: IFineTuningService, model_dto: ComplexModelDTO, model_dataset_dtos: list[ComplexDatasetDTO]) -> object:
+        """
+        Creates and starts a fine-tuning run using OpenAI's fine-tuning service.
+
+        Args:
+            fine_tuner (IFineTuningService): The fine-tuning service instance.
+            model_dto (ComplexModelDTO): The model DTO.
+            model_dataset_dtos (list[ComplexDatasetDTO]): The list of model dataset DTOs.
+
+        Returns:
+            object: The fine-tuning job ID.
+        """
+
         try:
             # Fetch available models
             available_models = fine_tuner.get_available_models()
