@@ -1,7 +1,15 @@
+"""
+A module that contains functions that define the global style of the application.
+"""
+
+
 import streamlit as st
 
 
 def apply_global_style() -> None:
+    """
+    Sets these styles that are used on most pages (global) if the function is called.
+    """
     st.markdown("""
     <style>
     /* General styles for all widgets inside #root */

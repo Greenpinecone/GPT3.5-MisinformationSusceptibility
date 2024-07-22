@@ -1,3 +1,8 @@
+"""
+A module containing mappers explicitly created for frontend usage.
+"""
+
+
 from marshmallow import Schema, fields, post_dump
 from app.frontend.classes.editors.dataframe_editor import DataFrameEditor
 from app.backend.dtos.create_request import CreateDataPointDTO
@@ -6,6 +11,17 @@ from app.backend.dtos.update_request import UpdateDataPointDTO
 
 # Takes a wrapper object and converts it to a datapoint dto
 class ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO(Schema):
+    """
+    Schema to convert DataPointDTOWithDataFrameWrapper to CreateDataPointDTO.
+
+    Fields:
+        messages (fields.Function): Converts DataFrame messages to messages container.
+        dataset_id (fields.Function): Extracts dataset ID from datapoint DTO.
+        related_datapoint_ids (fields.Function): Extracts related datapoint IDs from datapoint DTO.
+        augmentation_type (fields.Function): Extracts augmentation type from datapoint DTO.
+        initial_datapoint_id (fields.Function): Extracts initial datapoint ID from datapoint DTO.
+    """
+
     messages = fields.Function(
         serialize=lambda obj: DataFrameEditor.convert_df_to_messages_container(obj.messages))
     dataset_id = fields.Function(
@@ -23,6 +39,15 @@ class ConvertDataPointDTOWithDataFrameWrapperToCreateDatapointDTO(Schema):
 
 
 class DataPointDTOToUpdateDataPointDTO(Schema):
+    """
+    Schema to convert DataPointDTO to UpdateDataPointDTO.
+
+    Fields:
+        id (fields.Function): Extracts ID from datapoint DTO.
+        related_datapoint_ids (fields.Function): Extracts related datapoint IDs from datapoint DTO.
+        evaluation_type (fields.Function): Extracts evaluation type from datapoint DTO.
+    """
+
     id = fields.Function(serialize=lambda obj: obj.id)
     related_datapoint_ids = fields.Function(
         serialize=lambda obj: [datapoint.id for datapoint in obj.related_datapoints])

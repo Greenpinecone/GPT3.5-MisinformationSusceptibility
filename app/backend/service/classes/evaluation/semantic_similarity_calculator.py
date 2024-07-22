@@ -1,3 +1,12 @@
+"""
+This module provides functions for calculating semantic similarity scores for text pairs
+and data points using a pre-trained SentenceTransformer model.
+
+Classes:
+    SemanticSimilarityCalculator: Handles the calculation of semantic similarity scores.
+"""
+
+
 import torch
 from sentence_transformers import SentenceTransformer, SimilarityFunction
 from app.backend.dtos.create_request import CreateDataPointDTO, CreateDataPointEvaluationDTO, CreateModelEvaluationDTO
@@ -86,6 +95,9 @@ from app.backend.dtos.response import DataPointDTO
 
 # TODO: Add support for manhattan, dot, euclidean similarity calculations
 class SemanticSimilarityCalculator:
+    """
+    A class to handle the calculation of semantic similarity scores for text pairs and data points.
+    """
 
     def __init__(self):
         pass
@@ -94,6 +106,16 @@ class SemanticSimilarityCalculator:
 
     @staticmethod
     def initialize_model(semantic_similarity_model: dict):
+        """
+        Initializes the SentenceTransformer model with the specified semantic similarity model.
+
+        Args:
+            semantic_similarity_model (dict): Dictionary containing the model's name.
+
+        Returns:
+            SentenceTransformer: The initialized model.
+        """
+
         # The model automatically uses its max_seq_length if not changed and truncates the rest.
         # Only models with cosine similarity calculation are allowed at the moment to correctly scale the value to 0-100.
         # Pooling is automatically set to the models preffered pooling mode.
@@ -103,7 +125,18 @@ class SemanticSimilarityCalculator:
 
     @staticmethod
     def calculate_semantic_similarity_score_for_text_pair(text_1: str, text_2: str, model: SentenceTransformer):
-        # Compute embeddings using the model
+        """
+        Calculates the semantic similarity score for a pair of texts.
+
+        Args:
+            text_1 (str): The first text.
+            text_2 (str): The second text.
+            model (SentenceTransformer): The model used to compute the similarity.
+
+        Returns:
+            torch.Tensor: The similarity score between the two texts.
+        """
+
         # Uses numpy arrays by default
         original_embedding = model.encode(
             text_1)
@@ -117,6 +150,16 @@ class SemanticSimilarityCalculator:
 
     @staticmethod
     def calculate_average_similarity_and_scale_to_percent(similarities: list[torch.Tensor]):
+        """
+        Calculates the average similarity from a list of similarity scores and scales it to a percentage.
+
+        Args:
+            similarities (list[torch.Tensor]): A list of similarity scores.
+
+        Returns:
+            float: The average similarity score scaled to a percentage (0-100).
+        """
+
         # Calculate average similarity and convert to float
         avg_similarity = torch.tensor(similarities).mean().item()
         # Scale from -1 to 1 to 0 to 100
@@ -128,6 +171,18 @@ class SemanticSimilarityCalculator:
                                                        augmented_datapoints: list[CreateDataPointDTO], datapoint_evaluations: list[CreateDataPointEvaluationDTO],
                                                        semantic_similarity_model: dict
                                                        ) -> list[CreateDataPointEvaluationDTO]:
+        """
+        Calculates the semantic similarity scores for a list of augmented data points.
+
+        Args:
+            datapoints (list[DataPointDTO]): The original data points.
+            augmented_datapoints (list[CreateDataPointDTO]): The augmented data points.
+            datapoint_evaluations (list[CreateDataPointEvaluationDTO]): The data point evaluations.
+            semantic_similarity_model (dict): The model used for calculating semantic similarity.
+
+        Returns:
+            list[CreateDataPointEvaluationDTO]: The updated data point evaluations with calculated semantic similarity scores.
+        """
 
         model: SentenceTransformer = cls.initialize_model(
             semantic_similarity_model)
@@ -167,6 +222,18 @@ class SemanticSimilarityCalculator:
 
     @classmethod
     def calculate_model_evaluations_semantic_similarity_score(cls, model_evaluations: list[CreateModelEvaluationDTO], test_datapoints: list[DataPointDTO], semantic_similarity_model: dict) -> list[CreateModelEvaluationDTO]:
+        """
+        Calculates the semantic similarity scores for a list of model evaluations.
+
+        Args:
+            model_evaluations (list[CreateModelEvaluationDTO]): The model evaluations.
+            test_datapoints (list[DataPointDTO]): The test data points.
+            semantic_similarity_model (dict): The model used for calculating semantic similarity.
+
+        Returns:
+            list[CreateModelEvaluationDTO]: The updated model evaluations with calculated semantic similarity scores.
+        """
+
         model: SentenceTransformer = cls.initialize_model(
             semantic_similarity_model)
 

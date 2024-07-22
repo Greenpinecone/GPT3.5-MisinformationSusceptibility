@@ -1,3 +1,11 @@
+"""
+This module provides functionalities for editing and managing pandas DataFrames.
+
+Classes:
+    DataFrameEditor: Handles various DataFrame operations such as applying edits, adding new rows, and deleting rows.
+"""
+
+
 from typing import Any
 from uuid import uuid4
 import pandas as pd
@@ -8,10 +16,20 @@ from app.backend.custom_types.typedicts import MessagesContainer, Message
 
 
 class DataFrameEditor:
+    """
+    Handles various DataFrame operations such as applying edits, adding new rows, and deleting rows.
+    """
 
     @staticmethod
     def apply_edits(df: pd.DataFrame, edits: dict[int, dict[str, Any]]) -> None:
-        """Apply edits to the DataFrame using the changes dictionary."""
+        """
+        Apply edits to the DataFrame using the changes dictionary.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to edit.
+            edits (dict[int, dict[str, Any]]): A dictionary containing the changes to apply.
+        """
+
         for idx, changes in edits.items():
             for key, value in changes.items():
                 if isinstance(value, list):  # Convert lists to strings
@@ -20,7 +38,16 @@ class DataFrameEditor:
 
     @staticmethod
     def add_new_rows(df: pd.DataFrame, new_rows: list[dict[str, Any]]) -> pd.DataFrame:
-        """Add new rows to the DataFrame,"""
+        """
+        Add new rows to the DataFrame.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to add rows to.
+            new_rows (list[dict[str, Any]]): A list of dictionaries representing the new rows.
+
+        Returns:
+            pd.DataFrame: The updated DataFrame with new rows added.
+        """
 
         for row in new_rows:
             for key, value in row.items():
@@ -32,7 +59,16 @@ class DataFrameEditor:
 
     @staticmethod
     def delete_rows(df: pd.DataFrame, indices: list[int]) -> pd.DataFrame:
-        """Remove rows by indices and reset index."""
+        """
+        Remove rows by indices and reset the index.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to delete rows from.
+            indices (list[int]): A list of indices representing the rows to delete.
+
+        Returns:
+            pd.DataFrame: The updated DataFrame with rows deleted.
+        """
 
         # Drop the rows
         df = df.drop(indices, errors='ignore').reset_index(drop=True)
@@ -41,7 +77,17 @@ class DataFrameEditor:
 
     @staticmethod
     def check_edits(df: pd.DataFrame, edits: dict[int, dict[str, Any]]) -> bool:
-        """Check edits to ensure 'system' role is only in the first row."""
+        """
+        Check edits to ensure 'system' role is only in the first row.
+
+        Args:
+            df (pd.DataFrame): The DataFrame to check edits for.
+            edits (dict[int, dict[str, Any]]): A dictionary containing the changes to check.
+
+        Returns:
+            bool: True if edits are valid, False otherwise.
+        """
+
         for idx, changes in edits.items():
             if 'role' in changes and changes['role'] == 'system' and idx != 0:
                 ToastManager.add_global_toasts(
@@ -51,7 +97,13 @@ class DataFrameEditor:
 
     @classmethod
     def update_df(cls, simple_datapoint_dto: DataPointDTOWithDataFrameWrapper) -> None:
-        """Main method to update DataFrame based on editor changes."""
+        """
+        Main method to update DataFrame based on editor changes.
+
+        Args:
+            simple_datapoint_dto (DataPointDTOWithDataFrameWrapper): The DataPointDTO with the DataFrame wrapper to update.
+        """
+
         data_editor: dict = st.session_state[simple_datapoint_dto.data_editor_key]
         df: pd.DataFrame = simple_datapoint_dto.messages
 

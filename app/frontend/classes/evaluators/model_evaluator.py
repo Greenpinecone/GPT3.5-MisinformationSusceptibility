@@ -1,3 +1,12 @@
+"""
+This module provides functionality for evaluating models in a Streamlit interface.
+It handles loading, updating, and displaying evaluations as well as calculating scores.
+
+Classes:
+    ModelEvaluator: Manages the evaluation process of models.
+"""
+
+
 import streamlit as st
 from app.frontend.classes.dataframe_widget_provider import DataFrameWidgetProvider
 from app.frontend.classes.manager.global_app_state_manager import GlobalAppStateManager
@@ -9,6 +18,22 @@ from app.backend.service.implementations.service_manager_facade import ServiceMa
 
 
 class ModelEvaluator:
+    """
+    Manages the evaluation process of models.
+
+    Attributes:
+        _service (ServiceManagerFacade): Service manager facade for handling service operations.
+        _model_id (int): ID of the model being evaluated.
+        _semantic_similarity_model (dict): Configuration for the semantic similarity model.
+        _all_training_datapoints (list): List of all training datapoints.
+        _test_datapoint_ids (list[int]): List of test datapoint IDs.
+        _cached_items (dict[int, ComplexModelEvaluationDTO]): Cache for already fetched evaluations.
+        _tests_datapoint_ids_for_model_evaluations_to_update (set[int]): Set of test datapoint IDs for evaluations to update.
+        _current_model_evaluation (ComplexModelEvaluationDTO | None): Currently selected model evaluation.
+        _current_test_datapoint_id (int | None): ID of the current test datapoint.
+        _display_scores_container (DeltaGenerator | None): Streamlit container for displaying scores.
+    """
+
     def __init__(self, service: ServiceManagerFacade, model_id: int, test_datapoint_ids: list[int], semantic_similarity_model: dict):
         self._service: ServiceManagerFacade = service
         self._model_id = model_id
@@ -23,6 +48,15 @@ class ModelEvaluator:
         self._display_scores_container = None
 
     def load(self, current_step_counter: int | None = None, activation_threshold: int = -1, matching_items_per_page: int = 1):
+        """
+        Loads and displays the current model evaluation.
+
+        Args:
+            current_step_counter (int | None): Current step counter for activation threshold.
+            activation_threshold (int): Threshold for triggering activation.
+            matching_items_per_page (int): Number of matching items to display per page.
+        """
+
         # Create paginator
         paginator: Paginator = GlobalAppStateManager.get_or_create_session_state(
             "complex_model_evaluations_paginator", default_value=Paginator, items_per_page=matching_items_per_page
@@ -63,11 +97,19 @@ class ModelEvaluator:
                   type="secondary", disabled=len(self._test_datapoint_ids) == len(list(self._cached_items.keys())), on_click=self.generate_all_model_evaluations)
 
     def update_left_over_evaluations(self):
+        """
+        Updates any remaining evaluations and displays the scores.
+        """
+
         self.update_evaluations()
         self._display_scores_container.empty()
         self.display_scores()
 
     def update_evaluations(self) -> None:
+        """
+        Updates the evaluations in the service with the current scores.
+        """
+
         evaluation_update_dtos: list[UpdateModelEvaluationDTO] = []
         for test_datapoint_id in self._tests_datapoint_ids_for_model_evaluations_to_update:
             # Fetch evaluation objects by its test datapoint id from already fetched list
@@ -102,7 +144,12 @@ class ModelEvaluator:
         else:
             self._get_current_evaluation()
 
+    # TODO: Update the name
     def generate_all_model_evaluations(self):
+        """
+        Generates and fetches the next ten model evaluations.
+        """
+
         current_test_datapoint_id: int = self._current_test_datapoint_id
         counter: int = 0
         # Fetches the next ten not yet fetched model evaluations
@@ -117,9 +164,23 @@ class ModelEvaluator:
         self.fetch_item()
 
     def has_already_been_fetched(self, id: int) -> bool:
+        """
+        Checks if an evaluation has already been fetched.
+
+        Args:
+            id (int): The ID of the evaluation to check.
+
+        Returns:
+            bool: True if the evaluation has already been fetched, False otherwise.
+        """
+
         return self._cached_items.get(id)
 
     def display_scores(self) -> None:
+        """
+        Displays the average scores for helpfulness, honesty, harmlessness, and semantic similarity.
+        """
+
         avg_helpful_score, avg_honest_score, avg_harmless_score, avg_semantic_similarity_score, _, _ = self._calculate_scores()
         with self._display_scores_container:
             if self._semantic_similarity_model:

@@ -218,7 +218,7 @@ class ServiceManagerFacade(IServiceManager):
             return [self._mapper.map_training_run_to_simple_dto(session, training_run) for training_run in training_runs]
 
     def get_or_create_current_project_data(self, existing_session: Session | None = None) -> list[CurrentProjectDataDTO]:
-        logger.debug()
+        logger.debug("")
 
         with self._data_manager.get_session(existing_session) as session:
             # TODO: Add validator

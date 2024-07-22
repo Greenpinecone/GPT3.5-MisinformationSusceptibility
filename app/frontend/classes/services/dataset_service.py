@@ -1,3 +1,11 @@
+"""
+This module provides services for managing datasets and their datapoints.
+
+Classes:
+    DatasetService: Provides methods for creating and updating dataset objects, including their associated datapoints.
+"""
+
+
 from typing import Any
 from app.frontend.classes.manager.toast_manager import ToastManager
 from app.frontend.dtos.frontend_dtos import DataPointDTOWithDataFrameWrapper
@@ -10,8 +18,36 @@ from app.backend.database.schema import DatasetCategory, MessageKeys
 
 
 class DatasetService:
+    """
+    Provides methods for creating and updating dataset objects, including their associated datapoints.
+
+    This service offers various methods to handle operations such as processing and creating datasets, creating dataset DTOs, submitting datasets and their datapoints, updating dataset editors, and checking for datapoints within dataset editors.
+
+    Methods:
+        process_and_create_dataset: Process and create datasets based on dataset editors.
+        create_dataset_dto: Create a dataset DTO from the dataset editor information.
+        submit_all_datasets_and_datapoints: Submit all datasets and their associated datapoints.
+        update_dataset_editor_if_changed: Update the dataset editor if its attribute has changed.
+        check_if_dataset_editor_has_datapoints: Check if any dataset editor has datapoints.
+        remove_empty_datapoints: Remove datapoints with empty messages DataFrame from the list.
+    """
+
     @classmethod
     def process_and_create_dataset(cls, all_dataset_editors: list[DatasetEditor], is_global: bool, dataset_name: str, project_id: int, service: ServiceManagerFacade) -> list[DatasetDTO] | None:
+        """
+        Process and create datasets based on dataset editors.
+
+        Args:
+            all_dataset_editors (list[DatasetEditor]): List of dataset editors.
+            is_global (bool): Indicates if the dataset is global.
+            dataset_name (str): Name of the dataset.
+            project_id (int): ID of the project.
+            service (ServiceManagerFacade): Service manager to handle the creation.
+
+        Returns:
+            list[DatasetDTO] | None: List of created dataset DTOs or None if the process fails.
+        """
+
         if not dataset_name:
             ToastManager.show_toast("Dataset name is required.", "info")
             return
@@ -45,6 +81,19 @@ class DatasetService:
 
     @staticmethod
     def create_dataset_dto(dataset_name: str, dataset_editor: DatasetEditor, project_id: int, is_global: bool) -> CreateDatasetDTO:
+        """
+        Create a dataset DTO from the dataset editor information.
+
+        Args:
+            dataset_name (str): Name of the dataset.
+            dataset_editor (DatasetEditor): Dataset editor containing dataset information.
+            project_id (int): ID of the project.
+            is_global (bool): Indicates if the dataset is global.
+
+        Returns:
+            CreateDatasetDTO: Created dataset DTO.
+        """
+
         return CreateDatasetDTO(
             dataset_name=dataset_name,
             category=DatasetCategory(
@@ -59,10 +108,34 @@ class DatasetService:
 
     @staticmethod
     def submit_all_datasets_and_datapoints(dataset_dtos: list[CreateDatasetDTO], datapoint_dtos: list[list[CreateDataPointDTO]], service: ServiceManagerFacade) -> DatasetDTO:
+        """
+        Submit all datasets and their associated datapoints.
+
+        Args:
+            dataset_dtos (list[CreateDatasetDTO]): List of dataset DTOs to submit.
+            datapoint_dtos (list[list[CreateDataPointDTO]]): List of lists containing datapoint DTOs for each dataset.
+            service (ServiceManagerFacade): Service manager to handle the submission.
+
+        Returns:
+            DatasetDTO: Created dataset DTO.
+        """
+
         return service.create_dataset_with_datapoints(
             dataset_dtos[0], datapoint_dtos[0], dataset_dtos[1], datapoint_dtos[1])
 
     def update_dataset_editor_if_changed(attr: str, new_value: Any, all_dataset_editors: list[DatasetEditor]) -> bool:
+        """
+        Update the dataset editor if its attribute has changed.
+
+        Args:
+            attr (str): Attribute to check for changes.
+            new_value (Any): New value of the attribute.
+            all_dataset_editors (list[DatasetEditor]): List of dataset editors to update.
+
+        Returns:
+            bool: True if any dataset editor was updated, False otherwise.
+        """
+
         changed = False
         for editor in all_dataset_editors:
             if getattr(editor, attr) != new_value:
@@ -77,7 +150,16 @@ class DatasetService:
 
     @staticmethod
     def check_if_dataset_editor_has_datapoints(all_dataset_editors: list[DatasetEditor]) -> bool:
-        """Checks if any dataset editor has datapoints."""
+        """
+        Check if any dataset editor has datapoints.
+
+        Args:
+            all_dataset_editors (list[DatasetEditor]): List of dataset editors to check.
+
+        Returns:
+            bool: True if any dataset editor has datapoints, False otherwise.
+        """
+
         return any(len(dataset_editor.datapoints) > 0 for dataset_editor in all_dataset_editors)
 
     @staticmethod

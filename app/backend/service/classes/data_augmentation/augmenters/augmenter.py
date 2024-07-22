@@ -28,6 +28,16 @@ class DataAugmenter:
 
     @classmethod
     def select_augmentation_class(cls, augmentation_method: str):
+        """
+        Selects and returns the appropriate augmentation class based on the given augmentation method.
+
+        Args:
+            augmentation_method (str): The augmentation method to use (e.g., "google_translate", "EDA_Easy_Data_Augmentation").
+
+        Returns:
+            IAugmentationMethod: An instance of the selected augmentation class.
+        """
+
         if augmentation_method == augmentation_methods["google_translate"]:
             return GoogleBackTranslation()
 
@@ -36,6 +46,16 @@ class DataAugmenter:
 
     @classmethod
     def create_augmented_datapoints(cls, datapoints: list[DataPointDTO], augmentation_configurations: list[AugmentationConfiguration]) -> list[CreateDataPointDTO]:
+        """
+        Creates augmented datapoints based on the provided augmentation configurations.
+
+        Args:
+            datapoints (list[DataPointDTO]): The original datapoints to augment.
+            augmentation_configurations (list[AugmentationConfiguration]): The configurations for augmentation, including the method and parameters.
+
+        Returns:
+            list[CreateDataPointDTO]: The list of augmented datapoints.
+        """
 
         augmenter: IAugmentationMethod = None
         augmented_datapoints: list[DataPointDTO] = []

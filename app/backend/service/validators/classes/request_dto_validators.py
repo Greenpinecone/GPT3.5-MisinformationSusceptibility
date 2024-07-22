@@ -12,6 +12,13 @@ from app.backend.util.config import SBERT_MODELS as semantic_similarity_models
 
 
 class BaseUpdateSchema(Schema):
+    """
+    A base schema class for updating entities with a required positive integer ID.
+
+    Fields:
+        id (int): The unique identifier of the entity, must be a positive integer.
+    """
+
     id = fields.Int(
         required=True,
         validate=lambda n: n > 0,
@@ -24,6 +31,16 @@ class BaseUpdateSchema(Schema):
 
 # Custom Field that validates Enum or its value directly, and handles serialization/deserialization
 class CustomEnumValidationField(fields.Enum):
+    """
+    A custom field for validating Enum values.
+
+    Args:
+        enum (Enum): The Enum class to validate against.
+
+    Methods:
+        _deserialize(value, attr, data, **kwargs): Deserializes and validates the value.
+    """
+
     def __init__(self, enum, *args, **kwargs):
         super().__init__(enum, *args, **kwargs)
 
@@ -45,6 +62,13 @@ class CustomEnumValidationField(fields.Enum):
 
 
 class FlexibleDateTimeValidationField(fields.DateTime):
+    """
+    A custom field for validating datetime values with flexible input formats.
+
+    Methods:
+        _deserialize(value, attr, data, **kwargs): Deserializes and validates the value.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -71,11 +95,26 @@ class FlexibleDateTimeValidationField(fields.DateTime):
 
 
 class MessageSchema(Schema):
+    """
+    A schema for validating message objects.
+
+    Fields:
+        role (str): The role of the message sender, required.
+        content (str): The content of the message, required.
+    """
+
     role = fields.Str(required=True)
     content = fields.Str(required=True)
 
 
 class MessagesContainerField(fields.Field):
+    """
+    A custom field for validating a container of message objects.
+
+    Methods:
+        _deserialize(value, attr, data, **kwargs): Deserializes and validates the value.
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.message_schema = MessageSchema()

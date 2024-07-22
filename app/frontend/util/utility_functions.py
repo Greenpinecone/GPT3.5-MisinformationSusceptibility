@@ -1,3 +1,8 @@
+"""
+A module containing utility functions explicitly created for the frontend.
+"""
+
+
 import streamlit as st
 from datetime import datetime
 from enum import Enum
@@ -8,6 +13,19 @@ def sort_dicts(list_of_objects: list[object],
                priority_enum: Enum | None = None,
                enum_key: str = '',
                descending: bool = True) -> list[object]:
+    """
+    Sorts a list of objects based on multiple sorting keys in the specified order.
+
+    Args:
+        list_of_objects (List[object]): List of objects to be sorted.
+        sort_keys (str): Keys used for sorting.
+        priority_enum (Enum, optional): Enum to prioritize certain values.
+        enum_key (str, optional): Key to identify the enum attribute in the objects.
+        descending (bool, optional): Flag to sort datetime objects in descending order.
+
+    Returns:
+        List[object]: Sorted list of objects.
+    """
 
     def sort_key(x: object) -> tuple:
         """
@@ -43,6 +61,14 @@ def sort_dicts(list_of_objects: list[object],
 
 
 def create_text_divider(text: str = None, column_partitions: list[int] = [5, 1, 5]):
+    """
+    Creates a text divider with optional text centered between dividers.
+
+    Args:
+        text (str, optional): Text to display in the center of the divider.
+        column_partitions (List[int], optional): List of column widths for the divider.
+    """
+
     if text:
         divider_cols = st.columns(column_partitions)
         divider_cols[0].divider()
@@ -54,15 +80,19 @@ def create_text_divider(text: str = None, column_partitions: list[int] = [5, 1, 
 
 def display_dto(dto, attributes):
     """
-    This function takes in a DTO or dictionary and a list of attribute name-key tuples.
-    It retrieves the values of these attributes from the DTO or dictionary, forms a concatenated
-    string of these values, and returns it.
+    Displays attributes of a DTO or dictionary as a formatted string.
 
-    :param dto: The data transfer object (DTO) or dictionary to retrieve values from.
-    :param attributes: A list of tuples where the first value is the display name of the attribute
-                       and the second value is the actual attribute name in the DTO or dictionary.
-    :return: A concatenated string of attribute values.
+    Args:
+        dto (Any): The data transfer object (DTO) or dictionary to retrieve values from.
+        attributes (List[tuple[str, str]]): List of attribute name-key tuples.
+
+    Returns:
+        str: Concatenated string of attribute values.
+
+    Raises:
+        ValueError: If the DTO does not have the specified attribute.
     """
+
     # Initialize a list to hold the formatted attribute values
     attribute_values = []
 
@@ -98,6 +128,10 @@ def display_dto(dto, attributes):
 
 
 def scroll_to_bottom():
+    """
+    Placeholder function to scroll to the bottom of the page.
+    """
+
     pass
     # TODO: Implement
     # # JavaScript to scroll to the bottom of the page

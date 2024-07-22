@@ -29,7 +29,22 @@ from app.backend.service.implementations.service_manager_facade import ServiceMa
 class ModelMetricsEvaluator:
     """
     Provides functionalities to evaluate the performance of the fine-tuned language model,
-    including calculating metrics like confusion matrix, F1 score, Chi-Saquare test and comparing different models.
+    including calculating metrics like confusion matrix, F1 score, Chi-Square test, and comparing different models.
+
+    Attributes:
+        _service (ServiceManagerFacade): Service manager facade for handling service operations.
+        _model (ComplexModelDTO): The model being evaluated.
+        _helpfulness_score_data (list[tuple]): Helpfulness score data for model evaluations.
+        _honesty_score_data (list[tuple]): Honesty score data for model evaluations.
+        _harmlessness_score_data (list[tuple]): Harmlessness score data for model evaluations.
+        _model_evaluation_scemantic_similarity_score_data (list[tuple]): Semantic similarity score data for model evaluations.
+        _evaluation_types (list[EvaluationType]): Types of evaluations.
+        _total_model_evaluations_count (int): Total count of model evaluations.
+        _coherence_score_data (list[tuple]): Coherence score data for datapoint evaluations.
+        _relevance_score_data (list[tuple]): Relevance score data for datapoint evaluations.
+        _datapoints_semantic_similarity_score_data (list[tuple]): Semantic similarity score data for datapoint evaluations.
+        _total_datapoint_evaluations_count (int): Total count of datapoint evaluations.
+        _fine_tuning_job_metrics (dict[str, Any]): Metrics from the fine-tuning job.
     """
 
     def __init__(self, service: ServiceManagerFacade, model_id: int):
@@ -55,21 +70,44 @@ class ModelMetricsEvaluator:
     def generate_datapoint_evaluations_statistic(self):
         self._service.calculate_datapoint_evaluation_scores(
             GetDataPointEvaluationsDTO(model_id=self._model.id))
-        # TODO: Implement to properly display return values as statistic
+        # TODO: Can be removed
 
     def generate_model_evalaution_statistic(self):
         self._service.calculate_model_evaluation_scores(
             GetDataPointEvaluationsDTO(model_id=self._model.id))
-        # TODO: Implement to properly display return values as statistic
+        # TODO: Can be removed
 
     def get_fine_tuning_job_metrics(self):
+        """
+        Retrieves the metrics from the fine-tuning job.
+
+        Returns:
+            dict[str, Any]: Fine-tuning job metrics.
+        """
+
         return self._fine_tuning_job_metrics
 
     def get_model(self):
+        """
+        Retrieves the model being evaluated.
+
+        Returns:
+            ComplexModelDTO: The model being evaluated.
+        """
         return self._model
 
     def lighten_color(self, rgba_color: str, amount: float = 0.3):
-        """Lightens the given RGBA color by a specified amount."""
+        """
+        Lightens the given RGBA color by a specified amount.
+
+        Args:
+            rgba_color (str): The original RGBA color.
+            amount (float): The amount to lighten the color.
+
+        Returns:
+            str: The lightened RGBA color.
+        """
+
         # Extract the RGBA components
         match = re.match(r'rgba\((\d+), (\d+), (\d+), ([\d\.]+)\)', rgba_color)
         if not match:
@@ -93,6 +131,10 @@ class ModelMetricsEvaluator:
         return f"rgba({int(r * 255)}, {int(g * 255)}, {int(b * 255)}, {a})"
 
     def create_model_evaluation_chart(self):
+        """
+        Creates and displays a combined evaluation chart for model evaluations.
+        """
+
         data = [
             self._helpfulness_score_data,
             self._honesty_score_data,
@@ -114,6 +156,10 @@ class ModelMetricsEvaluator:
             data, labels, colors, self._total_model_evaluations_count, chart_title)
 
     def create_datapoint_evaluation_chart(self):
+        """
+        Creates and displays a combined evaluation chart for datapoint evaluations.
+        """
+
         data = [
             self._coherence_score_data,
             self._relevance_score_data,
@@ -243,6 +289,10 @@ class ModelMetricsEvaluator:
         st.plotly_chart(fig, use_container_width=True)
 
     def create_fine_tuning_result_charts(self):
+        """
+        Creates and displays charts for fine-tuning job metrics.
+        """
+
         result_files_contents = self._fine_tuning_job_metrics["result_files_contents"]
 
         headers = ["step", "train_loss", "train_accuracy",
@@ -395,6 +445,10 @@ class ModelMetricsEvaluator:
         st.plotly_chart(fig, use_container_width=True)
 
     def create_confusion_matrix(self):
+        """
+        Creates and displays a confusion matrix based on the evaluation types.
+        """
+
         evaluation_types = self._evaluation_types
 
         # Extract ground_truth and predicted_label from evaluation_types as strings
@@ -454,6 +508,13 @@ class ModelMetricsEvaluator:
             st.markdown(f"Total: {total_count}")
 
     def calculate_metrics(self) -> dict:
+        """
+        Calculates various evaluation metrics for the model.
+
+        Returns:
+            dict: Dictionary containing calculated metrics.
+        """
+
         ground_truth_labels: list[str] = [
             eval['ground_truth'].value for eval in self._evaluation_types]
         predicted_labels: list[str] = [
@@ -502,10 +563,21 @@ class ModelMetricsEvaluator:
         }
 
     def display_metrics(self):
+        """
+        Calculates and displays the metrics and their analysis.
+        """
+
         metrics: dict[str, Any] = self.calculate_metrics()
         self.display_analysis(metrics)
 
     def display_analysis(self, metrics: dict[str, Any]) -> None:
+        """
+        Displays the analysis of metrics with interpretations.
+
+        Args:
+            metrics (dict[str, Any]): Dictionary containing calculated metrics.
+        """
+
         interpretations: dict[str, dict[str, str]] = {
             "precision": {
                 "description": "Precision measures how many of the predicted 'Truth' instances were correct.",
@@ -611,6 +683,13 @@ class ModelMetricsEvaluator:
 
     @classmethod
     def show_current_fine_tuning_event_progress(cls, events: list[object]):
+        """
+        Shows the current progress of fine-tuning events.
+
+        Args:
+            events (list[object]): List of fine-tuning events.
+        """
+
         # Filter out events with no data
         events_with_data = [event for event in events if event.model_extra.get(
             'data') and event.model_extra.get('data').get('step')]

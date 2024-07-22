@@ -23,7 +23,16 @@ class DataSampler:
 
     @classmethod
     def get_augmentation_count(cls, datapoints: list[DataPointDTO] | int, percentage: float) -> int:
-        """ Returns the total count of datapoints provided and datapoints that will be augmented from this original datapoints list."""
+        """Calculates the total count of datapoints and the number of datapoints to be augmented.
+
+        Args:
+            datapoints (list[DataPointDTO] | int): The original datapoints or the count of datapoints.
+            percentage (float): The percentage of datapoints to augment.
+
+        Returns:
+            tuple: A tuple containing the augmentation count and the total datapoints count.
+        """
+
         if isinstance(datapoints, int):
             total_datapoints = datapoints
         else:
@@ -35,7 +44,16 @@ class DataSampler:
 
     @classmethod
     def get_augmentation_distribution(cls, datapoints: list[DataPointDTO], percentage: float) -> list[int]:
-        """ Returns a list of lists, were each list consists of indices, correpsonding to datapoints in the passed datapoints list. The amount of indices correlates to the percentages given, so that the result can be used to augment the correct datapoints and correct amount of datapoints for each percentage."""
+        """Generates a list of indices for datapoints to be augmented based on the given percentage.
+
+        Args:
+            datapoints (list[DataPointDTO]): The original list of datapoints.
+            percentage (float): The percentage of datapoints to augment.
+
+        Returns:
+            list[int]: A list of indices corresponding to the datapoints to be augmented.
+        """
+
         augmentation_distribution: list[int] = []
 
         augmentation_count, total_datapoints = cls.get_augmentation_count(
@@ -56,4 +74,14 @@ class DataSampler:
 
     @classmethod
     def sample_datapoints(cls, datapoints: list[str], percentage: float) -> list[list[int]]:
+        """Samples datapoints based on the given percentage.
+
+        Args:
+            datapoints (list[str]): The original list of datapoints.
+            percentage (float): The percentage of datapoints to sample.
+
+        Returns:
+            list[list[int]]: A list of indices for the sampled datapoints.
+        """
+
         return cls.get_augmentation_distribution(datapoints, percentage)

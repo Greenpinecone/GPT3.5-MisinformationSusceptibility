@@ -12,7 +12,7 @@ Classes:
 from app.backend.service.classes.model.api.interfaces.i_fine_tuning_service import IFineTuningService
 
 
-class GoogleTranslateService(IFineTuningService):
+class GoogleTranslateService():  # Inherits from IFineTuningService
     """
     Service class for performing back-translations using the Google Translate API.
     Contributes to data augmentation by adding linguistic diversity to the datasets.

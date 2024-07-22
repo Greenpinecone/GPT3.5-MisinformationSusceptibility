@@ -181,17 +181,6 @@ class OpenAIService(IFineTuningService):
 
             progress_message = last_event.message
 
-        # TODO: Return other params + metrics file later for stats:
-            """  "train_loss": 0.478,
-    "train_mean_token_accuracy": 0.924,
-    "valid_loss": 10.112,
-    "valid_mean_token_accuracy": 0.145,
-    "full_valid_loss": 0.567,
-    "full_valid_mean_token_accuracy": 0.944"""
-
-        # response.seed, response.fine_tuned_model, response.trained_tokens
-        # response.result_files -> [] -> [0] -> metrics for the graph?
-
         # Return the current status if there is no progress information
         return current_training_progress, response.status, progress_message, response.hyperparameters, response.seed, response.fine_tuned_model
 
@@ -391,19 +380,6 @@ class OpenAIService(IFineTuningService):
         return count
 
     def generate_model_chat(self, chat: MessagesContainer, model_id: str) -> str:
-        """
-        This function takes a chat history and a model ID, finds the last empty assistant message,
-        gets a response for it from the OpenAI API, appends the response to the chat, and returns
-        the full chat history.
-
-        Parameters:
-            chat (list[dict]): The conversation chat history.
-            model_id (str): The custom model ID to be used for generating the response.
-            model_used_for_fine_tuning (str): The base model used for fine-tuning.
-
-        Returns:
-            str: The assistant's response.
-        """
         try:
             # Fetch available models
             available_models = self.get_available_models()

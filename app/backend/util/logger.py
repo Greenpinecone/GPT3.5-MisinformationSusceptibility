@@ -65,7 +65,18 @@ class Logger:
     def find_project_root(self, start_path: Path, root_marker: str) -> Path:
         """
         Traverse up from start_path to find the directory marked by a marker.
+
+        Args:
+            start_path (Path): The starting path to begin the search.
+            root_marker (str): The marker indicating the project root directory.
+
+        Returns:
+            Path: The path to the project root directory.
+
+        Raises:
+            FileNotFoundError: If the project root is not found starting from start_path.
         """
+
         for parent in start_path.parents:
             # Check if the parent directory or a marker file exists
             if (parent / root_marker).exists() or (parent.name == root_marker):
@@ -76,14 +87,27 @@ class Logger:
     def __getattr__(self, name):
         """
         Forward attribute access to the underlying logging.Logger object.
-        This allows direct use of logging methods on instances of this class.
+
+        Args:
+            name (str): The attribute name to access.
+
+        Returns:
+            Any: The attribute from the underlying logging.Logger object.
         """
         return getattr(self.logger, name)
 
 
 class StreamlitLogger(Logger):
     """
-    Extends Logger to add functionality for logging messages to the Streamlit UI.
+    Initialize the StreamlitLogger with a logger name and error container.
+
+    Args:
+        name (str): The name of the logger.
+        errors_container (st.container): The Streamlit container for displaying errors.
+        log_dir (str): The directory where log files are stored.
+        log_file (str): The name of the log file.
+        root_marker (str): The marker indicating the project root directory.
+        level (int): The logging level (default is logging.DEBUG).
     """
 
     def __init__(self, name: str, errors_container: st.container, log_dir: str = 'backend/logs', log_file: str = 'app.log', root_marker: str = "app", level: int = logging.DEBUG) -> None:
@@ -93,16 +117,39 @@ class StreamlitLogger(Logger):
 
     def __getattr__(self, name):
         """
-        This ensures that if an attribute is not found in StreamlitLogger,
-        it's looked up in the Logger class, which then forwards it to
-        the underlying logging.Logger object if not found.
+        Forward attribute access to the Logger class and then to the underlying logging.Logger object if not found.
+
+        Args:
+            name (str): The attribute name to access.
+
+        Returns:
+            Any: The attribute from the Logger class or the underlying logging.Logger object.
         """
         return super().__getattr__(name)
 
     def __enter__(self):
+        """
+        Enter the runtime context related to this object.
+
+        Returns:
+            StreamlitLogger: The StreamlitLogger instance itself.
+        """
+
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        """
+        Exit the runtime context related to this object.
+
+        Args:
+            exc_type (Type[BaseException]): The exception type.
+            exc_value (BaseException): The exception instance.
+            traceback (TracebackType): The traceback object.
+
+        Returns:
+            bool: True if the exception is handled, otherwise False.
+        """
+
         # We need to check if exc_type is an instance of Exception to avoid catching "non error" exception which are directly derived from the BaseException class like streamlits "RerunException" (or KeyboardInterrupt) to avoid issues with page reload / page reloads after navigating to another page, when using the context manager for error handling.
         if exc_type is not None and issubclass(exc_type, Exception):
             self.handle_exception(exc_type, exc_value)
@@ -113,6 +160,14 @@ class StreamlitLogger(Logger):
             return False
 
     def handle_exception(self, exc_type, exc_value):
+        """
+        Handle exceptions by logging them and displaying them in the Streamlit UI.
+
+        Args:
+            exc_type (Type[BaseException]): The exception type.
+            exc_value (BaseException): The exception instance.
+        """
+
         with self.errors_container:
             if issubclass(exc_type, NoResultFound):
                 self.ui_error(
@@ -132,6 +187,13 @@ class StreamlitLogger(Logger):
                 self.ui_error(f"An unexpected error occurred:\n{exc_value}")
 
     def handle_validation_error(self, e):
+        """
+        Handle validation errors by displaying them in the Streamlit UI.
+
+        Args:
+            e (CustomValidationError): The validation error instance.
+        """
+
         if hasattr(e, 'errors') and hasattr(e, 'operation_type'):
             # Handles dictionaries with lists, single values or None.
             error_messages = self._process_errors(e.errors)
