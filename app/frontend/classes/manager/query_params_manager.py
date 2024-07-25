@@ -10,6 +10,7 @@ Classes:
 import streamlit as st
 from typing import Any
 from dataclasses import is_dataclass, asdict
+from app.frontend.classes.manager.toast_manager import ToastManager
 from app.frontend.classes.manager.global_app_state_manager import GlobalAppStateManager
 from app.backend.util.config import PAGE_CONFIG
 
@@ -65,6 +66,8 @@ class QueryParamsManager:
             ValueError: If the page name is not found in PAGE_CONFIG or if required session keys or attributes are missing.
         """
 
+        missing_keys: list[str] = []
+
         # Ensure the page configuration exists for the given page name
         if not PAGE_CONFIG.get(page_name):
             raise ValueError(f"Page '{page_name}' not found in PAGE_CONFIG.")
@@ -86,24 +89,24 @@ class QueryParamsManager:
                 session_value = global_state[session_key]
                 attribute_value = cls.fetch_nested_attribute(
                     session_value, attributes)
-                if attribute_value is not None:
+                if attribute_value:
                     query_params[query_key] = attribute_value
                 else:
-                    raise ValueError(f"""Missing attribute '{
-                                     attributes}' in session state for key '{session_key}'""")
+                    # There should be a value but there is none
+                    missing_keys.append(query_key)
             else:
                 raise ValueError(
                     f"Session key '{session_key}' not found in global state")
 
-        # Set the query parameters using Streamlit's st.query_params.from_dict()
-        if query_params:
-            st.query_params.from_dict(query_params)
-
-        # Check for missing keys and raise an error if any
-        missing_keys = [
-            key for key in params.keys() if not query_params.get(key)]
+        # Check for empty keys and raise an error if any
         if missing_keys:
-            raise ValueError(f"Missing query parameters: {missing_keys}")
+            ToastManager.add_global_toasts(f"""Invalid session state has been detected, redirecting to home page and resetting invalid states. Invalid states: {
+                missing_keys}""", "error")
+            raise ValueError(f"""Invalid session state has been detected, redirecting to home page and resetting invalid states. Invalid states: {
+                             missing_keys}""")
+        else:
+            # Set the query parameters using Streamlit's st.query_params.from_dict()
+            st.query_params.from_dict(query_params)
 
     @staticmethod
     def fetch_nested_attribute(obj: Any, attrs: list[str]) -> Any:
@@ -121,7 +124,7 @@ class QueryParamsManager:
             ValueError: If an attribute or index is not found or is invalid.
         """
 
-        for attr in attrs:
+        for idx, attr in enumerate(attrs):
             if isinstance(obj, dict):
                 obj = obj.get(attr)
             elif isinstance(obj, list):
@@ -135,7 +138,7 @@ class QueryParamsManager:
                 obj = asdict(obj).get(attr)
             elif hasattr(obj, attr):
                 obj = getattr(obj, attr)
-            else:
+            elif idx == 0:
                 raise ValueError(f"""Attribute '{attr}' not found in object of type '{
                                  type(obj).__name__}'""")
         return obj

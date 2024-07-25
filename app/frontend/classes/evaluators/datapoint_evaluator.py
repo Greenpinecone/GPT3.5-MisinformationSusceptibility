@@ -70,7 +70,7 @@ class DataPointEvaluator:
                 paginated_evaluations_ids[0])
         if paginated_evaluations_ids[0] != self._current_datapoint_evaluation.id:
             # Check if update threshhold is met
-            if len(self._datapoint_evaluation_ids_to_update) >= 3:
+            if len(self._datapoint_evaluation_ids_to_update) >= 1:
                 self.update_evaluations()
             self.fetch_item(paginated_evaluations_ids[0])
 
