@@ -86,7 +86,7 @@ class GlobalAppStateManager:
                          ][global_keys["SERVICE_KEY"]] = new_service
 
     @classmethod
-    def get_current_project_data(cls, service: ServiceManagerFacade) -> ServiceManagerFacade:
+    def get_current_project_data(cls, service: ServiceManagerFacade, fetch_new: bool = False) -> ServiceManagerFacade:
         """
         Retrieves or initializes the current project data.
 
@@ -98,7 +98,7 @@ class GlobalAppStateManager:
         """
 
         cls._ensure_global_states()
-        if global_keys["CURRENT_PROJECT_DATA_KEY"] not in st.session_state[global_keys["GLOBAL_STATES_KEY"]]:
+        if global_keys["CURRENT_PROJECT_DATA_KEY"] not in st.session_state[global_keys["GLOBAL_STATES_KEY"]] or fetch_new:
             current_project_data: CurrentProjectDataDTO = service.get_or_create_current_project_data()[
                 0]
             st.session_state[global_keys["GLOBAL_STATES_KEY"]
@@ -219,4 +219,4 @@ class GlobalAppStateManager:
             current_project_data = cls.update_current_project_data(
                 service, UpdateCurrentProjectDataDTO(id=current_project_data.id, current_page=current_page))
 
-        return current_project_data
+        return current_project_data, current_project_data.current_page

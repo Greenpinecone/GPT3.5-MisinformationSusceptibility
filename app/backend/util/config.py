@@ -380,9 +380,7 @@ GLOBAL_SESSION_STATE_KEYS = {
 PAGE_CONFIG = {
     'home': {
         'path': 'main.py',
-        'query_params': {
-            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_DATA_KEY'], ['current_project', 'id']],
-        }
+        'query_params': {}
     },
     'create_project': {
         'path': 'pages/1_create_project.py',
@@ -417,7 +415,8 @@ PAGE_CONFIG = {
     'match_datapoint': {
         'path': 'pages/6_match_datapoint.py',
         'query_params': {
-            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_DATA_KEY'], ['current_project', 'id']]
+            'projectId': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_DATA_KEY'], ['current_project', 'id']],
+            'current_dataset': [GLOBAL_SESSION_STATE_KEYS['CURRENT_PROJECT_DATA_KEY'], ['currently_modified_dataset', 'id']]
         }
     },
     'model_overview': {

@@ -433,8 +433,8 @@ class ServiceManagerFacade(IServiceManager):
             model: Model = self._data_manager.get_model_by_id(
                 session, model_id)[0]
 
-            # Set augmentation configurations
-            model.augmentation_configurations = augmentation_configurations
+            # # Set augmentation configurations
+            # model.augmentation_configurations = augmentation_configurations
 
             if semantic_similarity_model:
                 # Add semantic similarity model
