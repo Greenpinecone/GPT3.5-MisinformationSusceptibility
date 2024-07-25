@@ -25,10 +25,13 @@ current_page = "home"
 
 with logger:
     service: ServiceManagerFacade = GlobalAppStateManager.get_service()
-    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+    current_project_data, _ = GlobalAppStateManager.initialize_current_project_state(
         service, current_page)
+    if current_project_data.current_project:
+        current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.update_current_project_data(
+            service, UpdateCurrentProjectDataDTO(id=current_project_data.id, current_project_id=None))
     ToastManager.show_global_toasts()
-    QueryParamsManager.clear_query_params()
+    QueryParamsManager.set_query_params_from_page(current_page)
 
     def load_page():
 

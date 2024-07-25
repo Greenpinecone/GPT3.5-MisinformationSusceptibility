@@ -19,7 +19,7 @@ current_page = "create_project"
 
 with logger:
     service: ServiceManagerFacade = GlobalAppStateManager.get_service()
-    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+    current_project_data, prev_page = GlobalAppStateManager.initialize_current_project_state(
         service, current_page)
     ToastManager.show_global_toasts()
     PageNavigator.set_navbar(

@@ -25,9 +25,14 @@ current_page = "model_overview"
 with logger:
 
     service: ServiceManagerFacade = GlobalAppStateManager.get_service()
-    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+    current_project_data, prev_page = GlobalAppStateManager.initialize_current_project_state(
         service, current_page)
-    QueryParamsManager.set_query_params_from_page(current_page)
+    try:
+        QueryParamsManager.set_query_params_from_page(current_page)
+    except ValueError:
+        GlobalAppStateManager.update_current_project_data(service, new_current_project_data=UpdateCurrentProjectDataDTO(
+            id=current_project_data.id, current_project_id=None))
+        PageNavigator.navigate_to_page("home")
     ToastManager.show_global_toasts()
     # Reset the selected statistic models on page change
     PageNavigator.set_navbar(

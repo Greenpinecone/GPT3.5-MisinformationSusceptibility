@@ -42,13 +42,17 @@ with logger:
 
     ToastManager.show_global_toasts()
     service: ServiceManagerFacade = GlobalAppStateManager.get_service()
-    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
+    current_project_data, prev_page = GlobalAppStateManager.initialize_current_project_state(
         service, current_page)
+    try:
+        QueryParamsManager.set_query_params_from_page(current_page)
+    except ValueError:
+        GlobalAppStateManager.update_current_project_data(service, new_current_project_data=UpdateCurrentProjectDataDTO(
+            id=current_project_data.id, current_project_id=None, currently_modified_dataset_id=None))
+        PageNavigator.navigate_to_page("home")
     GlobalAppStateManager.update_current_project_data(service,
                                                       UpdateCurrentProjectDataDTO(id=current_project_data.id, unfinished_progress=True))
     current_dataset: ComplexDatasetDTO = current_project_data.currently_modified_dataset
-    QueryParamsManager.set_query_params_from_page(
-        current_page)
     datapoint_matcher: DataPointMatcher = GlobalAppStateManager.get_or_create_session_state(
         "datapoint_matcher", current_dataset.datapoints, current_dataset.test_dataset.datapoints, default_value=DataPointMatcher
     )

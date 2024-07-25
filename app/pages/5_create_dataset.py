@@ -132,14 +132,18 @@ def load_dataset_input_form():
 with logger:
 
     ToastManager.show_global_toasts()
+    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
+    current_project_data, prev_page = GlobalAppStateManager.initialize_current_project_state(
+        service, current_page)
+    try:
+        QueryParamsManager.set_query_params_from_page(current_page)
+    except ValueError:
+        GlobalAppStateManager.update_current_project_data(service, new_current_project_data=UpdateCurrentProjectDataDTO(
+            id=current_project_data.id, current_project_id=None))
+        PageNavigator.navigate_to_page("home")
     PageNavigator.set_navbar(
         "Go back", "create_model", "Return to the previous page")
-    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
-    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
-        service, current_page)
     current_project: ProjectDTO = current_project_data.current_project
-    QueryParamsManager.set_query_params_from_page(
-        current_page)
 
     # Initialize DatasetEditor for training and test datasets with corresponding paginator
     trainings_dataset_paginator = GlobalAppStateManager.get_or_create_session_state(

@@ -1,4 +1,5 @@
 import streamlit as st
+from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from app.frontend.classes.manager.toast_manager import ToastManager
 from app.backend.util.logger import StreamlitLogger
@@ -31,13 +32,18 @@ def all_fields_set(model_name: str, selected_training_dataset: DatasetDTO) -> bo
 with logger:
 
     ToastManager.show_global_toasts()
+    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
+    current_project_data, prev_page = GlobalAppStateManager.initialize_current_project_state(
+        service, current_page)
+    try:
+        QueryParamsManager.set_query_params_from_page(current_page)
+    except ValueError:
+        GlobalAppStateManager.update_current_project_data(service, new_current_project_data=UpdateCurrentProjectDataDTO(
+            id=current_project_data.id, current_project_id=None))
+        PageNavigator.navigate_to_page("home")
     PageNavigator.set_navbar(
         "Go back", "fine_tune_model", "Return to the previous page")
-    service: ServiceManagerFacade = GlobalAppStateManager.get_service()
-    current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.initialize_current_project_state(
-        service, current_page)
     current_project: ProjectDTO = current_project_data.current_project
-    QueryParamsManager.set_query_params_from_page(current_page)
 
     def load_page():
 
