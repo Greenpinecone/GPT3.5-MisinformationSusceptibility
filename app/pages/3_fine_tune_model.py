@@ -35,6 +35,7 @@ with logger:
     service: ServiceManagerFacade = GlobalAppStateManager.get_service()
     current_project_data, prev_page = GlobalAppStateManager.initialize_current_project_state(
         service, current_page)
+
     # If any of the query params necessary values is missing, reset them and navigate home
     # TODO: This should be improved
     try:
@@ -184,25 +185,27 @@ with logger:
     # If a new model is selected, there must be certain state updates (all previous session states cleared, current_project_data updated, init values newly set)
     def initialize_states_for_selected_model(selected_model: ModelDTO, current_project_data: CurrentProjectDataDTO) -> ComplexModelDTO:
         # Update selected model in current app state if it has changed
-        if getattr(selected_model, "id", None) != getattr(current_project_data.selected_model_for_fine_tuning, "id", None):
-            if selected_model:
-                current_project_data = GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
-                    id=current_project_data.id, selected_model_for_fine_tuning_id=selected_model.id))
-            else:
-                current_project_data = GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
-                    id=current_project_data.id, selected_model_for_fine_tuning_id=None))
+        # THIS IF STATMENT IS NEVER EXECUTED SICNCE THE NEW MODEL IS SET IN THE WIDGETS "ON CHANGE" FUNCTION BEFORE RELOAD AND EXECUTION OF THIS CODE
+        # if getattr(selected_model, "id", None) != getattr(current_project_data.selected_model_for_fine_tuning, "id", None):
+        #     if selected_model:
+        #         current_project_data = GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
+        #             id=current_project_data.id, selected_model_for_fine_tuning_id=selected_model.id))
+        #     else:
+        #         current_project_data = GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(
+        #             id=current_project_data.id, selected_model_for_fine_tuning_id=None))
 
-            # Reset current session states used on this page
-            GlobalAppStateManager.clear_session_state()
+        # # Reset current session states used on this page
+        # GlobalAppStateManager.clear_session_state()
 
-            # Reset the initial fine tuning values if the model has changed
-            st.session_state.init_values_set = False
+        # # Reset the initial fine tuning values if the model has changed
+        # st.session_state.init_values_set = False
 
-        selected_model: ComplexModelDTO = current_project_data.selected_model_for_fine_tuning
+        # selected_model: ComplexModelDTO = current_project_data.selected_model_for_fine_tuning
 
-        return selected_model
+        # return selected_model
+        pass
 
-    # Set the fine tuning params for the current fine tuning run based on if a new model has been selected or a model is currently trained with unfinished_progress
+        # Set the fine tuning params for the current fine tuning run based on if a new model has been selected or a model is currently trained with unfinished_progress
     def set_current_fine_tuning_parameters(current_project_data: CurrentProjectDataDTO) -> list[TrainingRunDTO]:
         # The selected model is reset to the complex version to allow access to the training run etc.
         selected_model: ComplexModelDTO = current_project_data.selected_model_for_fine_tuning
@@ -233,9 +236,9 @@ with logger:
                 training_run_dtos = service.filter_simple_training_runs(
                     GetTrainingRunsDTO(fine_tuning_model=current_training_run.fine_tuning_model, project_id=current_project_data.current_project.id))
 
-                # Find the first matching training run with the same seed
-                st.session_state.simple_training_run_dto = find_training_run_dto_with_current_seed(
-                    training_run_dtos, current_project_data.current_fine_tuning_model)
+                # Find the first matching training run with the same id -> must be a SimpleTrainingRunDTO
+                st.session_state.simple_training_run_dto = next(
+                    (training_run for training_run in training_run_dtos if training_run.id == current_training_run.id), None)
 
             # Check if a model has been selected ans set its fine tuning params if the model has been fine tuned already once- no active fine tuning run
             elif selected_model:
@@ -257,9 +260,9 @@ with logger:
                     training_run_dtos = service.filter_simple_training_runs(
                         GetTrainingRunsDTO(fine_tuning_model=selected_model.training_run.fine_tuning_model, project_id=current_project_data.current_project.id))
 
-                    # Find the first matching training run with the same seed
-                    st.session_state.simple_training_run_dto = find_training_run_dto_with_current_seed(
-                        training_run_dtos, selected_model)
+                    # Find the first matching training run with the same id -> must be a SimpleTrainingRunDTO
+                    st.session_state.simple_training_run_dto = next(
+                        (training_run for training_run in training_run_dtos if training_run.id == selected_model.training_run.id), None)
 
                 else:
                     # Set base values if the selected model has not been fine tuned yet (version 0)
@@ -490,30 +493,51 @@ with logger:
 
             # Set the currently selected model if selected and if the user is in the middle of an unfinished fine tuning progress
             if current_project_data.unfinished_progress and current_project_data.selected_model_for_fine_tuning:
-                # Must use this since index must be None to be able to delete the currently selected model
-                st.session_state.model_selector = next(
-                    (model for model in models if model.id == current_project_data.selected_model_for_fine_tuning.id), None)
+                if 'model_selector' not in st.session_state or ('model_selector' in st.session_state and st.session_state.model_selector and st.session_state.model_selector.id == current_project_data.selected_model_for_fine_tuning.id):
+                    # Must use this since index must be None to be able to delete the currently selected model
+                    st.session_state.model_selector = next(
+                        (model for model in models if model.id == current_project_data.selected_model_for_fine_tuning.id), None)
 
             # Current projects states are reset depending on if a model is selected or not
             selected_model: ModelDTO = st.selectbox("Select one of the existing models assigned to this project",
-                                                    key="model_selector", options=models, index=None, placeholder="Choose a base model to train" if models else "No options available", label_visibility="hidden" if models else "visible", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["MODELDTO_SIMPLE"]), disabled=current_project_data.fine_tuning_step_counter != 0, on_change=lambda: GlobalAppStateManager.update_current_project_data(
-                                                        service, UpdateCurrentProjectDataDTO(
-                                                            id=current_project_data.id, selected_model_for_fine_tuning_id=st.session_state["model_selector"].id)) if "model_selector" in st.session_state and st.session_state.model_selector is not None else GlobalAppStateManager.update_current_project_data(
-                                                        service, UpdateCurrentProjectDataDTO(
-                                                            id=current_project_data.id, save_checkpoint_models=False, unfinished_progress=False, current_augmentation_configurations=[], semantic_similarity_model=None)))
+                                                    key="model_selector", options=models, index=None, placeholder="Choose a base model to train" if models else "No options available", label_visibility="hidden" if models else "visible", format_func=lambda dto: frontend_uf.display_dto(dto, formattings["MODELDTO_SIMPLE"]), disabled=current_project_data.fine_tuning_step_counter != 0)
+
+            # on_change=lambda: GlobalAppStateManager.update_current_project_data(
+            #                                             service, UpdateCurrentProjectDataDTO(
+            #                                                 id=current_project_data.id, selected_model_for_fine_tuning_id=st.session_state["model_selector"].id, unfinished_progress=True)) if "model_selector" in st.session_state and st.session_state.model_selector is not None else GlobalAppStateManager.update_current_project_data(
+            #                                             service, UpdateCurrentProjectDataDTO(
+            #                                                 id=current_project_data.id, save_checkpoint_models=False, unfinished_progress=False, current_augmentation_configurations=[], semantic_similarity_model=None, selected_model_for_fine_tuning_id=None))
+
+            if selected_model and current_project_data.selected_model_for_fine_tuning:
+                if selected_model.id != current_project_data.selected_model_for_fine_tuning.id:
+                    current_project_data = GlobalAppStateManager.update_current_project_data(
+                        service, UpdateCurrentProjectDataDTO(
+                            id=current_project_data.id, selected_model_for_fine_tuning_id=selected_model.id))
+                    # Reset current session states used on this page
+                    GlobalAppStateManager.clear_session_state()
+            elif selected_model:
+                current_project_data = GlobalAppStateManager.update_current_project_data(
+                    service, UpdateCurrentProjectDataDTO(
+                        id=current_project_data.id, selected_model_for_fine_tuning_id=selected_model.id))
+                # Reset current session states used on this page
+                GlobalAppStateManager.clear_session_state()
+
+            else:
+                current_project_data = GlobalAppStateManager.update_current_project_data(
+                    service, UpdateCurrentProjectDataDTO(
+                        id=current_project_data.id, save_checkpoint_models=False, unfinished_progress=False, current_augmentation_configurations=[], semantic_similarity_model=None, selected_model_for_fine_tuning_id=None))
 
             frontend_uf.create_text_divider("or")
+
+            if "create_model_button" in st.session_state and st.session_state["create_model_button"]:
+                GlobalAppStateManager.clear_session_state()
+                PageNavigator.navigate_to_page('create_model')
 
             create_model_button = st.button(
                 "Create Model +", type="primary", key="create_model_button", disabled=selected_model != None)
 
-            if create_model_button:
-                GlobalAppStateManager.clear_session_state()
-                PageNavigator.navigate_to_page('create_model')
-
-            # Set states for newly selected model
-            selected_model: ComplexModelDTO = initialize_states_for_selected_model(
-                selected_model, current_project_data)
+            # Set the selected model to a ComplexModelDTO
+            selected_model = current_project_data.selected_model_for_fine_tuning
 
             if selected_model:
 
@@ -845,13 +869,13 @@ with logger:
                                     with data_augmentation_cols[0]:
                                         st.number_input(
                                             label=f"Amount of augmented data in %",
-                                            min_value=0.1, max_value=1000.0, step=0.1,
+                                            min_value=0.1, max_value=10000.0, step=0.1,
                                             value=None,
                                             key=amount_key,
                                             on_change=update_augmentation_percentage,
                                             args=(augmentation_config,
                                                   amount_key),
-                                            help="Select the percentage of data you want to be augmented (0-1000)",
+                                            help="Select the percentage of data you want to be augmented (0-10000)",
                                             placeholder="no augmentation",
                                             disabled=current_project_data.fine_tuning_step_counter != 2
                                         )
@@ -1079,18 +1103,29 @@ with logger:
     except Exception as e:
         current_project_data: CurrentProjectDataDTO = GlobalAppStateManager.get_current_project_data(
             service, fetch_new=True)
+        if st.session_state.get("fine_tuning_monitor"):
+            del st.session_state["fine_tuning_monitor"]
+        if st.session_state.get("fine_tuning_stats"):
+            del st.session_state["fine_tuning_stats"]
+        if st.session_state.get("model_evaluator"):
+            del st.session_state["model_evaluator"]
         # Delete all data from the current fine tuning run if it has been started already
-        if current_project_data.current_fine_tuning_model.fine_tuning_job_id:
-            service.cancel_fine_tuning_run(
-                current_project_data.current_fine_tuning_model.fine_tuning_job_id)
+        if current_project_data.current_fine_tuning_model:
+            delete_currently_augmented_datasets()
+
+            if current_project_data.current_fine_tuning_model.fine_tuning_job_id:
+                service.cancel_fine_tuning_run(
+                    current_project_data.current_fine_tuning_model.fine_tuning_job_id)
         # Delete all existsing models -> Checkpoint models should either way always be deleted in case of error due to separate error handling! TODO: Improvde all of this error handling.
-        service.delete_models(
-            [current_project_data.current_fine_tuning_model.id + current_project_data.generated_checkpoint_model_ids])
+        if current_project_data.current_fine_tuning_model:
+            service.delete_models(
+                [current_project_data.current_fine_tuning_model.id] + current_project_data.generated_checkpoint_model_ids)
+
         update_current_project_data = UpdateCurrentProjectDataDTO(
-            id=current_project_data.id, fine_tuning_step_counter=0, unfinished_progress=False, current_fine_tuning_model_id=None, current_augmentation_configurations=None, semantic_similarity_model=None, save_checkpoint_models=False, current_augmented_datapoint_evaluation_ids=[])
+            id=current_project_data.id, fine_tuning_step_counter=0, unfinished_progress=False, current_fine_tuning_model_id=None, current_augmentation_configurations=None, semantic_similarity_model=None, save_checkpoint_models=False, current_augmented_datapoint_evaluation_ids=[], selected_model_for_fine_tuning_id=None)
         GlobalAppStateManager.update_current_project_data(
             service, update_current_project_data)
         GlobalAppStateManager.clear_session_state()
         ToastManager.add_global_toasts(
-            "There has been an unexpected corruption of the current global state. Please try again to fine tune a model. If this error keeps occuring, please check the respective provider for server problems or open an issue on Github.")
+            f"There has been an unexpected corruption of the current global state. Please try again to fine tune a model. If this error keeps occuring, please check the respective provider for server problems or open an issue on Github. Error: {e}", "error")
         st.rerun()
