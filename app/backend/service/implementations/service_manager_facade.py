@@ -597,7 +597,7 @@ class ServiceManagerFacade(IServiceManager):
                 if evaluation.relevance_score is not None:
                     relevance_scores.append(evaluation.relevance_score)
                     relevance_count += 1
-                if evaluation.semantic_similarity_score is not None:
+                if evaluation.semantic_similarity_score != 0.0:
                     semantic_similarity_scores.append(
                         evaluation.semantic_similarity_score)
                     semantic_similarity_count += 1
