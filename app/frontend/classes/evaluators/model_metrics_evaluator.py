@@ -276,8 +276,21 @@ class ModelMetricsEvaluator:
                          range=[0, 10], row=1, col=1)
         fig.update_yaxes(title_text="Percentage (%)",
                          range=[0, 100], row=1, col=2)
-        fig.update_yaxes(
-            title_text=f"Count (0-{total_count})", range=[0, total_count], row=1, col=3)
+
+        # If the amount of evaluations is too small, like 1, it should display as 0-1 and not 0, 0.2, 0.4 ...
+        if total_count <= 6:
+            fig.update_yaxes(
+                title_text=f"Count (0-{total_count})", range=[0, total_count], tickmode='linear',
+                dtick=1, row=1, col=3)
+        else:
+            fig.update_yaxes(
+                title_text=f"Count (0-{total_count})",
+                range=[0, total_count],
+                tickmode='auto',  # Automatically adjusts tick intervals
+                tickformat=',',   # Formats large numbers with commas
+                row=1,
+                col=3
+            )
 
         # Update annotations (titles) to have custom colors
         annotations = fig['layout']['annotations']
@@ -307,7 +320,7 @@ class ModelMetricsEvaluator:
             }
 
             # Check if result_files_contents is empty
-            if not result_files_contents:
+            if not result_files_contents or not result_files_contents.get('data'):
                 # Create an empty figure with labels and legends
                 fig = make_subplots(
                     rows=1, cols=1,
