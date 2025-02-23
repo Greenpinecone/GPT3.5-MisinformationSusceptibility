@@ -331,7 +331,7 @@ class DataFrameWidgetProvider:
             ["Original Test DataPoint", "Related Training Datapoints", "All Training Datapoints"])
         with tabs[0]:
             st.markdown(
-                f"###### *Ground label: {test_datapoint.evaluation_type.value}*")
+                f"###### *Ground label: {getattr(test_datapoint.evaluation_type, 'value', 'N/A')}*")
             cls.create_simple_dataframe(test_datapoint)
 
         with tabs[1]:
@@ -423,16 +423,17 @@ class DataFrameWidgetProvider:
         st.experimental_fragment
 
         def evaluation_fragment():
-            st.selectbox(label="Evaluation Types", options=enum_evaluation_types, index=None, help="""
-                        
-            Truth (T): The model answered as expected from the original test datapoint.
+            if getattr(test_datapoint.evaluation_type, 'value', None):
+                st.selectbox(label="Evaluation Types", options=enum_evaluation_types, index=None, help="""
+                            
+                Truth (T): The model answered as expected from the original test datapoint.
 
-            Falsehood (F): The model answered with an unexpected output.
-            
-            INFO: False Negative: F, F - True Positive: T, T
+                Falsehood (F): The model answered with an unexpected output.
+                
+                INFO: False Negative: F, F - True Positive: T, T
 
-            """, format_func=lambda enum: enum.value,
-                         on_change=update_eval, args=(complex_model_evaluation_dto, updated_evalautions, "evaluation_type", "evaluation_type"), key="evaluation_type", label_visibility="visible", disabled=current_step_counter != activation_threshold)
+                """, format_func=lambda enum: enum.value,
+                             on_change=update_eval, args=(complex_model_evaluation_dto, updated_evalautions, "evaluation_type", "evaluation_type"), key="evaluation_type", label_visibility="visible", disabled=current_step_counter != activation_threshold)
 
             st.slider(label="Helpfulness score", min_value=0, max_value=10, step=1, value=complex_model_evaluation_dto.helpful_score or 0, help="This slider allows you to evaluate how useful and relevant the model's responses are to the given prompts. A higher helpfulness score (ranging from 1 to 10) indicates that the model's output is more informative, actionable, and aligns well with the user's intent. Setting the slider to 0 means that helpfulness is not included in the evaluation.",
                       on_change=update_eval, args=(complex_model_evaluation_dto, updated_evalautions, "helpful_score", "helpful_score"), key="helpful_score", label_visibility="visible", disabled=current_step_counter != activation_threshold)
@@ -464,6 +465,8 @@ class DataFrameWidgetProvider:
         # Add the "add to statistics" field manually since it will not be displyaed without being present in the dict
         for model_dict in model_dicts:
             model_dict['select_for_statistics'] = model_dict['id'] in selected_models
+            model_dict['created_at'] = model_dict['created_at'].strftime(
+                '%Y-%m-%d %H:%M:%S %Z')
 
         # Define column configuration
         column_config = {
