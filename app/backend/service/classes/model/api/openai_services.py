@@ -308,7 +308,8 @@ class OpenAIService(IFineTuningService):
         # Delete checkpoint models if exist
         checkpoints = self.get_checkpoints(fine_tuning_job_id)
         for checkpoint in checkpoints:
-            self.delete_fine_tuned_model(checkpoint['id'])
+            self.delete_fine_tuned_model(
+                checkpoint['fine_tuned_model_checkpoint'])
 
     def delete_file(self, file_id: str):
         try:
