@@ -9,6 +9,9 @@ __pycache__/
 # Google auth key
 google_auth_key/*.json
 
+# SQLite database files
+*.db
+
 # Distribution / packaging
 .Python
 env/
