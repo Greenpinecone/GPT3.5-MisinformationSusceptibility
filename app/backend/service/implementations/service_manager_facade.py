@@ -494,13 +494,15 @@ class ServiceManagerFacade(IServiceManager):
             augmented_datapoints: list[DataPoint] = self._data_manager.create_datapoints(
                 session, augmented_datapoint_dtos)
 
-            # Get the first test dataset since all datasets of the model have the same test dataset
-            first_test_datapoints: list[DataPoint] = first_training_dataset.test_dataset.datapoints
+            # Check if test dataset exists
+            if first_training_dataset.test_dataset:
+                # Get the first test dataset since all datasets of the model have the same test dataset
+                first_test_datapoints: list[DataPoint] = first_training_dataset.test_dataset.datapoints
 
-            # Add the new augmented training datapoints to the test datapoints that are related to the original training datapoints from which the datapoints are augmented from.
-            # TODO: Check if this correctly adds the new augmented training datapoint to the test datpoint relations
-            self._add_test_datapoints_to_augmented_datapoint_relations(
-                first_test_datapoints, augmented_datapoints, session)
+                # Add the new augmented training datapoints to the test datapoints that are related to the original training datapoints from which the datapoints are augmented from.
+                # TODO: Check if this correctly adds the new augmented training datapoint to the test datpoint relations
+                self._add_test_datapoints_to_augmented_datapoint_relations(
+                    first_test_datapoints, augmented_datapoints, session)
 
             # Set the datapoint ids for the datapoint evaluations
             for datapoint, datapoint_evaluation in zip(augmented_datapoints, datapoint_evaluation_dtos):
