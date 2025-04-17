@@ -1018,6 +1018,20 @@ with logger:
                     current_models_test_datapoint_ids: list[int] = service.get_all_test_datapoints(
                         current_project_data.current_fine_tuning_model.id, only_ids=True)
 
+                    # If no test dataset exists (none has been uploaded for the used dataset), there is no need for a model evaluation, since the API completions are based on the test dataset questions. Therefor we directly return to the model selection.
+                    if not current_models_test_datapoint_ids:
+                        # reset al fine tuning session states and add the statistic models if the user switches directly to statistics page
+                        GlobalAppStateManager.update_current_project_data(service, UpdateCurrentProjectDataDTO(id=current_project_data.id, semantic_similarity_model=None, current_augmentation_configurations=[
+                        ], current_augmented_datapoint_evaluation_ids=[], unfinished_progress=False, save_checkpoint_models=False, fine_tuning_step_counter=0, current_fine_tuning_model_id=None, selected_model_for_fine_tuning_id=None, generated_checkpoint_model_ids=[]))
+
+                        GlobalAppStateManager.clear_session_state()
+
+                        toast_message = f"A new fine tuning base model has been added to the model list, check it out!"
+                        ToastManager.add_global_toasts(
+                            toast_message, "success")
+
+                        st.rerun()
+
                     @st.experimental_fragment
                     def model_evaluation_fragment():
 
