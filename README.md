@@ -71,7 +71,7 @@ The application is fully equipped with an intuitive user interface, a robust loc
 
    ```bash
     # Start the Streamlit app
-    streamlit run app/main.py
+    PYTHONPATH=. streamlit run app/main.py
     
     # Run all tests
     pytest -v -s app/backend/tests
