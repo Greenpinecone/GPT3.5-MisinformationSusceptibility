@@ -5,6 +5,7 @@ of the project, calling functions from other modules and handling the overall pr
 
 
 import streamlit as st
+from dotenv import load_dotenv
 from app.backend.dtos.update_request import UpdateCurrentProjectDataDTO
 from app.backend.service.implementations.service_manager_facade import ServiceManagerFacade
 from app.frontend.classes.manager.toast_manager import ToastManager
@@ -17,6 +18,7 @@ from app.frontend.classes.manager.global_app_state_manager import GlobalAppState
 from app.frontend.classes.manager.query_params_manager import QueryParamsManager
 from app.frontend.classes.page_navigator import PageNavigator
 
+load_dotenv()
 st.set_page_config(layout="centered")
 apply_global_style()
 errors_container = st.container()
