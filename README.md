@@ -87,11 +87,12 @@ The application is fully equipped with an intuitive user interface, a robust loc
 
 To successfully run the application inside a docker container, you must include a specific .env file and your Google Cloud credentials as previously. You can do this by proceeding with the following two steps:
 
-1. Create a my_env.txt file as previously shown and place it on your Desktop (or anywhere else, but the following command path is only for the Desktop) together with the Google Cloud Service Account key.json.
+1. Create a `my_env.txt` file as previously shown and place it on your Desktop (or anywhere else, but the following command path is only for the Desktop) together with the Google Cloud Service Account key named `google_auth_key.json`.
 
 2. Build the docker image:
 
    ```bash
+   # Run from the working dr
    docker build -t gpt-3.5-misinformation-image .
    ```
    
@@ -100,19 +101,31 @@ To successfully run the application inside a docker container, you must include 
    #### MacOS/Linux
 
    ```bash
+   # Run from the Desktop
    docker run --name gpt-3.5-misinformation-container --env-file my_env.txt \
    -v $(pwd)/google_auth_key.json:/app/google_auth_key/gpt_streamlit_misinformation_auth_key.json \
    -p 8501:8501 \
    gpt-3.5-misinformation-image
    ```
 
-   #### Windows
+   #### Windows (Not tested)
 
    ```powershell
+   # Run from the Desktop
    docker run --name gpt-3.5-misinformation-container --env-file my_env.txt `
    -v ${PWD}\google_auth_key.json:\app\google_auth_key\gpt_streamlit_misinformation_auth_key.json `
    -p 8501:8501 `
    gpt-3.5-misinformation-image
+   ```
+
+5. Reuse the existing mounted docker container (or save your existing SQLITE database before deleting the container located in `app/backend/database/streamlit_app.db`):
+
+   ```bash
+   # Stop Docker container (existing mounts will persist)
+   docker stop gpt-3.5-misinformation-container
+
+   # Rerun Docker container
+   docker start -a gpt-3.5-misinformation-container
    ```
 
    ---
